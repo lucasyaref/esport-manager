@@ -1,0 +1,48 @@
+{
+  "phases": {
+    "mid_start_min": 14,
+    "late_start_min": 22
+  },
+  "curves": {
+    "early": { "early": 1.10, "mid": 1.0, "late": 0.92 },
+    "balanced": { "early": 1.0, "mid": 1.0, "late": 1.0 },
+    "late": { "early": 0.92, "mid": 1.0, "late": 1.12 }
+  },
+  "synergies": [
+    {
+      "tags": ["engage", "scaling"],
+      "bonus": 0.03,
+      "note": "Frontline engage makes space for scalers to deal damage."
+    },
+    {
+      "tags": ["protect", "scaling"],
+      "bonus": 0.04,
+      "note": "Peel keeps the hypercarry alive — the classic protect comp."
+    },
+    {
+      "tags": ["poke", "early"],
+      "bonus": 0.03,
+      "note": "Early pressure plus poke snowballs objectives before opponents scale."
+    }
+  ],
+  "counters": [
+    {
+      "strong": "engage",
+      "weak": "poke",
+      "bonus": 0.04,
+      "note": "Hard engage closes the gap before poke pays off."
+    },
+    {
+      "strong": "poke",
+      "weak": "protect",
+      "bonus": 0.03,
+      "note": "Poke chips passive protect comps down without committing to a fight."
+    },
+    {
+      "strong": "early",
+      "weak": "scaling",
+      "bonus": 0.05,
+      "note": "Early-game comps punish scaling comps before they come online."
+    }
+  ]
+}

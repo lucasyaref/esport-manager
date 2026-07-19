@@ -1,0 +1,32 @@
+{
+  "teams": [
+    {
+      "id": "azure_wolves",
+      "name": "Azure Wolves",
+      "tag": "AZW",
+      "color": "#2e6fd8",
+      "identity": "Disciplined macro machine. Wins with rotations, objectives and scaling; lower raw firepower.",
+      "roster": {
+        "top": "azw_top",
+        "jungle": "azw_jgl",
+        "mid": "azw_mid",
+        "carry": "azw_adc",
+        "support": "azw_sup"
+      }
+    },
+    {
+      "id": "crimson_ravens",
+      "name": "Crimson Ravens",
+      "tag": "CRV",
+      "color": "#c8322e",
+      "identity": "Mechanical aggression. Best players in a straight fight, loose game plan, low coach compliance.",
+      "roster": {
+        "top": "crv_top",
+        "jungle": "crv_jgl",
+        "mid": "crv_mid",
+        "carry": "crv_adc",
+        "support": "crv_sup"
+      }
+    }
+  ]
+}

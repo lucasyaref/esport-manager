@@ -5,7 +5,7 @@ Claude Code: work top-down, one milestone at a time. Keep statuses updated (todo
 ## M0 — Project skeleton — done
 Godot 4 project, folder structure (`sim/`, `game/`, `data/`, `tools/`, `REPORTS/`), git init, headless run script, seeded RNG utility, tick loop stub proving determinism (same seed ⇒ same event log). CI-style check script the designer can ignore.
 
-## M1 — Data model + content v1 — todo
+## M1 — Data model + content v1 — done
 Character schema + 15 characters (3/role) in data files. Player schema + 10 players, 2 teams. Loader + validation. Short data report (stat spreads per role).
 
 ## M2 — Sim core: map, minions, laning — todo

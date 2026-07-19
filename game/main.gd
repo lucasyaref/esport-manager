@@ -9,7 +9,19 @@ const SELF_TEST_TICKS := 600
 
 func _ready() -> void:
 	var output := _build_ui()
-	output.text = _run_self_test()
+	output.text = _data_status() + "\n\n" + _run_self_test()
+
+
+func _data_status() -> String:
+	var data := DataLoader.load_all()
+	if data.errors.is_empty():
+		return "[b]Game data[/b]: %d characters, %d players, %d teams — [color=green][b]VALID[/b][/color]" % [
+			data.characters.size(), data.players.size(), data.teams.size(),
+		]
+	var lines := ["[b]Game data[/b]: [color=red][b]%d ERRORS[/b][/color]" % data.errors.size()]
+	for e in data.errors.slice(0, 10):
+		lines.append("[color=red]  %s[/color]" % e)
+	return "\n".join(lines)
 
 
 func _run_self_test() -> String:

@@ -1,0 +1,84 @@
+{
+  "players": [
+    {
+      "id": "azw_top",
+      "handle": "Rampart",
+      "role": "top",
+      "identity": "Veteran rock. Never the star, never the problem. Plays for the team.",
+      "attributes": { "mechanics": 68, "macro": 84, "laning": 72, "coach_compliance": 90 },
+      "champion_pool": { "bastion": 3, "morghast": 2, "kravok": 1 }
+    },
+    {
+      "id": "azw_jgl",
+      "handle": "Prowl",
+      "role": "jungle",
+      "identity": "Map-brain jungler. Wins with pathing and objective setups, not outplays.",
+      "attributes": { "mechanics": 70, "macro": 86, "laning": 60, "coach_compliance": 88 },
+      "champion_pool": { "thornmaw": 3, "umbra": 2, "fenrik": 1 }
+    },
+    {
+      "id": "azw_mid",
+      "handle": "Cinder",
+      "role": "mid",
+      "identity": "Control mage specialist. Steady lane, big teamfight ults on cue.",
+      "attributes": { "mechanics": 75, "macro": 78, "laning": 76, "coach_compliance": 82 },
+      "champion_pool": { "auren": 3, "vael": 2, "zephyra": 1 }
+    },
+    {
+      "id": "azw_adc",
+      "handle": "Longshot",
+      "role": "carry",
+      "identity": "Late-game insurance policy. Farms clean, positions perfectly, rarely takes risks.",
+      "attributes": { "mechanics": 74, "macro": 80, "laning": 75, "coach_compliance": 85 },
+      "champion_pool": { "vexa": 3, "corvyn": 2, "solenne": 1 }
+    },
+    {
+      "id": "azw_sup",
+      "handle": "Aegis",
+      "role": "support",
+      "identity": "Shot-calling captain. The voice of the macro game; enchanter lifer.",
+      "attributes": { "mechanics": 66, "macro": 85, "laning": 68, "coach_compliance": 92 },
+      "champion_pool": { "lumen": 3, "gromm": 2, "vessia": 1 }
+    },
+    {
+      "id": "crv_top",
+      "handle": "Breaker",
+      "role": "top",
+      "identity": "Lane kingdom tyrant. Wants the 1v1, tilts if denied it.",
+      "attributes": { "mechanics": 84, "macro": 64, "laning": 82, "coach_compliance": 60 },
+      "champion_pool": { "morghast": 3, "kravok": 2, "bastion": 1 }
+    },
+    {
+      "id": "crv_jgl",
+      "handle": "Havoc",
+      "role": "jungle",
+      "identity": "Coinflip ganker. Either 8-0 at fifteen minutes or the reason they lost.",
+      "attributes": { "mechanics": 86, "macro": 68, "laning": 62, "coach_compliance": 55 },
+      "champion_pool": { "fenrik": 3, "umbra": 2, "thornmaw": 1 }
+    },
+    {
+      "id": "crv_mid",
+      "handle": "Mirage",
+      "role": "mid",
+      "identity": "Superstar assassin prodigy. Highest highs in the league, ignores the game plan.",
+      "attributes": { "mechanics": 88, "macro": 66, "laning": 84, "coach_compliance": 58 },
+      "champion_pool": { "zephyra": 3, "vael": 2, "auren": 1 }
+    },
+    {
+      "id": "crv_adc",
+      "handle": "Talon",
+      "role": "carry",
+      "identity": "Aggressive lane bully. Fights for every plate; overheats when ahead.",
+      "attributes": { "mechanics": 85, "macro": 70, "laning": 80, "coach_compliance": 65 },
+      "champion_pool": { "solenne": 3, "vexa": 2, "corvyn": 1 }
+    },
+    {
+      "id": "crv_sup",
+      "handle": "Thorn",
+      "role": "support",
+      "identity": "Engage-happy playmaker. Finds the fights his team wants — and some it doesn't.",
+      "attributes": { "mechanics": 78, "macro": 72, "laning": 70, "coach_compliance": 70 },
+      "champion_pool": { "gromm": 3, "vessia": 2, "lumen": 1 }
+    }
+  ]
+}

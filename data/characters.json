@@ -1,0 +1,475 @@
+{
+  "characters": [
+    {
+      "id": "bastion",
+      "name": "Bastion",
+      "role": "top",
+      "intent": "Immovable frontline tank. Engages fights and soaks damage; low kill threat on his own.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "balanced",
+      "base": {
+        "hp": 650,
+        "damage": 56,
+        "armor": 40,
+        "speed": 335
+      },
+      "growth": {
+        "hp": 105,
+        "damage": 2.8,
+        "armor": 4.5
+      },
+      "ultimate": {
+        "name": "Unbreakable Line",
+        "effect": "aoe_cc",
+        "params": {
+          "cc": "stun",
+          "radius": 8,
+          "duration": 1.5
+        },
+        "cooldown": 110
+      },
+      "tags": [
+        "engage",
+        "protect"
+      ]
+    },
+    {
+      "id": "kravok",
+      "name": "Kravok",
+      "role": "top",
+      "intent": "Split-push duelist. Scales into a late-game side-lane threat; ultimate teleports him across the map to answer or start pushes.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "late",
+      "base": {
+        "hp": 610,
+        "damage": 64,
+        "armor": 34,
+        "speed": 345
+      },
+      "growth": {
+        "hp": 95,
+        "damage": 3.6,
+        "armor": 3.6
+      },
+      "ultimate": {
+        "name": "Warpath",
+        "effect": "global_teleport",
+        "params": {
+          "channel": 4
+        },
+        "cooldown": 140
+      },
+      "tags": [
+        "scaling"
+      ]
+    },
+    {
+      "id": "morghast",
+      "name": "Morghast",
+      "role": "top",
+      "intent": "Early-game juggernaut lane bully. Wins top lane hard before 15:00, falls off if the game drags.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "early",
+      "base": {
+        "hp": 640,
+        "damage": 66,
+        "armor": 36,
+        "speed": 340
+      },
+      "growth": {
+        "hp": 90,
+        "damage": 3.0,
+        "armor": 3.4
+      },
+      "ultimate": {
+        "name": "Gravemaker",
+        "effect": "aoe_damage",
+        "params": {
+          "radius": 6,
+          "damage": 320
+        },
+        "cooldown": 100
+      },
+      "tags": [
+        "early"
+      ]
+    },
+    {
+      "id": "fenrik",
+      "name": "Fenrik",
+      "role": "jungle",
+      "intent": "Early-game gank machine. Lives in enemy lanes before 14:00; needs leads to stay relevant.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "early",
+      "base": {
+        "hp": 590,
+        "damage": 62,
+        "armor": 32,
+        "speed": 350
+      },
+      "growth": {
+        "hp": 88,
+        "damage": 3.2,
+        "armor": 3.2
+      },
+      "ultimate": {
+        "name": "Lupine Pounce",
+        "effect": "single_cc",
+        "params": {
+          "cc": "stun",
+          "duration": 1.5
+        },
+        "cooldown": 90
+      },
+      "tags": [
+        "early",
+        "engage"
+      ]
+    },
+    {
+      "id": "umbra",
+      "name": "Umbra",
+      "role": "jungle",
+      "intent": "Power-farming scaling jungler. Ganks little, out-farms the enemy jungle, terrifying in late teamfights.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "late",
+      "base": {
+        "hp": 570,
+        "damage": 60,
+        "armor": 30,
+        "speed": 345
+      },
+      "growth": {
+        "hp": 92,
+        "damage": 3.8,
+        "armor": 3.0
+      },
+      "ultimate": {
+        "name": "Umbral Feast",
+        "effect": "aoe_cc",
+        "params": {
+          "cc": "fear",
+          "radius": 7,
+          "duration": 1.5
+        },
+        "cooldown": 120
+      },
+      "tags": [
+        "scaling"
+      ]
+    },
+    {
+      "id": "thornmaw",
+      "name": "Thornmaw",
+      "role": "jungle",
+      "intent": "Objective-control tank jungler. Locks down Dragon/Baron pits and peels in fights; low carry potential.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "balanced",
+      "base": {
+        "hp": 630,
+        "damage": 54,
+        "armor": 38,
+        "speed": 340
+      },
+      "growth": {
+        "hp": 100,
+        "damage": 2.6,
+        "armor": 4.2
+      },
+      "ultimate": {
+        "name": "Rootprison",
+        "effect": "zone_denial",
+        "params": {
+          "radius": 9,
+          "duration": 4
+        },
+        "cooldown": 130
+      },
+      "tags": [
+        "engage",
+        "protect"
+      ]
+    },
+    {
+      "id": "zephyra",
+      "name": "Zephyra",
+      "role": "mid",
+      "intent": "Roaming burst assassin. Snowballs off early kills and roams; useless when behind.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "early",
+      "base": {
+        "hp": 540,
+        "damage": 68,
+        "armor": 26,
+        "speed": 355
+      },
+      "growth": {
+        "hp": 82,
+        "damage": 3.9,
+        "armor": 2.8
+      },
+      "ultimate": {
+        "name": "Tempest Dance",
+        "effect": "single_burst",
+        "params": {
+          "damage": 380
+        },
+        "cooldown": 85
+      },
+      "tags": [
+        "early"
+      ]
+    },
+    {
+      "id": "auren",
+      "name": "Auren",
+      "role": "mid",
+      "intent": "Artillery poke mage. Chips teams down before fights start; weak once engaged on.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "balanced",
+      "base": {
+        "hp": 550,
+        "damage": 60,
+        "armor": 27,
+        "speed": 335
+      },
+      "growth": {
+        "hp": 84,
+        "damage": 3.4,
+        "armor": 2.9
+      },
+      "ultimate": {
+        "name": "Sunlance Barrage",
+        "effect": "snipe",
+        "params": {
+          "range": 40,
+          "damage": 350
+        },
+        "cooldown": 100
+      },
+      "tags": [
+        "poke"
+      ]
+    },
+    {
+      "id": "vael",
+      "name": "Vael",
+      "role": "mid",
+      "intent": "Scaling battlemage. Farms to 3 items then wins teamfights with massive area damage.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "late",
+      "base": {
+        "hp": 560,
+        "damage": 58,
+        "armor": 28,
+        "speed": 340
+      },
+      "growth": {
+        "hp": 90,
+        "damage": 4.2,
+        "armor": 3.0
+      },
+      "ultimate": {
+        "name": "Riftstorm",
+        "effect": "aoe_damage",
+        "params": {
+          "radius": 8,
+          "damage": 420
+        },
+        "cooldown": 120
+      },
+      "tags": [
+        "scaling"
+      ]
+    },
+    {
+      "id": "vexa",
+      "name": "Vexa",
+      "role": "carry",
+      "intent": "Hyperscaling crit carry. The classic 'protect me for 25 minutes and I win the game' pick.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "late",
+      "base": {
+        "hp": 530,
+        "damage": 58,
+        "armor": 25,
+        "speed": 345
+      },
+      "growth": {
+        "hp": 86,
+        "damage": 4.4,
+        "armor": 2.7
+      },
+      "ultimate": {
+        "name": "Deathbloom",
+        "effect": "self_steroid",
+        "params": {
+          "damage_mult": 1.4,
+          "duration": 8
+        },
+        "cooldown": 110
+      },
+      "tags": [
+        "scaling"
+      ]
+    },
+    {
+      "id": "solenne",
+      "name": "Solenne",
+      "role": "carry",
+      "intent": "Early-game lane bully carry. Dominates bot lane at 1-1, snowballs towers; falls off vs late-game comps.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "early",
+      "base": {
+        "hp": 545,
+        "damage": 64,
+        "armor": 27,
+        "speed": 340
+      },
+      "growth": {
+        "hp": 84,
+        "damage": 3.4,
+        "armor": 2.8
+      },
+      "ultimate": {
+        "name": "Dawnpiercer",
+        "effect": "snipe",
+        "params": {
+          "range": 60,
+          "damage": 300
+        },
+        "cooldown": 95
+      },
+      "tags": [
+        "early",
+        "poke"
+      ]
+    },
+    {
+      "id": "corvyn",
+      "name": "Corvyn",
+      "role": "carry",
+      "intent": "Utility storm carry. Steady damage plus a huge slow zone that wins positioning battles.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "balanced",
+      "base": {
+        "hp": 540,
+        "damage": 60,
+        "armor": 26,
+        "speed": 342
+      },
+      "growth": {
+        "hp": 85,
+        "damage": 3.8,
+        "armor": 2.8
+      },
+      "ultimate": {
+        "name": "Murder of Crows",
+        "effect": "aoe_cc",
+        "params": {
+          "cc": "slow",
+          "radius": 9,
+          "duration": 3
+        },
+        "cooldown": 105
+      },
+      "tags": [
+        "poke"
+      ]
+    },
+    {
+      "id": "lumen",
+      "name": "Lumen",
+      "role": "support",
+      "intent": "Enchanter. Shields, peels and babysits the carry; near-zero damage of her own.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "balanced",
+      "base": {
+        "hp": 520,
+        "damage": 45,
+        "armor": 28,
+        "speed": 335
+      },
+      "growth": {
+        "hp": 80,
+        "damage": 2.2,
+        "armor": 3.0
+      },
+      "ultimate": {
+        "name": "Aegis of Dawn",
+        "effect": "team_shield",
+        "params": {
+          "amount": 350
+        },
+        "cooldown": 120
+      },
+      "tags": [
+        "protect"
+      ]
+    },
+    {
+      "id": "gromm",
+      "name": "Gromm",
+      "role": "support",
+      "intent": "Engage tank support. Starts fights with a massive knockup; strongest before enemies out-scale the all-in.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "early",
+      "base": {
+        "hp": 600,
+        "damage": 50,
+        "armor": 36,
+        "speed": 335
+      },
+      "growth": {
+        "hp": 95,
+        "damage": 2.4,
+        "armor": 4.0
+      },
+      "ultimate": {
+        "name": "Seismic Maw",
+        "effect": "aoe_cc",
+        "params": {
+          "cc": "knockup",
+          "radius": 7,
+          "duration": 1.25
+        },
+        "cooldown": 115
+      },
+      "tags": [
+        "engage"
+      ]
+    },
+    {
+      "id": "vessia",
+      "name": "Vessia",
+      "role": "support",
+      "intent": "Poke/roam mage support. Harasses in lane, roams mid with priority, picks people off with long roots.",
+      "sprite": "res://game/assets/characters/placeholder.png",
+      "curve": "balanced",
+      "base": {
+        "hp": 530,
+        "damage": 52,
+        "armor": 27,
+        "speed": 345
+      },
+      "growth": {
+        "hp": 78,
+        "damage": 2.8,
+        "armor": 2.8
+      },
+      "ultimate": {
+        "name": "Threadsnare",
+        "effect": "single_cc",
+        "params": {
+          "cc": "root",
+          "duration": 2.5
+        },
+        "cooldown": 90
+      },
+      "tags": [
+        "poke",
+        "early"
+      ]
+    }
+  ]
+}

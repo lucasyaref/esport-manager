@@ -51,5 +51,8 @@ fi
 # First-time / post-clone import so script class cache and resources exist.
 "$GODOT" --headless --path "$PROJECT_ROOT" --import >/dev/null 2>&1 || true
 
+echo "--- data validation ---"
+"$GODOT" --headless --path "$PROJECT_ROOT" --script res://tools/data_check.gd
+
 echo "--- determinism check ---"
 "$GODOT" --headless --path "$PROJECT_ROOT" --script res://tools/determinism_check.gd
