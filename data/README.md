@@ -7,6 +7,7 @@ Everything the sim knows about characters, players and teams lives in these JSON
 |---|---|
 | `id` / `name` | Internal id (never change once referenced) / display name. |
 | `role` | `top`, `jungle`, `mid`, `carry`, `support`. Exactly 3 characters per role. |
+| `model` | The LoL champion this character is modeled on — anchors kit fantasy and sim behavior. Documentation only; never shown in-game. |
 | `intent` | One-line design intent — documentation only, sim ignores it. |
 | `sprite` | Sprite path. All share one placeholder for now; per-character art later = just change this path. |
 | `curve` | Power curve: `early` (strong before ~14:00, falls off), `balanced`, `late` (weak early, monster after ~22:00). Multipliers defined in comp_rules.json. |

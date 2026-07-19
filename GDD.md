@@ -21,6 +21,7 @@ Each role has a distinct sim behavior profile — this is core, not polish.
 ## 3. Characters ✅ (15 for PoC, 3 per role)
 - Each character: role, base stats (HP, damage, armor, speed, scaling curve), one **unique Ultimate** (distinct sim effect + distinct animation later), a simple tag set for comp logic (engage / poke / scaling / early-game / protect).
 - Data-driven (file-defined). Names/kits are original (LoL-inspired archetypes, no copyrighted names).
+- ✅ Each character is **explicitly modeled on a LoL champion** (designer decision, 2026-07-19), recorded as `model` in characters.json (e.g. Bastion→Malphite, Vexa→Jinx). The model anchors kit fantasy and sim behavior (how they lane/gank/fight). Names, art and lore stay original from day one — no re-skin debt, no trademark risk. LoL *numeric* balance is not imported: it doesn't survive the abstraction to our sim; balance comes from headless batch runs (M3).
 - Comp logic v1: team comp tags produce modifiers (e.g., full-scaling comp weaker before 20:00, stronger after; engage comp gets better fight initiations).
 - Counter/synergy matrix: v1 = small hand-authored matrix at role level; per-character later.
 
