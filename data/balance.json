@@ -1,0 +1,42 @@
+{
+  "minions": {
+    "first_wave_s": 15,
+    "wave_interval_s": 30,
+    "melee_per_wave": 3,
+    "caster_per_wave": 3,
+    "cannon_every_n_waves": 3,
+    "gold_melee": 21,
+    "gold_caster": 14,
+    "gold_cannon": 60,
+    "xp_per_minion": 34,
+    "speed": 2.5,
+    "combat_kill_rate": 0.004,
+    "front_drift": 0.0001,
+    "presence_pressure": 0.0015,
+    "tower_kill_rate": 0.05
+  },
+  "economy": {
+    "starting_gold": 500,
+    "passive_gold_per_s": 2.0,
+    "support_income_per_s": 1.0,
+    "buy_threshold_base": 900,
+    "buy_threshold_per_level": 150,
+    "recall_channel_s": 8
+  },
+  "xp": {
+    "level_up_base": 280,
+    "level_up_step": 90,
+    "duo_share": 0.7
+  },
+  "cs": {
+    "base_chance": 0.55,
+    "laning_divisor": 250,
+    "support_assist_bonus": 0.05,
+    "max_chance": 0.92
+  },
+  "jungle": {
+    "camp_first_spawn_s": 90,
+    "camp_respawn_s": 135,
+    "clear_jitter_s": 2
+  }
+}

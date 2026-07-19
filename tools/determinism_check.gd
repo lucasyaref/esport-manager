@@ -8,17 +8,23 @@ extends SceneTree
 ## Exits 0 on PASS, 1 on FAIL. Run via tools/check.sh.
 
 const SEEDS := [1, 42, 987654321]
-const TICKS := 600  # 60 sim-seconds is plenty to accumulate RNG draws
+const TICKS := 6000  # 10 sim-minutes: covers waves, jungle cycles, recalls
 
 
 func _initialize() -> void:
+	var data := DataLoader.load_all()
+	if not data.errors.is_empty():
+		print("DETERMINISM CHECK: FAIL (data errors: %s)" % str(data.errors))
+		quit(1)
+		return
+
 	var failed := false
 	var checksums := []
 
 	for s in SEEDS:
 		var setup := {"seed": s, "duration_ticks": TICKS}
-		var a := SimMatch.new(setup).run()
-		var b := SimMatch.new(setup).run()
+		var a := SimMatch.new(setup, data).run()
+		var b := SimMatch.new(setup, data).run()
 		if a.checksum != b.checksum:
 			failed = true
 			print("FAIL seed=%d: checksums differ (%s vs %s)" % [s, a.checksum, b.checksum])
@@ -32,8 +38,6 @@ func _initialize() -> void:
 			])
 		checksums.append(a.checksum)
 
-	# Sanity: different seeds should not collide (if they do, the seed is
-	# probably being ignored somewhere).
 	for i in range(checksums.size()):
 		for j in range(i + 1, checksums.size()):
 			if checksums[i] == checksums[j]:

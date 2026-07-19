@@ -1,53 +1,49 @@
 extends Control
-## M0 placeholder main scene: runs the sim determinism self-test on startup and
-## shows the result, so "open the project and press Play" proves the skeleton
-## works. Replaced by the real match viewer in M4.
+## M2 placeholder main scene: validates data, runs the sim determinism
+## self-test, and shows the scoreboard of a full simulated match so the
+## economy is visible in-game. Replaced by the real match viewer in M4.
 
 const SELF_TEST_SEED := 42
-const SELF_TEST_TICKS := 600
+const SELF_TEST_MINUTES := 30
 
 
 func _ready() -> void:
 	var output := _build_ui()
-	output.text = _data_status() + "\n\n" + _run_self_test()
-
-
-func _data_status() -> String:
 	var data := DataLoader.load_all()
-	if data.errors.is_empty():
-		return "[b]Game data[/b]: %d characters, %d players, %d teams — [color=green][b]VALID[/b][/color]" % [
-			data.characters.size(), data.players.size(), data.teams.size(),
-		]
-	var lines := ["[b]Game data[/b]: [color=red][b]%d ERRORS[/b][/color]" % data.errors.size()]
-	for e in data.errors.slice(0, 10):
-		lines.append("[color=red]  %s[/color]" % e)
-	return "\n".join(lines)
+	if not data.errors.is_empty():
+		var lines := ["[b]Game data[/b]: [color=red][b]%d ERRORS[/b][/color]" % data.errors.size()]
+		for e in data.errors.slice(0, 10):
+			lines.append("[color=red]  %s[/color]" % e)
+		output.text = "\n".join(lines)
+		return
+	output.text = _run_self_test(data)
 
 
-func _run_self_test() -> String:
-	var setup := {"seed": SELF_TEST_SEED, "duration_ticks": SELF_TEST_TICKS}
-	var a := SimMatch.new(setup).run()
-	var b := SimMatch.new(setup).run()
+func _run_self_test(data: Dictionary) -> String:
+	var setup := {
+		"seed": SELF_TEST_SEED,
+		"duration_ticks": SELF_TEST_MINUTES * 60 * SimMatch.TICKS_PER_SECOND,
+		"snapshot_every": 10,
+	}
+	var a := SimMatch.new(setup, data).run()
+	var b := SimMatch.new(setup, data).run()
 	var ok: bool = a.checksum == b.checksum
 
 	var lines := []
-	lines.append("[b]Sim determinism self-test[/b]  (seed %d, %d ticks, run twice)" % [
-		SELF_TEST_SEED, SELF_TEST_TICKS,
-	])
-	lines.append("run 1 checksum: [code]%s[/code]" % a.checksum)
-	lines.append("run 2 checksum: [code]%s[/code]" % b.checksum)
-	lines.append("[color=%s][b]%s[/b][/color]" % [
-		"green" if ok else "red", "IDENTICAL — PASS" if ok else "DIFFERENT — FAIL",
+	lines.append("[b]Game data[/b]: %d characters, %d players, %d teams — [color=green][b]VALID[/b][/color]" % [
+		data.characters.size(), data.players.size(), data.teams.size()])
+	lines.append("[b]Determinism[/b]: %d-minute match simulated twice (seed %d) — %s" % [
+		SELF_TEST_MINUTES, SELF_TEST_SEED,
+		"[color=green][b]IDENTICAL — PASS[/b][/color]" if ok else "[color=red][b]DIFFERENT — FAIL[/b][/color]",
 	])
 	lines.append("")
-	lines.append("[b]Stub event log[/b] (placeholder skirmishes, real sim arrives in M2–M3):")
-	for ev in a.events:
-		var secs: float = ev.t / float(SimMatch.TICKS_PER_SECOND)
-		match ev.type:
-			"skirmish_stub":
-				lines.append("  %5.1fs  %s killed %s" % [secs, ev.data.winner, ev.data.loser])
-			_:
-				lines.append("  %5.1fs  %s" % [secs, ev.type])
+	lines.append("[b]Scoreboard after %d minutes[/b] (%d events; farming economy only — combat lands in M3):" % [
+		SELF_TEST_MINUTES, a.events.size()])
+	lines.append("[code]%-10s %-6s %-9s %-10s %5s %5s %7s[/code]" % [
+		"handle", "team", "role", "character", "level", "cs", "gold"])
+	for row: Dictionary in a.summary:
+		lines.append("[code]%-10s %-6s %-9s %-10s %5d %5d %7d[/code]" % [
+			row.handle, row.team, row.role, row.character, row.level, row.cs, row.gold])
 	return "\n".join(lines)
 
 
@@ -68,7 +64,7 @@ func _build_ui() -> RichTextLabel:
 	margin.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "MOBA Manager — M0 project skeleton"
+	title.text = "MOBA Manager — M2 sim core: map, minions, laning"
 	title.add_theme_font_size_override("font_size", 28)
 	vbox.add_child(title)
 

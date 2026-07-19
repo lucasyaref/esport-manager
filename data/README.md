@@ -32,6 +32,19 @@ Ultimate effect types: `aoe_cc` (stun/fear/knockup/slow an area), `single_cc` (s
 ## teams.json — the 2 PoC teams
 `roster` maps each role to a player id. `color` tints the shared sprite in the viewer. `identity` is documentation.
 
+## map.json — the map
+Logical 100×100 map, blue base bottom-left. `lanes` are waypoint paths (blue end → red end); `towers` sit at fractions along each lane (0 = blue nexus, 1 = red nexus); `camps` are the jungle camps with their gold/XP/clear-time values; `pits` are the Dragon/Baron locations (used from M3).
+
+## balance.json — the economy dials
+Everything that tunes match pacing, in designer language:
+- `minions`: wave timing/size, gold per minion type, XP per minion, and the lane-physics rates (how fast armies grind each other, how hard towers shred waves, how much a player's presence pushes their lane).
+- `economy`: passive gold trickle, support's bonus income, when players recall to buy.
+- `xp`: level-up cost curve and how bot-lane duo XP is shared.
+- `cs`: last-hit success formula (base + laning skill; support assist bonus).
+- `jungle`: camp spawn/respawn timing.
+
+Change a value, run `tools/check.sh`, then `tools/economy_report.gd` regenerates the gold/CS/level tables so you see exactly what your change did.
+
 ## comp_rules.json — comp logic v1
 - `phases`: sim-minute boundaries for laning → mid → late.
 - `curves`: per-phase power multipliers behind each `curve` value.

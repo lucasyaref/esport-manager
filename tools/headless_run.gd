@@ -1,8 +1,8 @@
 extends SceneTree
-## Runs one match simulation headless and prints a summary.
+## Runs one match simulation headless and prints the scoreboard.
 ##
 ## Usage:
-##   godot --headless --path . --script res://tools/headless_run.gd -- [--seed=N] [--ticks=N] [--events]
+##   godot --headless --path . --script res://tools/headless_run.gd -- [--seed=N] [--minutes=N] [--events]
 ##
 ## --events prints the full event log (one JSON line per event).
 
@@ -10,13 +10,26 @@ extends SceneTree
 func _initialize() -> void:
 	var args := _parse_user_args()
 	var match_seed := int(args.get("seed", "42"))
-	var ticks := int(args.get("ticks", str(60 * SimMatch.TICKS_PER_SECOND)))
+	var minutes := int(args.get("minutes", str(SimMatch.DEFAULT_DURATION_MIN)))
 
-	var result := SimMatch.new({"seed": match_seed, "duration_ticks": ticks}).run()
+	var data := DataLoader.load_all()
+	if not data.errors.is_empty():
+		for e in data.errors:
+			print("DATA ERROR: %s" % e)
+		quit(1)
+		return
 
-	print("seed=%d ticks=%d events=%d checksum=%s" % [
-		match_seed, ticks, result.events.size(), result.checksum,
+	var setup := {"seed": match_seed, "duration_ticks": minutes * 60 * SimMatch.TICKS_PER_SECOND}
+	var result := SimMatch.new(setup, data).run()
+
+	print("seed=%d minutes=%d events=%d checksum=%s" % [
+		match_seed, minutes, result.events.size(), result.checksum,
 	])
+	print("%-10s %-8s %-9s %5s %5s %7s %7s" % [
+		"handle", "team", "role", "level", "cs", "gold", "power"])
+	for row: Dictionary in result.summary:
+		print("%-10s %-8s %-9s %5d %5d %7d %7d" % [
+			row.handle, row.team, row.role, row.level, row.cs, row.gold, row.item_power])
 	if args.has("events"):
 		for ev in result.events:
 			print(JSON.stringify(ev))

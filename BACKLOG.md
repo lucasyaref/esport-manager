@@ -8,7 +8,7 @@ Godot 4 project, folder structure (`sim/`, `game/`, `data/`, `tools/`, `REPORTS/
 ## M1 — Data model + content v1 — done
 Character schema + 15 characters (3/role) in data files. Player schema + 10 players, 2 teams. Loader + validation. Short data report (stat spreads per role).
 
-## M2 — Sim core: map, minions, laning — todo
+## M2 — Sim core: map, minions, laning — done
 Logical map graph (lanes, jungle camps, river, pits, towers, nexus). Minion waves, farming, gold/XP curves, role assignment to lanes, jungle pathing. Headless output: gold/XP curves per role look sane (carry/mid > support, etc.).
 
 ## M3 — Sim core: skirmishes, ganks, objectives, fights, win — todo

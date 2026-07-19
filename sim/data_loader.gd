@@ -38,15 +38,19 @@ static func load_all(base_dir := "res://data") -> Dictionary:
 	var teams := _index_by_id(
 		_parse_file(base_dir + "/teams.json", "teams", errors), "teams", errors)
 	var comp_rules := _parse_raw(base_dir + "/comp_rules.json", errors)
+	var map := _parse_raw(base_dir + "/map.json", errors)
+	var balance := _parse_raw(base_dir + "/balance.json", errors)
 
 	_validate_characters(characters, errors)
 	_validate_players(players, characters, errors)
 	_validate_teams(teams, players, errors)
 	_validate_comp_rules(comp_rules, errors)
+	_validate_map(map, errors)
+	_validate_balance(balance, errors)
 
 	return {
 		"characters": characters, "players": players, "teams": teams,
-		"comp_rules": comp_rules, "errors": errors,
+		"comp_rules": comp_rules, "map": map, "balance": balance, "errors": errors,
 	}
 
 
@@ -210,7 +214,73 @@ static func _validate_comp_rules(rules: Dictionary, errors: Array[String]) -> vo
 		_check_bonus(entry, "counters", errors)
 
 
+static func _validate_map(map: Dictionary, errors: Array[String]) -> void:
+	for base in ["blue", "red"]:
+		if not _is_point(map.get("bases", {}).get(base)):
+			errors.append("map/bases: missing [x, y] for \"%s\"" % base)
+	var lanes: Dictionary = map.get("lanes", {})
+	for lane in ["top", "mid", "bot"]:
+		var path: Array = lanes.get(lane, {}).get("path", [])
+		if path.size() < 2:
+			errors.append("map/lanes/%s: path needs at least 2 points" % lane)
+		for pt in path:
+			if not _is_point(pt):
+				errors.append("map/lanes/%s: bad point %s" % [lane, str(pt)])
+	for team in ["blue", "red"]:
+		var towers: Dictionary = map.get("towers", {}).get(team, {})
+		for tier in ["outer", "inner", "base"]:
+			var t: Variant = towers.get(tier)
+			if not _is_number(t) or t <= 0.0 or t >= 1.0:
+				errors.append("map/towers/%s/%s: needs lane param in (0, 1)" % [team, tier])
+	for pit in ["dragon", "baron"]:
+		if not _is_point(map.get("pits", {}).get(pit)):
+			errors.append("map/pits: missing [x, y] for \"%s\"" % pit)
+	var camp_ids := {}
+	var side_counts := {"blue": 0, "red": 0}
+	for camp: Dictionary in map.get("camps", []):
+		var id: String = camp.get("id", "?")
+		if camp_ids.has(id):
+			errors.append("map/camps: duplicate id \"%s\"" % id)
+		camp_ids[id] = true
+		if not camp.get("side", "") in ["blue", "red"]:
+			errors.append("map/camps/%s: side must be blue or red" % id)
+		else:
+			side_counts[camp.side] += 1
+		if not _is_point(camp.get("pos")):
+			errors.append("map/camps/%s: bad pos" % id)
+		for field in ["gold", "xp", "clear_s"]:
+			if not _is_number(camp.get(field)) or camp.get(field, 0) <= 0:
+				errors.append("map/camps/%s: \"%s\" must be a positive number" % [id, field])
+	if side_counts.blue == 0 or side_counts.blue != side_counts.red:
+		errors.append("map/camps: blue and red need the same non-zero camp count (got %d/%d)" % [
+			side_counts.blue, side_counts.red])
+
+
+static func _validate_balance(balance: Dictionary, errors: Array[String]) -> void:
+	# Every listed key must exist as a positive number; formulas read them blind.
+	var required := {
+		"minions": ["first_wave_s", "wave_interval_s", "melee_per_wave", "caster_per_wave",
+			"cannon_every_n_waves", "gold_melee", "gold_caster", "gold_cannon",
+			"xp_per_minion", "speed", "combat_kill_rate", "front_drift", "presence_pressure",
+			"tower_kill_rate"],
+		"economy": ["starting_gold", "passive_gold_per_s", "support_income_per_s",
+			"buy_threshold_base", "buy_threshold_per_level", "recall_channel_s"],
+		"xp": ["level_up_base", "level_up_step", "duo_share"],
+		"cs": ["base_chance", "laning_divisor", "support_assist_bonus", "max_chance"],
+		"jungle": ["camp_first_spawn_s", "camp_respawn_s", "clear_jitter_s"],
+	}
+	for section: String in required:
+		var sec: Dictionary = balance.get(section, {})
+		for key: String in required[section]:
+			if not _is_number(sec.get(key)) or sec.get(key, -1) < 0:
+				errors.append("balance/%s: \"%s\" must be a non-negative number" % [section, key])
+
+
 # --- helpers -----------------------------------------------------------------
+
+
+static func _is_point(v: Variant) -> bool:
+	return v is Array and v.size() == 2 and _is_number(v[0]) and _is_number(v[1])
 
 static func _is_number(v: Variant) -> bool:
 	return v is float or v is int
