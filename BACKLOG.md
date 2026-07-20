@@ -14,8 +14,9 @@ Logical map graph (lanes, jungle camps, river, pits, towers, nexus). Minion wave
 ## M3 — Sim core: skirmishes, ganks, objectives, fights, win — done
 Gank logic (jungle/roams), skirmish + teamfight resolver (stats, ultimates, mechanics, comp modifiers, seeded variance), Dragon/Baron contests, tower/nexus destruction, full match to victory. Batch runner: 1000 matches → win-rate by side ~50%, length distribution 25–35 min, kill totals plausible. Report numbers.
 
-## M4 — Viewer v1 — todo
+## M4 — Viewer v1 — done
 Map scene, sprite playback from tick stream (interpolated movement), team tint + role marker, HP/level display, animations (Move/Attack/Ultimate/Hurt/Die/Recall), kill feed, clock, gold bar, speed controls (1x/4x/16x/skip). Success = "watchable" per CLAUDE.md criteria.
+Built: top-down match viewer (`game/main.gd` + `game/map_view.gd`) plays the deterministic tick stream — champions move on interpolated positions, fights/ganks/objectives/towers/recalls/wards fire off the event stream, with kill feed, live scoreboard, clock, gold bar, result overlay, and 1x/4x/16x/skip + timeline scrub. Runs clean headless. **Watchability sign-off is the designer's** (playtest — see REPORTS/M4.md).
 
 ## M5 — Draft screen — todo
 Pick-only draft UI (order per GDD §5), AI opponent drafting, coach recommendations + follow/ignore modifiers, champion-pool warnings, hand-off into match sim. Post-game result screen (score, KDA, gold graph).
