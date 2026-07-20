@@ -22,14 +22,17 @@ func _initialize() -> void:
 	var setup := {"seed": match_seed, "duration_ticks": minutes * 60 * SimMatch.TICKS_PER_SECOND}
 	var result := SimMatch.new(setup, data).run()
 
-	print("seed=%d minutes=%d events=%d checksum=%s" % [
-		match_seed, minutes, result.events.size(), result.checksum,
+	print("seed=%d events=%d winner=%s length=%.1fmin checksum=%s" % [
+		match_seed, result.events.size(),
+		result.winner if result.winner != "" else "none (timeout)",
+		result.ticks / (60.0 * SimMatch.TICKS_PER_SECOND), result.checksum,
 	])
-	print("%-10s %-8s %-9s %5s %5s %7s %7s" % [
-		"handle", "team", "role", "level", "cs", "gold", "power"])
+	print("%-10s %-8s %-9s %5s %5s %9s %7s %7s" % [
+		"handle", "team", "role", "level", "cs", "k/d/a", "gold", "power"])
 	for row: Dictionary in result.summary:
-		print("%-10s %-8s %-9s %5d %5d %7d %7d" % [
-			row.handle, row.team, row.role, row.level, row.cs, row.gold, row.item_power])
+		print("%-10s %-8s %-9s %5d %5d %9s %7d %7d" % [
+			row.handle, row.team, row.role, row.level, row.cs,
+			"%d/%d/%d" % [row.kills, row.deaths, row.assists], row.gold, row.item_power])
 	if args.has("events"):
 		for ev in result.events:
 			print(JSON.stringify(ev))

@@ -42,8 +42,13 @@ Everything that tunes match pacing, in designer language:
 - `xp`: level-up cost curve and how bot-lane duo XP is shared.
 - `cs`: last-hit success formula (base + laning skill; support assist bonus).
 - `jungle`: camp spawn/respawn timing.
+- `combat`: fight resolution. Kill/assist gold, `shutdown_*` bounties on kill-streak players (the comeback lever), `fight_variance` (how swingy fights are — higher = more upsets), `power_item_divisor` (how much a gold lead converts to fight power — the "leads matter" dial), `mechanics_power_*` (how much the Mechanics attribute sways fights), `macro_setpiece_*` (how much Macro sways objective/organized-defense fights specifically), and the death-count / respawn model.
+- `ganks`: laning-phase gank frequency and success (warded lanes and high-Mechanics victims are harder to gank).
+- `wards`: support ward cadence and duration (wards reduce enemy gank success in that area).
+- `towers`: tower/nexus HP, siege damage from minions and players, gold bounty per tower.
+- `objectives`: Dragon/Baron spawn/respawn timing, gold/XP rewards, Dragon stacking buff, Baron's temporary team buff + siege multiplier, and how teams decide to contest them.
 
-Change a value, run `tools/check.sh`, then `tools/economy_report.gd` regenerates the gold/CS/level tables so you see exactly what your change did.
+Change a value, run `tools/check.sh`, then `tools/economy_report.gd` regenerates the gold/CS/level tables and `tools/batch_run.gd` regenerates win-rate / length / kill / snowball numbers so you see exactly what your change did.
 
 ## comp_rules.json — comp logic v1
 - `phases`: sim-minute boundaries for laning → mid → late.

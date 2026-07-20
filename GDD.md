@@ -42,6 +42,7 @@ Each role has a distinct sim behavior profile — this is core, not polish.
 - Map: classic three lanes + jungle + river, two objective pits (Dragon-like: stacking team buff; Baron-like: pushing buff), towers per lane (outer/inner/base), nexus. Minion waves spawn periodically and push lanes.
 - Phases: laning (0–14 sim-min) → mid game (rotations, objectives) → late game (grouped fights, Baron, closing). Average internal game length target: 25–35 sim-minutes.
 - Combat: stat + item/gold + level + mechanics + comp-modifier weighted resolution with seeded variance; ultimates as high-impact cooldown events in fights.
+- ✅ **Snowball philosophy (designer decision, 2026-07-19): comeback-friendly, but leads must matter.** Gold leads convert to win probability only through item/level power (roughly linear — no exponential runaway), like LoL's item gap. Comeback paths: shutdown bounties on kill-streak players, reduced worth on death streaks, and fight variance high enough that a behind-but-not-broken team can win a decisive objective fight. No artificial rubber-banding (no free gold for losing).
 - Event stream includes: kills (killer/victim/assists), objective takes, tower falls, wards, ganks, recalls, item power-ups, ultimate casts — enough for a kill feed and post-game stats.
 
 ## 7. Viewer ✅

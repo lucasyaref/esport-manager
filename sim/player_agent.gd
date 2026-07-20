@@ -1,9 +1,12 @@
 class_name PlayerAgent
 extends RefCounted
-## One pro player in the match: movement, farming intent, jungle pathing,
-## recalls, gold/XP/level. M2 scope — no combat, no ganks, no deaths yet.
+## One pro player in the match: movement, farming, jungle pathing, recalls,
+## gold/XP/level (M2) + combat life-cycle, ganking, grouping, warding (M3).
 
-enum State { TO_LANE, FARMING, TO_CAMP, CLEARING, WAITING_CAMP, RECALLING }
+enum State {
+	TO_LANE, FARMING, TO_CAMP, CLEARING, WAITING_CAMP, RECALLING,
+	GROUPING, HOLDING, GANKING, DEAD,
+}
 
 const ARRIVE_DIST := 1.0
 const SPEED_SCALE := 1.0 / 125.0  # character speed 335 -> ~2.7 map units/s
@@ -25,8 +28,21 @@ var gold_total := 0.0            # earned overall (economy curves read this)
 var gold_carried := 0.0          # spent on recall (buy trigger)
 var item_power := 0.0
 
+var alive := true
+var kills := 0
+var deaths := 0
+var assists := 0
+var kill_streak := 0
+var death_streak := 0
+
+var busy_until := -1             # locked in a fight window
+var _respawn_at := 0
+var _ult_ready_at := 0
 var _state_until := 0            # tick when CLEARING / RECALLING ends
-var _camp_index := -1            # camp being targeted / cleared
+var _camp_index := -1
+var _last_ward_t := -999999
+var _last_gank_t := -999999
+var _gank_lane := ""
 var _speed_per_tick: float
 
 
@@ -47,9 +63,18 @@ func _init(player: Dictionary, p_team: String, p_character: Dictionary, base_pos
 	_speed_per_tick = float(p_character.base.speed) * SPEED_SCALE / SimMatch.TICKS_PER_SECOND
 
 
-## m = the SimMatch (map, balance, rng, lanes, camps, emit_event). Not stored.
+## m = the SimMatch. Not stored (would leak a RefCounted cycle).
 func update(t: int, m: SimMatch) -> void:
+	if not alive:
+		if t >= _respawn_at:
+			alive = true
+			state = State.TO_CAMP if role == "jungle" else State.TO_LANE
+		return
+	if t < busy_until:
+		return
 	_earn_passive(m)
+	if role == "support":
+		_maybe_ward(t, m)
 	match state:
 		State.TO_LANE:
 			if _move_toward(m.lanes[lane].farm_pos(team)):
@@ -57,20 +82,31 @@ func update(t: int, m: SimMatch) -> void:
 		State.FARMING:
 			_move_toward(m.lanes[lane].farm_pos(team))
 			_maybe_recall(t, m)
-		State.TO_CAMP:
-			_jungle_step(t, m)
-		State.WAITING_CAMP:
+		State.TO_CAMP, State.WAITING_CAMP:
+			if role == "jungle" and m.try_gank(self, t):
+				return
+			if _check_buy(t, m):
+				return
 			_jungle_step(t, m)
 		State.CLEARING:
 			if t >= _state_until:
 				_finish_camp(t, m)
+		State.GANKING:
+			var target: Vector2 = m.lanes[_gank_lane].farm_pos("red" if team == "blue" else "blue")
+			if _move_toward(target):
+				m.execute_gank(self, _gank_lane, t)
+		State.GROUPING:
+			if _move_toward(m.rally_pos(team)):
+				state = State.HOLDING
+		State.HOLDING:
+			_move_toward(m.rally_pos(team))
 		State.RECALLING:
 			if t >= _state_until:
 				_finish_recall(t, m)
 
 
 func is_farming_lane(lane_name: String) -> bool:
-	return state == State.FARMING and lane == lane_name
+	return state == State.FARMING and lane == lane_name and alive
 
 
 func add_xp(t: int, amount: float, m: SimMatch) -> void:
@@ -87,10 +123,67 @@ func earn(amount: float) -> void:
 	gold_carried += amount
 
 
+## Ultimates unlock at level 6 (LoL-like) and run on their data cooldown.
+func ult_ready(t: int) -> bool:
+	return alive and level >= 6 and t >= _ult_ready_at
+
+
+func cast_ult(t: int, m: SimMatch) -> void:
+	_ult_ready_at = t + int(float(character.ultimate.cooldown) * SimMatch.TICKS_PER_SECOND)
+	m.emit_event(t, "ultimate_cast", {
+		"player": id, "name": character.ultimate.name, "effect": character.ultimate.effect,
+	})
+
+
+func die(t: int, m: SimMatch) -> void:
+	var c: Dictionary = m.balance.combat
+	alive = false
+	deaths += 1
+	death_streak += 1
+	kill_streak = 0
+	state = State.DEAD
+	pos = m.map.bases[team]
+	_camp_index = -1
+	_respawn_at = t + int((float(c.respawn_base_s) + float(c.respawn_per_level_s) * level)
+		* SimMatch.TICKS_PER_SECOND)
+
+
+## Called by combat when this player gets a kill.
+func credit_kill_reset() -> void:
+	death_streak = 0
+
+
+## Move to a rally point (set by the team brain).
+func set_grouping() -> void:
+	if state in [State.CLEARING, State.RECALLING, State.GANKING, State.DEAD]:
+		return  # finish what they're doing first
+	state = State.GROUPING
+
+
+func set_farming_intent() -> void:
+	if state in [State.GROUPING, State.HOLDING]:
+		state = State.TO_CAMP if role == "jungle" else State.TO_LANE
+
+
+func start_gank(t: int, target_lane: String) -> void:
+	state = State.GANKING
+	_gank_lane = target_lane
+	_last_gank_t = t
+
+
+func gank_over() -> void:
+	state = State.TO_CAMP
+
+
+func last_gank_tick() -> int:
+	return _last_gank_t
+
+
 func summary() -> Dictionary:
 	return {
 		"player": id, "handle": handle, "team": team, "role": role,
 		"character": character.id, "level": level, "cs": cs,
+		"kills": kills, "deaths": deaths, "assists": assists,
 		"gold": roundi(gold_total), "item_power": roundi(item_power),
 	}
 
@@ -117,13 +210,26 @@ func _move_toward(target: Vector2) -> bool:
 	return false
 
 
-func _maybe_recall(t: int, m: SimMatch) -> void:
+func _buy_threshold(m: SimMatch) -> float:
 	var eco: Dictionary = m.balance.economy
-	var threshold: float = float(eco.buy_threshold_base) + level * float(eco.buy_threshold_per_level)
-	if gold_carried < threshold:
-		return
+	return float(eco.buy_threshold_base) + level * float(eco.buy_threshold_per_level)
+
+
+func _maybe_recall(t: int, m: SimMatch) -> void:
+	if gold_carried >= _buy_threshold(m):
+		_start_recall(t, m)
+
+
+func _check_buy(t: int, m: SimMatch) -> bool:
+	if gold_carried >= _buy_threshold(m):
+		_start_recall(t, m)
+		return true
+	return false
+
+
+func _start_recall(t: int, m: SimMatch) -> void:
 	state = State.RECALLING
-	_state_until = t + int(float(eco.recall_channel_s) * SimMatch.TICKS_PER_SECOND)
+	_state_until = t + int(float(m.balance.economy.recall_channel_s) * SimMatch.TICKS_PER_SECOND)
 	m.emit_event(t, "recall_start", {"player": id})
 
 
@@ -135,16 +241,23 @@ func _finish_recall(t: int, m: SimMatch) -> void:
 	state = State.TO_CAMP if role == "jungle" else State.TO_LANE
 
 
+func _maybe_ward(t: int, m: SimMatch) -> void:
+	var wards_bal: Dictionary = m.balance.wards
+	if t - _last_ward_t < int(float(wards_bal.support_ward_interval_s) * SimMatch.TICKS_PER_SECOND):
+		return
+	_last_ward_t = t
+	# Ward halfway between current position and the nearest objective pit —
+	# covers the river approach a gank would come through.
+	var pit: Vector2 = m.map.pits.dragon
+	if pos.distance_to(m.map.pits.baron) < pos.distance_to(pit):
+		pit = m.map.pits.baron
+	var ward_pos := pos.lerp(pit, 0.5)
+	m.place_ward(team, ward_pos, t)
+	m.emit_event(t, "ward_placed", {"player": id, "pos": [ward_pos.x, ward_pos.y]})
+
+
 func _jungle_step(t: int, m: SimMatch) -> void:
-	if state == State.TO_CAMP and gold_carried >= 0.0:
-		var eco: Dictionary = m.balance.economy
-		var threshold: float = float(eco.buy_threshold_base) + level * float(eco.buy_threshold_per_level)
-		if gold_carried >= threshold:
-			state = State.RECALLING
-			_state_until = t + int(float(eco.recall_channel_s) * SimMatch.TICKS_PER_SECOND)
-			m.emit_event(t, "recall_start", {"player": id})
-			return
-	_pick_camp(t, m)
+	_pick_camp(m)
 	if _camp_index < 0:
 		return
 	var camp: Dictionary = m.camps[_camp_index]
@@ -160,9 +273,7 @@ func _jungle_step(t: int, m: SimMatch) -> void:
 			state = State.WAITING_CAMP
 
 
-## Chooses the nearest alive own-side camp; if none is up, the one that
-## respawns soonest (ties broken by array order — deterministic).
-func _pick_camp(t: int, m: SimMatch) -> void:
+func _pick_camp(m: SimMatch) -> void:
 	if _camp_index >= 0 and m.camps[_camp_index].alive:
 		return
 	var best := -1

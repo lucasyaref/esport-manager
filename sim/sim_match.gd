@@ -2,32 +2,43 @@ class_name SimMatch
 extends RefCounted
 ## Deterministic tick-based match simulation.
 ##
-## M2 scope: real map, minion lanes, farming, jungle pathing, recalls,
-## gold/XP economy — no combat between players yet (M3). Contract unchanged
-## since M0: setup + data in, ordered events + snapshots + checksum out;
-## same seed ⇒ byte-identical output.
+## M3 scope: full game — farming economy (M2) plus ganks, skirmishes,
+## teamfights with ultimates, Dragon/Baron, tower/nexus destruction and a win
+## condition. Contract unchanged since M0: setup + data in, ordered events +
+## snapshots + checksum out; same seed ⇒ byte-identical output.
 ##
 ## Pure GDScript — no Node/scene dependencies. Must run headless.
 
 const TICKS_PER_SECOND := 10
-const DEFAULT_DURATION_MIN := 30
+const DEFAULT_DURATION_MIN := 45  # hard cap; matches normally end by nexus kill
+const BRAIN_INTERVAL := 20        # macro decisions every 2 s
 
 var map: SimMap
 var balance: Dictionary
+var comp_rules: Dictionary
 var rng: SimRNG
+var now := 0
 var lanes: Dictionary = {}          # lane name -> LaneState
 var camps: Array[Dictionary] = []   # {def, alive, respawn_tick}
 var agents: Array[PlayerAgent] = []
+var combat: Combat
+var objectives: Objectives
+var brains: Dictionary = {}         # team -> TeamBrain
+var wards: Dictionary = {"blue": [], "red": []}
 
 var _setup: Dictionary
 var _data: Dictionary
 var _events: Array[Dictionary] = []
 var _snapshots: Array[Dictionary] = []
 var _snapshot_every: int
+var _comp_static := {"blue": 1.0, "red": 1.0}
+var _moods: Dictionary = {}
+var _next_fight_allowed := 0
 
 
-## setup: { seed: int, duration_ticks?: int, snapshot_every?: int,
-##          teams?: {blue: team_id, red: team_id}, picks?: {player_id: char_id} }
+## setup: { seed: int, duration_ticks?: int, snapshot_every?: int (0 = none),
+##          teams?: {blue: id, red: id}, picks?: {player_id: char_id},
+##          moods?: {player_id: -1|0|1}, cohesion?: {blue: float, red: float} }
 ## data: DataLoader.load_all() result with no errors.
 func _init(setup: Dictionary, data: Dictionary) -> void:
 	assert(data.errors.is_empty(), "SimMatch got invalid data: %s" % str(data.errors))
@@ -35,14 +46,21 @@ func _init(setup: Dictionary, data: Dictionary) -> void:
 	_data = data
 	rng = SimRNG.new(int(setup.get("seed", 0)))
 	_snapshot_every = int(setup.get("snapshot_every", 1))
+	_moods = setup.get("moods", {})
 	map = SimMap.new(data.map)
 	balance = data.balance
+	comp_rules = data.comp_rules
 	for lane in SimMap.LANES:
 		lanes[lane] = LaneState.new(lane, map, balance.minions)
 	var first_spawn := int(float(balance.jungle.camp_first_spawn_s) * TICKS_PER_SECOND)
 	for camp_def in map.camps:
 		camps.append({"def": camp_def, "alive": false, "respawn_tick": first_spawn})
 	_spawn_agents()
+	combat = Combat.new(self)
+	objectives = Objectives.new(self)
+	for team in SimMap.TEAMS:
+		brains[team] = TeamBrain.new(team, agents)
+	_compute_comp_modifiers()
 
 
 func run() -> Dictionary:
@@ -55,7 +73,9 @@ func run() -> Dictionary:
 		"seed": int(_setup.get("seed", 0)),
 		"picks": _picks_summary(),
 	})
+	var end_tick := duration
 	for t in range(duration):
+		now = t
 		if t >= first_wave and (t - first_wave) % wave_interval == 0:
 			@warning_ignore("integer_division")  # exact: only reached when modulo == 0
 			var wave_index := (t - first_wave) / wave_interval + 1
@@ -66,27 +86,190 @@ func run() -> Dictionary:
 				camp.alive = true
 		for lane in SimMap.LANES:
 			_tick_lane(t, lane)
+		if t % BRAIN_INTERVAL == 0:
+			for team in SimMap.TEAMS:
+				brains[team].update(t, self)
 		for agent in agents:
 			agent.update(t, self)
-		if t % _snapshot_every == 0:
+		objectives.update(t)
+		if _snapshot_every > 0 and t % _snapshot_every == 0:
 			_snapshots.append(_capture_snapshot(t))
+		if objectives.winner != "":
+			end_tick = t + 1
+			break
 
 	var summaries: Array[Dictionary] = []
+	var team_kills := {"blue": 0, "red": 0}
 	for agent in agents:
 		summaries.append(agent.summary())
-	emit_event(duration - 1, "match_end", {"players": summaries})
-	return {
+		team_kills[agent.team] += agent.kills
+	emit_event(end_tick - 1, "match_end", {
+		"winner": objectives.winner, "duration_s": roundi(end_tick / float(TICKS_PER_SECOND)),
+		"kills": team_kills, "players": summaries,
+	})
+	var result := {
 		"events": _events,
 		"snapshots": _snapshots,
-		"ticks": duration,
+		"ticks": end_tick,
+		"winner": objectives.winner,
 		"summary": summaries,
 		"checksum": _checksum(),
 	}
+	# Break RefCounted reference cycles so 1000-sim batches don't leak.
+	combat.m = null
+	objectives.m = null
+	return result
 
 
 func emit_event(t: int, type: String, data: Dictionary) -> void:
 	# "draws" = RNG draw count when the event fired; pinpoints desyncs.
 	_events.append({"t": t, "type": type, "draws": rng.draw_count, "data": data})
+
+
+# --- combat / macro services (called by agents, brains, objectives) ----------
+
+func phase_of(t: int) -> String:
+	var minute := float(t) / (60.0 * TICKS_PER_SECOND)
+	if minute < float(comp_rules.phases.mid_start_min):
+		return "early"
+	if minute < float(comp_rules.phases.late_start_min):
+		return "mid"
+	return "late"
+
+
+func phase_curve_mult(curve: String, t: int) -> float:
+	return float(comp_rules.curves[curve][phase_of(t)])
+
+
+func team_comp_mult(team: String, _t: int) -> float:
+	return _comp_static[team]
+
+
+func mood_mult(player_id: String) -> float:
+	return 1.0 + 0.05 * float(_moods.get(player_id, 0))
+
+
+func rally_pos(team: String) -> Vector2:
+	return brains[team].rally
+
+
+func award_team(t: int, team: String, gold_each: float, xp_each: float) -> void:
+	for agent in agents:
+		if agent.team == team:
+			agent.earn(gold_each)
+			if xp_each > 0.0:
+				agent.add_xp(t, xp_each, self)
+
+
+func place_ward(team: String, pos: Vector2, t: int) -> void:
+	var ttl := int(float(balance.wards.ward_duration_s) * TICKS_PER_SECOND)
+	wards[team].append({"pos": pos, "expires": t + ttl})
+
+
+func ward_near(team: String, pos: Vector2) -> bool:
+	var active: Array = wards[team].filter(
+		func(w: Dictionary) -> bool: return w.expires >= now)
+	wards[team] = active
+	for w: Dictionary in active:
+		if w.pos.distance_to(pos) < 25.0:
+			return true
+	return false
+
+
+## Starts a fight unless the global fight cooldown blocks it (ganks bypass:
+## they're gated by the jungler's own interval). Returns winner or "".
+func start_fight(t: int, blue: Array, red: Array, location: Vector2, context: String) -> String:
+	if context != "gank" and t < _next_fight_allowed:
+		return ""
+	var blue_alive: Array = blue.filter(func(a: PlayerAgent) -> bool: return a.alive)
+	var red_alive: Array = red.filter(func(a: PlayerAgent) -> bool: return a.alive)
+	if context in ["objective", "siege_defense"]:
+		_join_teleporters(blue_alive, red_alive, t)
+	if blue_alive.is_empty() or red_alive.is_empty():
+		return ""
+	var end := t + int(float(balance.combat.fight_duration_s) * TICKS_PER_SECOND)
+	for agent: PlayerAgent in blue_alive + red_alive:
+		agent.busy_until = end
+	_next_fight_allowed = end + int(float(balance.combat.fight_cooldown_s) * TICKS_PER_SECOND)
+	return combat.resolve(t, blue_alive, red_alive, location, context)
+
+
+## Split-pushers with a ready global teleport join big fights (their whole
+## point: pressure the map, TP in when it matters).
+func _join_teleporters(blue: Array, red: Array, t: int) -> void:
+	for agent in agents:
+		if not agent.alive or not agent.ult_ready(t):
+			continue
+		if agent.character.ultimate.effect != "global_teleport":
+			continue
+		var side: Array = blue if agent.team == "blue" else red
+		if not side.has(agent):
+			side.append(agent)
+
+
+## Laning-phase gank attempt: pick an overextended lane, roll, go.
+func try_gank(jungler: PlayerAgent, t: int) -> bool:
+	if phase_of(t) != "early":
+		return false
+	var g: Dictionary = balance.ganks
+	var check_ticks := int(float(g.check_interval_s) * TICKS_PER_SECOND)
+	if t % check_ticks != 0:
+		return false
+	if t - jungler.last_gank_tick() < int(float(g.min_interval_s) * TICKS_PER_SECOND):
+		return false
+	var chance: float = float(g.base_chance_early_tag) if "early" in jungler.character.tags \
+		else float(g.base_chance_other)
+	if not rng.chance(chance):
+		return false
+	var enemy := "red" if jungler.team == "blue" else "blue"
+	var lane_names: Array[String] = []
+	var weights: Array[float] = []
+	for lane in SimMap.LANES:
+		var has_victim := false
+		for agent in agents:
+			if agent.team == enemy and agent.is_farming_lane(lane):
+				has_victim = true
+				break
+		if not has_victim:
+			continue
+		var front: float = lanes[lane].front_t
+		# Overextension: how far the enemy laner is pushed toward the
+		# jungler's side of the map (easier to reach, further from safety).
+		var overext: float = clampf(
+			((0.5 - front) if jungler.team == "blue" else (front - 0.5)) / 0.08, 0.0, 1.0)
+		lane_names.append(lane)
+		weights.append(1.0 + float(g.overextend_weight) * overext)
+	if lane_names.is_empty():
+		return false
+	jungler.start_gank(t, lane_names[rng.weighted_index(weights)])
+	return true
+
+
+## Jungler arrived on the gank lane: spotted check, then a lane skirmish.
+func execute_gank(jungler: PlayerAgent, lane_name: String, t: int) -> void:
+	var enemy := "red" if jungler.team == "blue" else "blue"
+	jungler.gank_over()
+	var victims: Array = []
+	var allies: Array = [jungler]
+	for agent in agents:
+		if agent.is_farming_lane(lane_name):
+			(victims if agent.team == enemy else allies).append(agent)
+	if victims.is_empty():
+		return
+	var g: Dictionary = balance.ganks
+	var front_pos: Vector2 = lanes[lane_name].front_pos()
+	var success: float = float(g.success_base) \
+		- float(victims[0].attrs.mechanics) / float(g.escape_mechanics_divisor)
+	if ward_near(enemy, front_pos):
+		success -= float(g.ward_penalty)
+	if not rng.chance(success):
+		emit_event(t, "gank_spotted", {"player": jungler.id, "lane": lane_name})
+		return
+	emit_event(t, "gank", {"player": jungler.id, "lane": lane_name})
+	if jungler.team == "blue":
+		start_fight(t, allies, victims, front_pos, "gank")
+	else:
+		start_fight(t, victims, allies, front_pos, "gank")
 
 
 # --- setup -------------------------------------------------------------------
@@ -128,6 +311,26 @@ func _signature_picks(team_ids: Dictionary) -> Dictionary:
 	return picks
 
 
+## Draft-level comp modifiers are static for the whole match: tag synergies,
+## tag counters vs the enemy draft, plus the draft-cohesion bonus (M5).
+func _compute_comp_modifiers() -> void:
+	var team_tags := {"blue": [], "red": []}
+	for agent in agents:
+		for tag in agent.character.tags:
+			team_tags[agent.team].append(tag)
+	var cohesion: Dictionary = _setup.get("cohesion", {})
+	for team in SimMap.TEAMS:
+		var enemy := "red" if team == "blue" else "blue"
+		var bonus: float = float(cohesion.get(team, 0.0))
+		for syn: Dictionary in comp_rules.synergies:
+			if syn.tags[0] in team_tags[team] and syn.tags[1] in team_tags[team]:
+				bonus += float(syn.bonus)
+		for counter: Dictionary in comp_rules.counters:
+			if counter.strong in team_tags[team] and counter.weak in team_tags[enemy]:
+				bonus += float(counter.bonus)
+		_comp_static[team] = 1.0 + bonus
+
+
 func _picks_summary() -> Array:
 	var out := []
 	for agent in agents:
@@ -150,7 +353,7 @@ func _tick_lane(t: int, lane_name: String) -> void:
 		"blue": present.blue.size() * float(balance.minions.presence_pressure),
 		"red": present.red.size() * float(balance.minions.presence_pressure),
 	}
-	var deaths := lane.tick(t, pressure)
+	var deaths := lane.tick(t, pressure, objectives.lane_bounds(lane_name))
 	for death in deaths:
 		var killer_side: String = "red" if death.team == "blue" else "blue"
 		var killers: Array = present[killer_side]
@@ -191,7 +394,7 @@ func _capture_snapshot(t: int) -> Dictionary:
 	for agent in agents:
 		players.append([
 			agent.id, agent.pos.x, agent.pos.y, agent.level,
-			agent.gold_total, agent.cs,
+			agent.gold_total, agent.cs, 1 if agent.alive else 0,
 		])
 	var lane_rows := []
 	for lane in SimMap.LANES:

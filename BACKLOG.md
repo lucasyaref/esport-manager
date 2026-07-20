@@ -11,7 +11,7 @@ Character schema + 15 characters (3/role) in data files. Player schema + 10 play
 ## M2 — Sim core: map, minions, laning — done
 Logical map graph (lanes, jungle camps, river, pits, towers, nexus). Minion waves, farming, gold/XP curves, role assignment to lanes, jungle pathing. Headless output: gold/XP curves per role look sane (carry/mid > support, etc.).
 
-## M3 — Sim core: skirmishes, ganks, objectives, fights, win — todo
+## M3 — Sim core: skirmishes, ganks, objectives, fights, win — done
 Gank logic (jungle/roams), skirmish + teamfight resolver (stats, ultimates, mechanics, comp modifiers, seeded variance), Dragon/Baron contests, tower/nexus destruction, full match to victory. Batch runner: 1000 matches → win-rate by side ~50%, length distribution 25–35 min, kill totals plausible. Report numbers.
 
 ## M4 — Viewer v1 — todo

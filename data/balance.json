@@ -38,5 +38,81 @@
     "camp_first_spawn_s": 90,
     "camp_respawn_s": 135,
     "clear_jitter_s": 2
+  },
+  "combat": {
+    "kill_gold": 300,
+    "assist_gold_total": 150,
+    "shutdown_per_streak": 120,
+    "shutdown_max": 900,
+    "min_kill_worth": 150,
+    "kill_xp_base": 100,
+    "kill_xp_per_victim_level": 30,
+    "fight_variance": 0.18,
+    "power_item_divisor": 10000,
+    "mechanics_power_base": 0.85,
+    "mechanics_power_divisor": 650,
+    "ehp_norm": 1000,
+    "numbers_advantage_per_member": 0.22,
+    "respawn_base_s": 8,
+    "respawn_per_level_s": 1.4,
+    "fight_duration_s": 6,
+    "fight_cooldown_s": 60,
+    "loser_deaths_base": 1.2,
+    "deaths_ratio_scale": 3.5,
+    "max_deaths_per_fight": 5,
+    "protect_carry_death_factor": 0.6,
+    "frontline_death_weight": 1.6,
+    "ult_impact": {
+      "aoe_cc": 0.3,
+      "single_cc": 0.15,
+      "aoe_damage": 0.28,
+      "single_burst": 0.18,
+      "snipe": 0.15,
+      "team_shield": 0.25,
+      "team_heal": 0.22,
+      "self_steroid": 0.2,
+      "global_teleport": 0.1,
+      "zone_denial": 0.22,
+      "execute": 0.2
+    },
+    "macro_setpiece_pivot": 70,
+    "macro_setpiece_divisor": 85
+  },
+  "ganks": {
+    "check_interval_s": 15,
+    "min_interval_s": 70,
+    "base_chance_early_tag": 0.35,
+    "base_chance_other": 0.12,
+    "success_base": 0.48,
+    "ward_penalty": 0.3,
+    "overextend_weight": 2.0,
+    "escape_mechanics_divisor": 500
+  },
+  "wards": {
+    "support_ward_interval_s": 40,
+    "ward_duration_s": 90
+  },
+  "towers": {
+    "hp": 2300,
+    "minion_dps": 4,
+    "player_base_dps": 26,
+    "gold_per_player": 125,
+    "nexus_hp": 4200
+  },
+  "objectives": {
+    "dragon_first_spawn_s": 300,
+    "dragon_respawn_s": 300,
+    "dragon_gold_per_player": 100,
+    "dragon_buff_per_stack": 0.03,
+    "baron_first_spawn_s": 1200,
+    "baron_respawn_s": 360,
+    "baron_gold_per_player": 300,
+    "baron_buff_power": 0.06,
+    "baron_siege_mult": 3.0,
+    "baron_duration_s": 180,
+    "decision_interval_s": 10,
+    "take_channel_s": 15,
+    "dragon_xp_per_player": 150,
+    "baron_xp_per_player": 250
   }
 }

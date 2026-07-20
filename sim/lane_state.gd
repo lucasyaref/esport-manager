@@ -38,9 +38,11 @@ func spawn_wave(t: int, wave_index: int) -> void:
 
 
 ## Advances one tick. pressure = extra kill rate applied per side from players
-## farming this lane (their side pushes while they're present).
+## farming this lane (their side pushes while they're present). bounds =
+## {lo, hi, shred_lo, shred_hi} from Objectives — push limits move as towers
+## fall, and towers at a bound shred waves pinned on them.
 ## Returns deaths as [{team: side_of_dead_minion, cannon: bool}], in order.
-func tick(t: int, pressure: Dictionary) -> Array[Dictionary]:
+func tick(t: int, pressure: Dictionary, bounds: Dictionary) -> Array[Dictionary]:
 	var arrived: Array[Dictionary] = []
 	for wave in _incoming:
 		if wave.tick <= t:
@@ -62,8 +64,8 @@ func tick(t: int, pressure: Dictionary) -> Array[Dictionary]:
 	# it. This is the counterforce that keeps armies bounded — without it, any
 	# army surplus compounds forever (kill rate scales with army size).
 	var tower_rate: float = _bal.tower_kill_rate
-	var at_blue_tower := front_t <= float(_map.towers.blue.outer) + 0.001
-	var at_red_tower := front_t >= float(_map.towers.red.outer) - 0.001
+	var at_blue_tower: bool = bounds.shred_lo and front_t <= float(bounds.lo) + 0.001
+	var at_red_tower: bool = bounds.shred_hi and front_t >= float(bounds.hi) - 0.001
 	for team in SimMap.TEAMS:
 		var opp := "red" if team == "blue" else "blue"
 		var opp_army: float = army[opp]
@@ -81,8 +83,10 @@ func tick(t: int, pressure: Dictionary) -> Array[Dictionary]:
 		if minions[team] + cannons[team] == 0:
 			_kill_acc[team] = 0.0
 
-	front_t = _map.clamp_front(front_t + float(_bal.front_drift) * (
-		minions.blue + cannons.blue - minions.red - cannons.red))
+	front_t = clampf(
+		front_t + float(_bal.front_drift) * (
+			minions.blue + cannons.blue - minions.red - cannons.red),
+		float(bounds.lo), float(bounds.hi))
 	return deaths
 
 

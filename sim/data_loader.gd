@@ -268,12 +268,33 @@ static func _validate_balance(balance: Dictionary, errors: Array[String]) -> voi
 		"xp": ["level_up_base", "level_up_step", "duo_share"],
 		"cs": ["base_chance", "laning_divisor", "support_assist_bonus", "max_chance"],
 		"jungle": ["camp_first_spawn_s", "camp_respawn_s", "clear_jitter_s"],
+		"combat": ["kill_gold", "assist_gold_total", "shutdown_per_streak", "shutdown_max",
+			"min_kill_worth", "kill_xp_base", "kill_xp_per_victim_level", "fight_variance",
+			"power_item_divisor", "mechanics_power_base", "mechanics_power_divisor", "ehp_norm",
+			"numbers_advantage_per_member", "respawn_base_s", "respawn_per_level_s",
+			"fight_duration_s", "fight_cooldown_s", "loser_deaths_base", "deaths_ratio_scale",
+			"max_deaths_per_fight", "protect_carry_death_factor", "frontline_death_weight",
+			"macro_setpiece_pivot", "macro_setpiece_divisor"],
+		"ganks": ["check_interval_s", "min_interval_s", "base_chance_early_tag",
+			"base_chance_other", "success_base", "ward_penalty", "overextend_weight",
+			"escape_mechanics_divisor"],
+		"wards": ["support_ward_interval_s", "ward_duration_s"],
+		"towers": ["hp", "minion_dps", "player_base_dps", "gold_per_player", "nexus_hp"],
+		"objectives": ["dragon_first_spawn_s", "dragon_respawn_s", "dragon_gold_per_player",
+			"dragon_buff_per_stack", "baron_first_spawn_s", "baron_respawn_s",
+			"baron_gold_per_player", "baron_buff_power", "baron_siege_mult",
+			"baron_duration_s", "decision_interval_s", "take_channel_s",
+			"dragon_xp_per_player", "baron_xp_per_player"],
 	}
 	for section: String in required:
 		var sec: Dictionary = balance.get(section, {})
 		for key: String in required[section]:
 			if not _is_number(sec.get(key)) or sec.get(key, -1) < 0:
 				errors.append("balance/%s: \"%s\" must be a non-negative number" % [section, key])
+	var ult_impact: Dictionary = balance.get("combat", {}).get("ult_impact", {})
+	for effect in ULT_EFFECTS:
+		if not _is_number(ult_impact.get(effect)):
+			errors.append("balance/combat/ult_impact: missing coefficient for \"%s\"" % effect)
 
 
 # --- helpers -----------------------------------------------------------------

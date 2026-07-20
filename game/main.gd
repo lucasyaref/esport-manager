@@ -1,10 +1,9 @@
 extends Control
-## M2 placeholder main scene: validates data, runs the sim determinism
-## self-test, and shows the scoreboard of a full simulated match so the
-## economy is visible in-game. Replaced by the real match viewer in M4.
+## M3 placeholder main scene: validates data, runs the sim determinism
+## self-test, and shows the result of a full simulated match — winner,
+## scoreboard with K/D/A, kill feed. Replaced by the real match viewer in M4.
 
 const SELF_TEST_SEED := 42
-const SELF_TEST_MINUTES := 30
 
 
 func _ready() -> void:
@@ -20,11 +19,7 @@ func _ready() -> void:
 
 
 func _run_self_test(data: Dictionary) -> String:
-	var setup := {
-		"seed": SELF_TEST_SEED,
-		"duration_ticks": SELF_TEST_MINUTES * 60 * SimMatch.TICKS_PER_SECOND,
-		"snapshot_every": 10,
-	}
+	var setup := {"seed": SELF_TEST_SEED, "snapshot_every": 10}
 	var a := SimMatch.new(setup, data).run()
 	var b := SimMatch.new(setup, data).run()
 	var ok: bool = a.checksum == b.checksum
@@ -32,18 +27,30 @@ func _run_self_test(data: Dictionary) -> String:
 	var lines := []
 	lines.append("[b]Game data[/b]: %d characters, %d players, %d teams — [color=green][b]VALID[/b][/color]" % [
 		data.characters.size(), data.players.size(), data.teams.size()])
-	lines.append("[b]Determinism[/b]: %d-minute match simulated twice (seed %d) — %s" % [
-		SELF_TEST_MINUTES, SELF_TEST_SEED,
+	lines.append("[b]Determinism[/b]: full match simulated twice (seed %d) — %s" % [
+		SELF_TEST_SEED,
 		"[color=green][b]IDENTICAL — PASS[/b][/color]" if ok else "[color=red][b]DIFFERENT — FAIL[/b][/color]",
 	])
 	lines.append("")
-	lines.append("[b]Scoreboard after %d minutes[/b] (%d events; farming economy only — combat lands in M3):" % [
-		SELF_TEST_MINUTES, a.events.size()])
-	lines.append("[code]%-10s %-6s %-9s %-10s %5s %5s %7s[/code]" % [
-		"handle", "team", "role", "character", "level", "cs", "gold"])
+	var winner_team: String = a.winner if a.winner != "" else "nobody (timeout)"
+	lines.append("[b]Match result[/b]: [color=%s][b]%s[/b][/color] wins in %.1f minutes (%d events)" % [
+		"#6fa8ff" if a.winner == "blue" else "#ff7f7f", winner_team,
+		a.ticks / (60.0 * SimMatch.TICKS_PER_SECOND), a.events.size()])
+	lines.append("[code]%-10s %-6s %-9s %-10s %5s %5s %9s %7s[/code]" % [
+		"handle", "team", "role", "character", "level", "cs", "k/d/a", "gold"])
 	for row: Dictionary in a.summary:
-		lines.append("[code]%-10s %-6s %-9s %-10s %5d %5d %7d[/code]" % [
-			row.handle, row.team, row.role, row.character, row.level, row.cs, row.gold])
+		lines.append("[code]%-10s %-6s %-9s %-10s %5d %5d %9s %7d[/code]" % [
+			row.handle, row.team, row.role, row.character, row.level, row.cs,
+			"%d/%d/%d" % [row.kills, row.deaths, row.assists], row.gold])
+	lines.append("")
+	lines.append("[b]Kill feed (first 15)[/b]:")
+	var shown := 0
+	for ev: Dictionary in a.events:
+		if ev.type != "kill" or shown >= 15:
+			continue
+		shown += 1
+		lines.append("  %5.1f  %s killed %s" % [
+			ev.t / (60.0 * SimMatch.TICKS_PER_SECOND), ev.data.killer, ev.data.victim])
 	return "\n".join(lines)
 
 
