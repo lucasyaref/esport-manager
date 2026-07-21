@@ -12,6 +12,7 @@ extends RefCounted
 const TICKS_PER_SECOND := 10
 const DEFAULT_DURATION_MIN := 45  # hard cap; matches normally end by nexus kill
 const BRAIN_INTERVAL := 20        # macro decisions every 2 s
+const INTENT_INTERVAL := 2        # combat perception/steering at 5 Hz
 
 var map: SimMap
 var balance: Dictionary
@@ -33,7 +34,6 @@ var _snapshots: Array[Dictionary] = []
 var _snapshot_every: int
 var _comp_static := {"blue": 1.0, "red": 1.0}
 var _moods: Dictionary = {}
-var _next_fight_allowed := 0
 
 
 ## setup: { seed: int, duration_ticks?: int, snapshot_every?: int (0 = none),
@@ -89,8 +89,15 @@ func run() -> Dictionary:
 		if t % BRAIN_INTERVAL == 0:
 			for team in SimMap.TEAMS:
 				brains[team].update(t, self)
+		# Combat decides first (perceive, commit, steer), then everyone moves,
+		# then the swings land — see Combat's tick contract. Deciding runs at
+		# half rate: re-reading the fight 5 times a second is indistinguishable
+		# from 10 at playback speed and it is the bulk of the batch-run cost.
+		if t % INTENT_INTERVAL == 0:
+			combat.update_intent(t)
 		for agent in agents:
 			agent.update(t, self)
+		combat.resolve_attacks(t)
 		objectives.update(t)
 		if _snapshot_every > 0 and t % _snapshot_every == 0:
 			_snapshots.append(_capture_snapshot(t))
@@ -176,35 +183,31 @@ func ward_near(team: String, pos: Vector2) -> bool:
 	return false
 
 
-## Starts a fight unless the global fight cooldown blocks it (ganks bypass:
-## they're gated by the jungler's own interval). Returns winner or "".
-func start_fight(t: int, blue: Array, red: Array, location: Vector2, context: String) -> String:
-	if context != "gank" and t < _next_fight_allowed:
-		return ""
-	var blue_alive: Array = blue.filter(func(a: PlayerAgent) -> bool: return a.alive)
-	var red_alive: Array = red.filter(func(a: PlayerAgent) -> bool: return a.alive)
-	if context in ["objective", "siege_defense"]:
-		_join_teleporters(blue_alive, red_alive, t)
-	if blue_alive.is_empty() or red_alive.is_empty():
-		return ""
-	var end := t + int(float(balance.combat.fight_duration_s) * TICKS_PER_SECOND)
-	for agent: PlayerAgent in blue_alive + red_alive:
-		agent.busy_until = end
-	_next_fight_allowed = end + int(float(balance.combat.fight_cooldown_s) * TICKS_PER_SECOND)
-	return combat.resolve(t, blue_alive, red_alive, location, context)
+## Split-pushers with a ready global teleport rotate to a fight already under
+## way — that is the whole point of the pick: pressure a side lane, TP in when
+## it matters. Called by the team brain when it groups.
+func teleport_to(agent: PlayerAgent, where: Vector2, t: int) -> bool:
+	if not agent.alive or not agent.ult_ready(t):
+		return false
+	if agent.character.ultimate.effect != "global_teleport":
+		return false
+	agent.cast_ult(t, self)
+	agent.pos = where
+	emit_event(t, "teleport", {"player": agent.id, "pos": [where.x, where.y]})
+	return true
 
 
-## Split-pushers with a ready global teleport join big fights (their whole
-## point: pressure the map, TP in when it matters).
-func _join_teleporters(blue: Array, red: Array, t: int) -> void:
-	for agent in agents:
-		if not agent.alive or not agent.ult_ready(t):
-			continue
-		if agent.character.ultimate.effect != "global_teleport":
-			continue
-		var side: Array = blue if agent.team == "blue" else red
-		if not side.has(agent):
-			side.append(agent)
+## How long a gank commitment stays valid before the jungler gives up on it.
+func gank_timeout_ticks() -> int:
+	return int(float(balance.ganks.commit_timeout_s) * TICKS_PER_SECOND)
+
+
+## The jungler reached the lane (or ran out of patience). There is no gank
+## "roll" any more — whether it works is decided by the combat engine from who
+## is standing where, at what health, with what vision.
+func gank_arrived(jungler: PlayerAgent, lane_name: String, t: int) -> void:
+	jungler.gank_over()
+	emit_event(t, "gank", {"player": jungler.id, "lane": lane_name})
 
 
 ## Laning-phase gank attempt: pick an overextended lane, roll, go.
@@ -245,33 +248,6 @@ func try_gank(jungler: PlayerAgent, t: int) -> bool:
 	return true
 
 
-## Jungler arrived on the gank lane: spotted check, then a lane skirmish.
-func execute_gank(jungler: PlayerAgent, lane_name: String, t: int) -> void:
-	var enemy := "red" if jungler.team == "blue" else "blue"
-	jungler.gank_over()
-	var victims: Array = []
-	var allies: Array = [jungler]
-	for agent in agents:
-		if agent.is_farming_lane(lane_name):
-			(victims if agent.team == enemy else allies).append(agent)
-	if victims.is_empty():
-		return
-	var g: Dictionary = balance.ganks
-	var front_pos: Vector2 = lanes[lane_name].front_pos()
-	var success: float = float(g.success_base) \
-		- float(victims[0].attrs.mechanics) / float(g.escape_mechanics_divisor)
-	if ward_near(enemy, front_pos):
-		success -= float(g.ward_penalty)
-	if not rng.chance(success):
-		emit_event(t, "gank_spotted", {"player": jungler.id, "lane": lane_name})
-		return
-	emit_event(t, "gank", {"player": jungler.id, "lane": lane_name})
-	if jungler.team == "blue":
-		start_fight(t, allies, victims, front_pos, "gank")
-	else:
-		start_fight(t, victims, allies, front_pos, "gank")
-
-
 # --- setup -------------------------------------------------------------------
 
 func _spawn_agents() -> void:
@@ -283,7 +259,7 @@ func _spawn_agents() -> void:
 			var player: Dictionary = _data.players[roster[role]]
 			var character: Dictionary = _data.characters[picks[player.id]]
 			agents.append(PlayerAgent.new(
-				player, side, character, map.bases[side],
+				agents.size(), player, side, character, map.bases[side],
 				float(balance.economy.starting_gold)))
 
 

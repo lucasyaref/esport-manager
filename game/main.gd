@@ -121,7 +121,10 @@ func _apply_cmdline() -> void:
 
 func _read_balance() -> void:
 	var cb: Dictionary = data.balance.combat
-	fight_window = int(float(cb.fight_duration_s) * TPS)
+	# Fights no longer have a fixed length — they run until someone dies or
+	# breaks off. This is just how long a champion keeps its "in a fight" glow
+	# after the last fight_start touching it.
+	fight_window = int(float(data.balance.fight.fight_end_grace_s) * TPS)
 	respawn_base = float(cb.respawn_base_s)
 	respawn_per_level = float(cb.respawn_per_level_s)
 	baron_dur = int(float(data.balance.objectives.baron_duration_s) * TPS)

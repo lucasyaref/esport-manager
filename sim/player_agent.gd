@@ -11,6 +11,9 @@ enum State {
 const ARRIVE_DIST := 1.0
 const SPEED_SCALE := 1.0 / 125.0  # character speed 335 -> ~2.7 map units/s
 
+var idx := -1                    # index into SimMatch.agents (targets are stored
+                                 # as indices, never references — agents are
+                                 # RefCounted and mutual refs would leak)
 var id: String
 var handle: String
 var team: String                 # "blue" / "red"
@@ -30,6 +33,18 @@ var gold_total := 0.0            # earned overall (economy curves read this)
 var gold_carried := 0.0          # spent on recall (buy trigger)
 var item_power := 0.0
 
+# Combat state, owned by Combat and read back here for movement.
+var in_combat := false           # Combat has taken over this agent's movement
+var disengaging := false         # backing off rather than committing
+var target_idx := -1             # who we are attacking (index into agents)
+var desired_pos := Vector2.ZERO  # where Combat wants us to stand this tick
+var speed_mult := 1.0            # gap-closer bonus while committing to a fight
+var attack_ready_at := 0
+var disengage_until := -1        # broke off a fight; won't re-commit until then
+var stunned_until := -1
+var steroid_until := -1          # self-buff ultimates
+var last_damaged_at := -999999
+
 var alive := true
 var kills := 0
 var deaths := 0
@@ -37,7 +52,6 @@ var assists := 0
 var kill_streak := 0
 var death_streak := 0
 
-var busy_until := -1             # locked in a fight window
 var _respawn_at := 0
 var _ult_ready_at := 0
 var _state_until := 0            # tick when CLEARING / RECALLING ends
@@ -48,8 +62,9 @@ var _gank_lane := ""
 var _speed_per_tick: float
 
 
-func _init(player: Dictionary, p_team: String, p_character: Dictionary, base_pos: Vector2,
-		starting_gold: float) -> void:
+func _init(p_idx: int, player: Dictionary, p_team: String, p_character: Dictionary,
+		base_pos: Vector2, starting_gold: float) -> void:
+	idx = p_idx
 	id = player.id
 	handle = player.handle
 	team = p_team
@@ -75,10 +90,18 @@ func update(t: int, m: SimMatch) -> void:
 			hp = max_hp
 			state = State.TO_CAMP if role == "jungle" else State.TO_LANE
 		return
-	if t < busy_until:
-		return
 	_earn_passive(m)
-	_regen(m)
+	_regen(t, m)
+	if t < stunned_until:
+		return
+	# Combat owns movement whenever this agent is engaged or backing off:
+	# the FSM's farm/camp/group destinations resume once the danger passes.
+	if in_combat:
+		# Not _move_toward: its ARRIVE_DIST slack is for walking to a lane or a
+		# camp. In a fight, stopping a unit short of where you meant to stand
+		# means a melee character never reaches its own attack range.
+		pos = pos.move_toward(desired_pos, _speed_per_tick * speed_mult)
+		return
 	if role == "support":
 		_maybe_ward(t, m)
 	match state:
@@ -98,9 +121,12 @@ func update(t: int, m: SimMatch) -> void:
 			if t >= _state_until:
 				_finish_camp(t, m)
 		State.GANKING:
-			var target: Vector2 = m.lanes[_gank_lane].farm_pos("red" if team == "blue" else "blue")
-			if _move_toward(target):
-				m.execute_gank(self, _gank_lane, t)
+			# Walk to the lane and let proximity do the rest — the fight, if
+			# there is one, is resolved by the combat engine like any other.
+			var gank_target: Vector2 = m.lanes[_gank_lane].farm_pos(
+				"red" if team == "blue" else "blue")
+			if _move_toward(gank_target) or t - _last_gank_t > m.gank_timeout_ticks():
+				m.gank_arrived(self, _gank_lane, t)
 		State.GROUPING:
 			if _move_toward(m.rally_pos(team)):
 				state = State.HOLDING
@@ -154,6 +180,11 @@ func die(t: int, m: SimMatch) -> void:
 	kill_streak = 0
 	state = State.DEAD
 	pos = m.map.bases[team]
+	in_combat = false
+	disengaging = false
+	target_idx = -1
+	stunned_until = -1
+	steroid_until = -1
 	_camp_index = -1
 	_respawn_at = t + int((float(c.respawn_base_s) + float(c.respawn_per_level_s) * level)
 		* SimMatch.TICKS_PER_SECOND)
@@ -161,8 +192,9 @@ func die(t: int, m: SimMatch) -> void:
 
 ## Applies damage without resolving death — the caller decides whether a
 ## player at 0 HP dies now (and who gets the kill credit).
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, t: int = -999999) -> void:
 	hp = maxf(hp - amount, 0.0)
+	last_damaged_at = maxi(last_damaged_at, t)
 
 
 func hp_fraction() -> float:
@@ -223,12 +255,15 @@ func _earn_passive(m: SimMatch) -> void:
 	earn(per_tick)
 
 
-## Out-of-combat regen: slow on the map, fast in the fountain. This is what
-## makes a low-HP player choose to go home instead of grinding at 20%.
-func _regen(m: SimMatch) -> void:
+## Out-of-combat regen: slow on the map, fast in the fountain, none for a few
+## seconds after taking a hit. This is what makes a low-HP player choose to go
+## home instead of grinding at 20%.
+func _regen(t: int, m: SimMatch) -> void:
 	if hp >= max_hp:
 		return
 	var health: Dictionary = m.balance.health
+	if t - last_damaged_at < int(float(health.regen_lockout_s) * SimMatch.TICKS_PER_SECOND):
+		return
 	var pct: float = float(health.regen_pct_per_s)
 	if pos.distance_to(m.map.bases[team]) < 6.0:
 		pct = float(health.base_regen_pct_per_s)

@@ -1,160 +1,618 @@
 class_name Combat
 extends RefCounted
-## Fight resolution: skirmishes, ganks and teamfights. One resolver serves all
-## sizes — inputs are the two participant lists plus context, output is a
-## resolved fight (winner, deaths, gold/XP transfers, ultimate casts) emitted
-## as events over a short fight window so the viewer can animate it.
+## Spatial combat engine (GDD §6.1).
 ##
-## Design (GDD §6): power = stats(level) × phase curve × item factor ×
-## mechanics × comp modifiers, with seeded variance. Comeback-friendly:
-## linear item scaling, shutdown bounties, no rubber-banding.
+## Combat is not an event that gets resolved — it is a continuous property of
+## the world. Every tick each living player perceives nearby enemies, decides
+## whether the fight is worth taking, picks a target, steers to the range its
+## character wants to fight at, and swings when it can. Deaths happen because
+## HP reached zero, never because a lottery said so.
+##
+## Positioning is emergent, not scripted: a long-range, low-HP carry drifts to
+## the back because kiting keeps it alive; a short-range, high-HP engager has
+## to close to do anything. `fight_role` in characters.json biases that, it does
+## not dictate it.
+##
+## The tick contract, driven by SimMatch:
+##   1. update_intent(t)    — before movement: perceive, commit, target, steer
+##   2. (agents move)
+##   3. resolve_attacks(t)  — after movement: ultimates, swings, deaths, events
+##
+## Determinism: agents are iterated in fixed array order, decisions are staged
+## into parallel arrays and committed at once (so no agent's choice depends on
+## where it sits in the array), and every draw goes through m.rng.
 
-var m: SimMatch  # back-reference, set per-match; not stored beyond match life
+var m: SimMatch  # back-reference, set per-match; cleared by SimMatch at end of run()
+
+# victim idx -> {attacker idx: tick of last hit}. Drives kill credit + assists.
+var _damage_log: Dictionary = {}
+# fight id -> {members: Array[int], started: int, last_seen: int, pos: Vector2,
+#              context: String, deaths: {blue: int, red: int}}
+var _fights: Dictionary = {}
+var _next_fight_id := 1
+# Per-tick threat cache, indexed by agent idx (see threat()).
+var _threat_cache: Array[float] = []
+var _threat_tick := -1
 
 
 func _init(match_ref: SimMatch) -> void:
 	m = match_ref
 
 
-## One player's contribution to a fight at time t.
-func fight_power(agent: PlayerAgent, t: int) -> float:
+# --- tick phase 1: perceive and decide ---------------------------------------
+
+## Sets in_combat / disengaging / target_idx / desired_pos on every agent.
+## Decisions are staged and committed together so that an agent's choice never
+## depends on whether its team-mates were processed before or after it.
+func update_intent(t: int) -> void:
+	var f: Dictionary = m.balance.fight
+	var awareness := float(f.awareness_radius)
+	var n := m.agents.size()
+	var engaged: Array[bool] = []
+	var backing_off: Array[bool] = []
+	var targets: Array[int] = []
+	var stands: Array[Vector2] = []
+	var speeds: Array[float] = []
+	engaged.resize(n)
+	backing_off.resize(n)
+	targets.resize(n)
+	stands.resize(n)
+	speeds.resize(n)
+
+	for i in n:
+		var agent: PlayerAgent = m.agents[i]
+		engaged[i] = false
+		backing_off[i] = false
+		targets[i] = -1
+		stands[i] = agent.pos
+		speeds[i] = 1.0
+		if not agent.alive or agent.state == PlayerAgent.State.RECALLING:
+			continue
+		var enemies := _near(agent, awareness, true)
+		if enemies.is_empty():
+			continue
+		var allies := _near(agent, awareness, false)
+		# Hysteresis: a player who has just broken off a fight stays broken off
+		# for a few seconds. Without it, agents re-evaluate every tick, bounce
+		# straight back into range, and one engagement reads as twenty.
+		var commit := _wants_to_fight(agent, allies, enemies, t)
+		if t < agent.disengage_until:
+			commit = false
+		elif not commit:
+			agent.disengage_until = t + int(
+				float(f.disengage_lock_s) * SimMatch.TICKS_PER_SECOND)
+		if not commit:
+			# Declining a fight only overrides what this agent was doing if the
+			# threat is actually close. Otherwise the FSM keeps running, so a
+			# laner facing an opponent across the wave still farms — and still
+			# goes home on its own when it gets low.
+			if agent.pos.distance_to(_closest(agent.pos, enemies).pos) <= float(f.danger_radius):
+				engaged[i] = true
+				backing_off[i] = true
+				stands[i] = _retreat_pos(agent, enemies, f)
+				# Backing off is not surrendering: anything already in reach
+				# still gets shot at on the way out.
+				var chased := _closest(agent.pos, enemies)
+				if agent.pos.distance_to(chased.pos) <= float(agent.character.combat.attack_range):
+					targets[i] = chased.idx
+			continue
+		engaged[i] = true
+		var tgt := _select_target(agent, allies, enemies, t, f)
+		targets[i] = tgt.idx
+		stands[i] = _stand_pos(agent, tgt, allies, enemies, f)
+		# Gap closers, abstracted: a frontline or flank character crossing open
+		# ground to reach its target moves faster than it walks. Without it the
+		# approach is free damage for whoever is already in range.
+		var cmb: Dictionary = agent.character.combat
+		if cmb.fight_role in ["frontline", "flank"] \
+				and agent.pos.distance_to(tgt.pos) > float(cmb.attack_range):
+			speeds[i] = 1.0 + float(f.engage_speed_bonus)
+
+	for i in n:
+		var agent: PlayerAgent = m.agents[i]
+		agent.in_combat = engaged[i]
+		agent.disengaging = backing_off[i]
+		agent.target_idx = targets[i]
+		agent.desired_pos = stands[i]
+		agent.speed_mult = speeds[i]
+	_update_fights(t)
+
+
+# --- tick phase 2: act --------------------------------------------------------
+
+func resolve_attacks(t: int) -> void:
+	for agent in m.agents:
+		if agent.alive and t >= agent.stunned_until:
+			_try_ultimate(agent, t, m.balance.fight)
+	for agent in m.agents:
+		if not agent.alive or agent.target_idx < 0 or t < agent.stunned_until:
+			continue
+		var tgt: PlayerAgent = m.agents[agent.target_idx]
+		if not tgt.alive:
+			continue
+		if agent.pos.distance_to(tgt.pos) > float(agent.character.combat.attack_range):
+			continue
+		if t < agent.attack_ready_at:
+			continue
+		var period := float(SimMatch.TICKS_PER_SECOND) / float(agent.character.combat.attack_speed)
+		agent.attack_ready_at = t + maxi(1, int(period))
+		_deal_damage(t, agent, tgt, _attack_damage(agent, tgt, t))
+
+
+## How dangerous a player is right now: stats at level x items x mechanics x
+## phase curve x comp modifiers. Used for target priority and commit decisions
+## (and, scaled, for ultimate impact) — the same shape the M3 resolver used.
+##
+## Cached per tick: target selection and commit checks ask for it O(n^2) times
+## a tick, and recomputing it there dominated the batch-run cost. Levels and
+## gold earned mid-tick land in the next tick's numbers, which is invisible at
+## 10 ticks a second and keeps the cache deterministic.
+func threat(agent: PlayerAgent, t: int) -> float:
+	if t != _threat_tick:
+		_threat_tick = t
+		_threat_cache.resize(m.agents.size())
+		for i in m.agents.size():
+			_threat_cache[i] = _threat_uncached(m.agents[i], t)
+	return _threat_cache[agent.idx]
+
+
+func _threat_uncached(agent: PlayerAgent, t: int) -> float:
 	var c: Dictionary = m.balance.combat
 	var damage := DataLoader.stat_at_level(agent.character, "damage", agent.level)
 	var hp := DataLoader.stat_at_level(agent.character, "hp", agent.level)
 	var armor := DataLoader.stat_at_level(agent.character, "armor", agent.level)
 	var ehp := hp * (1.0 + armor / 100.0)
 	var item_factor: float = 1.0 + agent.item_power / float(c.power_item_divisor)
-	var mech: float = float(c.mechanics_power_base) + float(agent.attrs.mechanics) / float(c.mechanics_power_divisor)
-	var phase_mult := m.phase_curve_mult(agent.character.curve, t)
-	var mood: float = m.mood_mult(agent.id)
-	return damage * item_factor * mech * phase_mult * mood * sqrt(ehp / float(c.ehp_norm))
+	var mech: float = float(c.mechanics_power_base) \
+		+ float(agent.attrs.mechanics) / float(c.mechanics_power_divisor)
+	return damage * item_factor * mech * m.phase_curve_mult(agent.character.curve, t) \
+		* m.mood_mult(agent.id) * sqrt(ehp / float(c.ehp_norm))
 
 
-## Resolves a fight between two participant lists. location: Vector2 for
-## events. context: "gank", "skirmish", "teamfight", "objective".
-## Returns the winning side ("blue"/"red") — ties impossible (variance).
-func resolve(t: int, blue: Array, red: Array, location: Vector2, context: String) -> String:
-	var c: Dictionary = m.balance.combat
-	m.emit_event(t, "fight_start", {
-		"context": context, "pos": [location.x, location.y],
-		"blue": _ids(blue), "red": _ids(red),
-	})
-	var sides := {"blue": blue, "red": red}
-	var scores := {}
-	for side: String in sides:
-		var members: Array = sides[side]
-		var score := 0.0
-		for agent: PlayerAgent in members:
-			score += fight_power(agent, t)
-			if agent.ult_ready(t):
-				score += fight_power(agent, t) * float(c.ult_impact[agent.character.ultimate.effect])
-				agent.cast_ult(t, m)
-		score *= m.team_comp_mult(side, t)
-		score *= 1.0 + m.objectives.team_buff(side)
-		# Set-piece fights (objective contests, organized tower defenses)
-		# reward shot-calling: macro teams fight them on their terms.
-		if context in ["objective", "siege_defense"]:
-			score *= 1.0 + (m.brains[side].macro_avg() - float(c.macro_setpiece_pivot)) \
-				/ float(c.macro_setpiece_divisor)
-		var enemy_count: int = sides["red" if side == "blue" else "blue"].size()
-		if members.size() > enemy_count:
-			score *= 1.0 + float(c.numbers_advantage_per_member) * (members.size() - enemy_count)
-		score *= 1.0 + m.rng.randf_range(-float(c.fight_variance), float(c.fight_variance))
-		scores[side] = maxf(score, 0.01)
+# --- perception ---------------------------------------------------------------
 
-	var winner: String = "blue" if scores.blue > scores.red else "red"
-	var loser: String = "red" if winner == "blue" else "blue"
-	var ratio: float = scores[winner] / scores[loser]
-
-	var loser_deaths := clampi(
-		roundi(float(c.loser_deaths_base) + (ratio - 1.0) * float(c.deaths_ratio_scale)),
-		1, mini(int(c.max_deaths_per_fight), sides[loser].size()))
-	var winner_deaths := clampi(
-		roundi(float(c.loser_deaths_base) - 0.75 - (ratio - 1.0) * float(c.deaths_ratio_scale) * 0.8),
-		0, mini(int(c.max_deaths_per_fight), sides[winner].size() - 1))
-
-	var end_tick := t + int(float(c.fight_duration_s) * SimMatch.TICKS_PER_SECOND)
-	_apply_casualties(end_tick, sides[loser], sides[winner], loser_deaths)
-	_apply_casualties(end_tick, sides[winner], sides[loser], winner_deaths)
-	# Interim (Phase A): survivors walk away hurt, so health is already a real
-	# resource before the spatial engine replaces this resolver in Phase B.
-	var health: Dictionary = m.balance.health
-	_apply_chip_damage(sides[loser], float(health.fight_damage_loser_pct))
-	_apply_chip_damage(sides[winner], float(health.fight_damage_winner_pct))
-	m.emit_event(end_tick, "fight_end", {
-		"context": context, "winner": winner, "pos": [location.x, location.y],
-	})
-	return winner
-
-
-## Picks who dies on `victims_side`, credits kills to `killers_side`, pays
-## gold/XP with shutdown bounties, starts respawn timers.
-func _apply_casualties(t: int, victims_side: Array, killers_side: Array, count: int) -> void:
-	var c: Dictionary = m.balance.combat
-	var pool: Array = victims_side.filter(func(a: PlayerAgent) -> bool: return a.alive)
-	var killers_alive: Array = killers_side.filter(func(a: PlayerAgent) -> bool: return a.alive)
-	if killers_alive.is_empty():
-		killers_alive = killers_side
-	for _i in range(count):
-		if pool.is_empty():
-			return
-		var weights: Array[float] = []
-		for agent: PlayerAgent in pool:
-			weights.append(_death_weight(agent, victims_side))
-		var victim: PlayerAgent = pool.pop_at(m.rng.weighted_index(weights))
-
-		var killer_weights: Array[float] = []
-		for agent: PlayerAgent in killers_alive:
-			# Supports peel and set up kills; the damage roles finish them.
-			var kill_bias := 0.25 if agent.role == "support" else 1.0
-			killer_weights.append(fight_power(agent, t) * kill_bias)
-		var killer: PlayerAgent = killers_alive[m.rng.weighted_index(killer_weights)]
-
-		var bounty: float = maxf(
-			float(c.min_kill_worth),
-			float(c.kill_gold) - victim.death_streak * 50.0
-		) + minf(victim.kill_streak * float(c.shutdown_per_streak), float(c.shutdown_max))
-		killer.earn(bounty)
-		killer.kills += 1
-		killer.kill_streak += 1
-		killer.credit_kill_reset()  # a kill clears the killer's own feeding discount
-		var assists: Array[String] = []
-		var assist_each: float = float(c.assist_gold_total) / maxf(killers_alive.size() - 1, 1)
-		for agent: PlayerAgent in killers_alive:
-			if agent != killer:
-				agent.earn(assist_each)
-				agent.assists += 1
-				assists.append(agent.id)
-		var kill_xp: float = float(c.kill_xp_base) + float(c.kill_xp_per_victim_level) * victim.level
-		for agent: PlayerAgent in killers_alive:
-			agent.add_xp(t, kill_xp / killers_alive.size(), m)
-		victim.die(t, m)
-		m.emit_event(t, "kill", {
-			"killer": killer.id, "victim": victim.id, "assists": assists,
-			"gold": roundi(bounty),
-		})
-
-
-func _apply_chip_damage(side: Array, pct: float) -> void:
-	for agent: PlayerAgent in side:
-		if not agent.alive:
+func _near(agent: PlayerAgent, radius: float, hostile: bool) -> Array:
+	var out: Array = []
+	for other in m.agents:
+		if other.idx == agent.idx or not other.alive:
 			continue
-		agent.take_damage(agent.max_hp * pct * m.rng.randf_range(0.6, 1.4))
+		if (other.team != agent.team) != hostile:
+			continue
+		if agent.pos.distance_to(other.pos) <= radius:
+			out.append(other)
+	return out
 
 
-func _death_weight(agent: PlayerAgent, side: Array) -> float:
+## Commit decision: worth fighting only if my side's live power stands up to
+## theirs. Laning uses a stricter margin and a higher bail-out threshold, which
+## is what turns a lane into trade-and-back-off instead of a duel to the death.
+func _wants_to_fight(agent: PlayerAgent, allies: Array, enemies: Array, t: int) -> bool:
+	var f: Dictionary = m.balance.fight
+	# Laning restraint applies to the whole early game, not just once someone
+	# has settled into FARMING — otherwise level-1 players brawl on the walk
+	# out of base and first blood lands at a minute.
+	var laning: bool = m.phase_of(t) == "early" and agent.state in [
+		PlayerAgent.State.FARMING, PlayerAgent.State.TO_LANE]
+	if agent.hp_fraction() <= float(f.lane_disengage_hp if laning else f.disengage_hp):
+		return false
+	var mine := _live_power(agent, t)
+	for ally: PlayerAgent in allies:
+		mine += _live_power(ally, t)
+	var theirs := 0.0
+	for enemy: PlayerAgent in enemies:
+		theirs += _live_power(enemy, t)
+	return mine >= theirs * float(f.lane_commit_margin if laning else f.commit_margin)
+
+
+## Power discounted by how much health is left to spend on the fight.
+func _live_power(agent: PlayerAgent, t: int) -> float:
+	return threat(agent, t) * agent.hp_fraction()
+
+
+func _select_target(agent: PlayerAgent, allies: Array, enemies: Array, t: int,
+		f: Dictionary) -> PlayerAgent:
+	var cmb: Dictionary = agent.character.combat
+	var reach := float(cmb.attack_range)
+	var ward: PlayerAgent = _protect_ally(agent, allies) if cmb.fight_role == "peel" else null
+	var best: PlayerAgent = enemies[0]
+	var best_score := -1.0
+	for enemy: PlayerAgent in enemies:
+		# Reachability dominates — you fight what you can actually hit. This is
+		# what keeps a backline carry from suiciding into the enemy frontline.
+		var gap: float = maxf(agent.pos.distance_to(enemy.pos) - reach, 0.0)
+		var score: float = 1.0 / (1.0 + gap / float(f.reach_falloff))
+		score *= 1.0 + (1.0 - enemy.hp_fraction()) * float(f.low_hp_focus)  # finish the wounded
+		score *= threat(enemy, t) / float(f.threat_norm)                    # kill what kills you
+		if cmb.fight_role == "flank" and enemy.character.combat.fight_role == "backline":
+			score *= float(f.flank_backline_bias)
+		if ward != null and enemy.target_idx == ward.idx:
+			score *= float(f.peel_target_bias)  # get off my carry
+		if score > best_score:
+			best_score = score
+			best = enemy
+	return best
+
+
+# --- steering -----------------------------------------------------------------
+
+## Where this agent wants to stand this tick, given who it is fighting.
+func _stand_pos(agent: PlayerAgent, tgt: PlayerAgent, allies: Array, enemies: Array,
+		f: Dictionary) -> Vector2:
+	var cmb: Dictionary = agent.character.combat
+	var off_target := agent.pos - tgt.pos
+	if off_target.length() < 0.001:
+		off_target = agent.pos - m.map.bases[_enemy_of(agent.team)]
+	if off_target.length() < 0.001:
+		off_target = Vector2.RIGHT
+	# Stand just inside our own reach, never exactly on it — a target that drifts
+	# a hair further away should not silently stop the fight.
+	var hold := minf(float(cmb.preferred_range), float(cmb.attack_range) - float(f.stand_inset))
+	var stand := tgt.pos + off_target.normalized() * hold
+	match String(cmb.fight_role):
+		"frontline":
+			# Close, and put yourself between the enemy and your own squishies.
+			var screen := _backline_centroid(agent, allies)
+			if screen != Vector2.ZERO:
+				stand = stand.lerp(tgt.pos.lerp(screen, float(f.frontline_screen_lerp)),
+					float(f.frontline_screen))
+		"backline":
+			# Hold range and drift off whoever is closest — this is the kiting
+			# that makes a carry survive long enough to matter.
+			var threat_src := _closest(agent.pos, enemies)
+			var away := agent.pos - threat_src.pos
+			if away.length() > 0.001:
+				stand += away.normalized() * float(f.backline_kite)
+		"peel":
+			# Stand between the carry and whatever is closing on it.
+			var ward := _protect_ally(agent, allies)
+			if ward != null:
+				var closing := _closest(ward.pos, enemies)
+				var toward := closing.pos - ward.pos
+				if toward.length() > 0.001:
+					stand = ward.pos + toward.normalized() * float(f.peel_standoff)
+		"flank":
+			pass  # straight at the target, by design
+	# Whatever the role bias asked for, the spot has to be one we can attack
+	# from. Without this clamp a kiting carry walks out of its own range and
+	# the fight never resolves.
+	var offset := stand - tgt.pos
+	if offset.length() > hold:
+		stand = tgt.pos + offset.normalized() * hold
+	return stand
+
+
+func _retreat_pos(agent: PlayerAgent, enemies: Array, f: Dictionary) -> Vector2:
+	var centroid := Vector2.ZERO
+	for enemy: PlayerAgent in enemies:
+		centroid += enemy.pos
+	centroid /= float(enemies.size())
+	var away := agent.pos - centroid
+	if away.length() < 0.001:
+		away = agent.pos - m.map.bases[_enemy_of(agent.team)]
+	var home: Vector2 = m.map.bases[agent.team] - agent.pos
+	var dir := away.normalized()
+	if home.length() > 0.001:
+		dir += home.normalized() * float(f.retreat_home_bias)
+	if dir.length() < 0.001:
+		dir = Vector2.RIGHT
+	return agent.pos + dir.normalized() * float(f.retreat_step)
+
+
+## The ally a peeler is looking after: the most dangerous backline team-mate.
+func _protect_ally(_agent: PlayerAgent, allies: Array) -> PlayerAgent:
+	var best: PlayerAgent = null
+	var best_hp := -1.0
+	for ally: PlayerAgent in allies:
+		if ally.character.combat.fight_role != "backline":
+			continue
+		if ally.max_hp > best_hp:
+			best_hp = ally.max_hp
+			best = ally
+	return best
+
+
+func _backline_centroid(_agent: PlayerAgent, allies: Array) -> Vector2:
+	var sum := Vector2.ZERO
+	var count := 0
+	for ally: PlayerAgent in allies:
+		if ally.character.combat.fight_role in ["backline", "peel"]:
+			sum += ally.pos
+			count += 1
+	return sum / float(count) if count > 0 else Vector2.ZERO
+
+
+func _closest(from: Vector2, candidates: Array) -> PlayerAgent:
+	var best: PlayerAgent = candidates[0]
+	var best_d := INF
+	for c: PlayerAgent in candidates:
+		var d := from.distance_to(c.pos)
+		if d < best_d:
+			best_d = d
+			best = c
+	return best
+
+
+# --- damage and death ---------------------------------------------------------
+
+func _attack_damage(agent: PlayerAgent, victim: PlayerAgent, t: int) -> float:
+	var f: Dictionary = m.balance.fight
 	var c: Dictionary = m.balance.combat
-	var weight := 1.0
-	var tags: Array = agent.character.tags
-	if agent.role in ["top", "jungle"] or "engage" in tags or "protect" in tags:
-		weight *= float(c.frontline_death_weight)
-	if agent.role == "carry":
-		for ally: PlayerAgent in side:
-			if ally != agent and ally.alive and "protect" in ally.character.tags:
-				weight *= float(c.protect_carry_death_factor)
-				break
-	weight *= 1.3 - float(agent.attrs.mechanics) / 250.0
-	return maxf(weight, 0.1)
+	var dmg := DataLoader.stat_at_level(agent.character, "damage", agent.level)
+	dmg *= 1.0 + agent.item_power / float(c.power_item_divisor)
+	dmg *= float(c.mechanics_power_base) \
+		+ float(agent.attrs.mechanics) / float(c.mechanics_power_divisor)
+	dmg *= m.phase_curve_mult(agent.character.curve, t)
+	dmg *= m.mood_mult(agent.id)
+	dmg *= m.team_comp_mult(agent.team, t)
+	dmg *= 1.0 + m.objectives.team_buff(agent.team)
+	if t < agent.steroid_until:
+		dmg *= float(f.steroid_damage_mult)
+	# Reach is paid for in damage. A melee character has to walk through the
+	# fight to do anything, so it hits harder than one that never leaves the
+	# back — the standard MOBA trade, stated once here rather than hand-tuned
+	# into fifteen characters. Without it an all-ranged draft is unbeatable.
+	var reach := float(agent.character.combat.attack_range)
+	dmg *= 1.0 + (float(f.max_reach) - reach) / float(f.max_reach) * float(f.melee_damage_bonus)
+	dmg *= float(f.damage_scale)
+	dmg *= 1.0 + m.rng.randf_range(-float(f.damage_variance), float(f.damage_variance))
+	var armor := DataLoader.stat_at_level(victim.character, "armor", victim.level)
+	return dmg * 100.0 / (100.0 + armor)
+
+
+func _deal_damage(t: int, attacker: PlayerAgent, victim: PlayerAgent, amount: float) -> void:
+	if not victim.alive or amount <= 0.0:
+		return
+	victim.take_damage(amount, t)
+	var hits: Dictionary = _damage_log.get(victim.idx, {})
+	hits[attacker.idx] = t
+	_damage_log[victim.idx] = hits
+	if victim.hp <= 0.0:
+		_kill(t, attacker, victim)
+
+
+func _kill(t: int, killer: PlayerAgent, victim: PlayerAgent) -> void:
+	var c: Dictionary = m.balance.combat
+	var window := int(float(m.balance.fight.assist_window_s) * SimMatch.TICKS_PER_SECOND)
+	var helpers: Array[PlayerAgent] = []
+	var hits: Dictionary = _damage_log.get(victim.idx, {})
+	for attacker_idx: int in hits:
+		if attacker_idx == killer.idx or t - int(hits[attacker_idx]) > window:
+			continue
+		var helper: PlayerAgent = m.agents[attacker_idx]
+		if helper.team == killer.team:
+			helpers.append(helper)
+
+	var bounty: float = maxf(
+		float(c.min_kill_worth),
+		float(c.kill_gold) - victim.death_streak * 50.0
+	) + minf(victim.kill_streak * float(c.shutdown_per_streak), float(c.shutdown_max))
+	killer.earn(bounty)
+	killer.kills += 1
+	killer.kill_streak += 1
+	killer.credit_kill_reset()  # a kill clears the killer's own feeding discount
+
+	var assist_ids: Array[String] = []
+	var assist_each: float = float(c.assist_gold_total) / maxf(helpers.size(), 1)
+	for helper in helpers:
+		helper.earn(assist_each)
+		helper.assists += 1
+		assist_ids.append(helper.id)
+	var kill_xp: float = float(c.kill_xp_base) + float(c.kill_xp_per_victim_level) * victim.level
+	var share := float(helpers.size() + 1)
+	killer.add_xp(t, kill_xp / share, m)
+	for helper in helpers:
+		helper.add_xp(t, kill_xp / share, m)
+
+	var where := victim.pos  # die() sends the victim home; keep where it happened
+	_damage_log.erase(victim.idx)
+	victim.die(t, m)
+	_record_fight_death(victim, where)
+	m.emit_event(t, "kill", {
+		"killer": killer.id, "victim": victim.id, "assists": assist_ids,
+		"gold": roundi(bounty), "pos": [where.x, where.y],
+	})
+
+
+# --- ultimates ----------------------------------------------------------------
+
+## Ultimates fire on a condition, not on a timer: an AoE stun waits for bodies
+## to hit, an execute waits for a target low enough to delete, a heal waits for
+## an ally in trouble. That is what makes them read as a moment in the fight.
+func _try_ultimate(agent: PlayerAgent, t: int, f: Dictionary) -> void:
+	if not agent.ult_ready(t) or not agent.in_combat or agent.disengaging:
+		return
+	var effect: String = agent.character.ultimate.effect
+	if effect == "global_teleport":
+		return  # a rotation tool, handled by the split-push logic, not here
+	var radius: float = float(agent.character.ultimate.params.get("radius", f.ult_default_radius))
+	var enemies := _near(agent, radius, true)
+	var allies := _near(agent, radius, false)
+	var tgt: PlayerAgent = m.agents[agent.target_idx] if agent.target_idx >= 0 else null
+	match effect:
+		"aoe_cc", "aoe_damage", "zone_denial":
+			if enemies.size() < int(f.ult_aoe_min_targets):
+				return
+		"single_cc", "single_burst", "snipe":
+			if tgt == null:
+				return
+		"execute":
+			if tgt == null or tgt.hp_fraction() > float(f.ult_execute_hp):
+				return
+		"team_heal", "team_shield":
+			if not _any_hurt(allies + [agent], float(f.ult_heal_ally_hp)):
+				return
+		"self_steroid":
+			if enemies.is_empty():
+				return
+	agent.cast_ult(t, m)
+	_apply_ult(t, agent, effect, tgt, enemies, allies, f)
+
+
+func _apply_ult(t: int, agent: PlayerAgent, effect: String, tgt: PlayerAgent,
+		enemies: Array, allies: Array, f: Dictionary) -> void:
+	var power := threat(agent, t) * float(m.balance.combat.ult_impact[effect]) \
+		* float(f.ult_damage_scale)
+	var stun := int(float(f.stun_duration_s) * SimMatch.TICKS_PER_SECOND)
+	match effect:
+		"aoe_damage", "zone_denial":
+			for enemy: PlayerAgent in enemies:
+				_deal_damage(t, agent, enemy, power)
+		"single_burst", "snipe":
+			_deal_damage(t, agent, tgt, power * float(f.ult_single_mult))
+		"execute":
+			_deal_damage(t, agent, tgt, power * float(f.ult_execute_mult))
+		"aoe_cc":
+			for enemy: PlayerAgent in enemies:
+				enemy.stunned_until = maxi(enemy.stunned_until, t + stun)
+				_deal_damage(t, agent, enemy, power * float(f.ult_cc_damage_mult))
+		"single_cc":
+			tgt.stunned_until = maxi(tgt.stunned_until, t + stun * 2)
+			_deal_damage(t, agent, tgt, power * float(f.ult_cc_damage_mult))
+		"team_heal", "team_shield":
+			for ally: PlayerAgent in allies + [agent]:
+				ally.hp = minf(ally.hp + power * float(f.ult_heal_mult), ally.max_hp)
+		"self_steroid":
+			agent.steroid_until = t + int(float(f.steroid_duration_s) * SimMatch.TICKS_PER_SECOND)
+
+
+func _any_hurt(group: Array, below: float) -> bool:
+	for a: PlayerAgent in group:
+		if a.hp_fraction() < below:
+			return true
+	return false
+
+
+# --- fight detection ----------------------------------------------------------
+
+## Fights are no longer objects the sim creates — they are a shape it observes.
+## Each tick we cluster the players who are actually engaged with each other and
+## report clusters that contain both teams, so the kill feed, the viewer and the
+## reports still get fight_start / fight_end.
+func _update_fights(t: int) -> void:
+	var f: Dictionary = m.balance.fight
+	var engaged: Array = []
+	for agent in m.agents:
+		if agent.alive and agent.in_combat and not agent.disengaging and agent.target_idx >= 0:
+			engaged.append(agent)
+
+	for cluster in _clusters(engaged, float(f.fight_group_radius)):
+		var sides := {"blue": [], "red": []}
+		var centre := Vector2.ZERO
+		for agent: PlayerAgent in cluster:
+			sides[agent.team].append(agent)
+			centre += agent.pos
+		if sides.blue.is_empty() or sides.red.is_empty():
+			continue
+		centre /= float(cluster.size())
+		var fight_id := _fight_for(cluster)
+		if fight_id < 0:
+			fight_id = _next_fight_id
+			_next_fight_id += 1
+			var context := _context_at(centre, cluster.size())
+			_fights[fight_id] = {
+				"members": [], "started": t, "pos": centre, "context": context,
+				"deaths": {"blue": 0, "red": 0},
+			}
+			m.emit_event(t, "fight_start", {
+				"context": context, "pos": [centre.x, centre.y],
+				"blue": _ids(sides.blue), "red": _ids(sides.red),
+			})
+		var rec: Dictionary = _fights[fight_id]
+		rec.last_seen = t
+		rec.pos = centre
+		for agent: PlayerAgent in cluster:
+			if not agent.idx in rec.members:
+				rec.members.append(agent.idx)
+
+	var grace := int(float(f.fight_end_grace_s) * SimMatch.TICKS_PER_SECOND)
+	for fight_id: int in _fights.keys():
+		var rec: Dictionary = _fights[fight_id]
+		if t - int(rec.last_seen) < grace:
+			continue
+		var deaths: Dictionary = rec.deaths
+		var winner := ""
+		if deaths.blue != deaths.red:
+			winner = "blue" if deaths.blue < deaths.red else "red"
+		m.emit_event(t, "fight_end", {
+			"context": rec.context, "winner": winner,
+			"pos": [rec.pos.x, rec.pos.y],
+			"duration_s": roundi((t - int(rec.started)) / float(SimMatch.TICKS_PER_SECOND)),
+			"kills": deaths,
+		})
+		_fights.erase(fight_id)
+
+
+## Single-linkage clustering by proximity, via union-find. At most ten agents,
+## so the quadratic pass is free and stays exactly reproducible.
+func _clusters(agents: Array, radius: float) -> Array:
+	var n := agents.size()
+	if n == 0:
+		return []
+	var parent: Array[int] = []
+	for i in n:
+		parent.append(i)
+	for i in n:
+		for j in range(i + 1, n):
+			if agents[i].pos.distance_to(agents[j].pos) <= radius:
+				var ri := _find(parent, i)
+				var rj := _find(parent, j)
+				if ri != rj:
+					parent[maxi(ri, rj)] = mini(ri, rj)
+	var by_root := {}
+	for i in n:
+		var root := _find(parent, i)
+		if not by_root.has(root):
+			by_root[root] = []
+		by_root[root].append(agents[i])
+	var out: Array = []
+	for root: int in by_root:
+		out.append(by_root[root])
+	return out
+
+
+func _find(parent: Array[int], i: int) -> int:
+	var root := i
+	while parent[root] != root:
+		root = parent[root]
+	return root
+
+
+## An existing fight this cluster continues, or -1 if it is a new one.
+func _fight_for(cluster: Array) -> int:
+	for fight_id: int in _fights:
+		var members: Array = _fights[fight_id].members
+		for agent: PlayerAgent in cluster:
+			if agent.idx in members:
+				return fight_id
+	return -1
+
+
+func _record_fight_death(victim: PlayerAgent, where: Vector2) -> void:
+	for fight_id: int in _fights:
+		var rec: Dictionary = _fights[fight_id]
+		if victim.idx in rec.members or where.distance_to(rec.pos) < 14.0:
+			rec.deaths[victim.team] += 1
+			return
+
+
+## Names the fight from where and how big it is, so the feed can narrate it.
+func _context_at(pos: Vector2, size: int) -> String:
+	var pit_radius := float(m.balance.fight.pit_context_radius)
+	if pos.distance_to(m.map.pits.baron) < pit_radius:
+		return "baron"
+	if pos.distance_to(m.map.pits.dragon) < pit_radius:
+		return "dragon"
+	if size >= 7:
+		return "teamfight"
+	if size >= 4:
+		return "fight"
+	return "skirmish"
+
+
+# --- helpers ------------------------------------------------------------------
+
+func _enemy_of(team: String) -> String:
+	return "red" if team == "blue" else "blue"
 
 
 func _ids(agents: Array) -> Array:

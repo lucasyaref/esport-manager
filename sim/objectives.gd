@@ -99,13 +99,17 @@ func _update_pit(t: int, name: String, obj: Dictionary) -> void:
 		if agent.alive and agent.state in [PlayerAgent.State.HOLDING, PlayerAgent.State.GROUPING] \
 				and agent.pos.distance_to(pit) < 14.0:
 			present[agent.team].append(agent)
-	var blue_ready: bool = present.blue.size() >= 3
-	var red_ready: bool = present.red.size() >= 3
-	if blue_ready and red_ready:
+	# You can start the objective with a squad here and the enemy not in a
+	# position to contest — either absent, or already down to a man or two
+	# because the fight around the pit went your way.
+	var blue_ready: bool = present.blue.size() >= 3 and present.red.size() <= 1
+	var red_ready: bool = present.red.size() >= 3 and present.blue.size() <= 1
+	if not blue_ready and not red_ready and present.blue.size() >= 3 \
+			and present.red.size() >= 3:
+		# Contested: nobody gets a free take. The combat engine is already
+		# fighting them over the pit; whoever is still standing here at the next
+		# decision tick starts the channel.
 		_channel.erase(name)
-		var fight_winner := m.start_fight(t, present.blue, present.red, pit, "objective")
-		if fight_winner != "":
-			_take(t, name, obj, fight_winner)
 	elif blue_ready or red_ready:
 		var team := "blue" if blue_ready else "red"
 		if not _channel.has(name) or _channel[name].team != team:
@@ -165,15 +169,15 @@ func _update_siege(t: int, lane: String, defender: String) -> void:
 		if agent.alive and agent.pos.distance_to(tower_pos) < 12.0:
 			(attackers_here if agent.team == attacker else defenders_here).append(agent)
 
-	# Defended sieges become fights, not free damage.
-	if attackers_here.size() >= 2 and defenders_here.size() >= 2:
-		m.start_fight(t, attackers_here if attacker == "blue" else defenders_here,
-			defenders_here if attacker == "blue" else attackers_here, tower_pos, "siege_defense")
-		return
-
+	# A defended tower takes no player damage: the attackers are busy being
+	# fought (the combat engine handles that), so only the wave chips away.
+	var contested: bool = defenders_here.size() >= 2 \
+		and defenders_here.size() >= attackers_here.size()
 	var dps: float = army * float(bal.minion_dps)
-	for agent in attackers_here:
-		dps += float(bal.player_base_dps) * (1.0 + agent.item_power / float(m.balance.combat.power_item_divisor))
+	if not contested:
+		for agent in attackers_here:
+			dps += float(bal.player_base_dps) \
+				* (1.0 + agent.item_power / float(m.balance.combat.power_item_divisor))
 	if baron_active(attacker):
 		dps *= float(m.balance.objectives.baron_siege_mult)
 

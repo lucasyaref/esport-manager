@@ -61,6 +61,12 @@ that appears.
   `characters.json`. Ranges are in map units — 1 unit ≈ 125 LoL units, so melee ≈ 1.2 and
   artillery ≈ 5. Positioning is *emergent* from these: a long-range, low-HP carry naturally
   settles at the back; a short-range, high-HP engage character has to close.
+- **Reach is paid for in damage.** Damage scales down with `attack_range`, so a melee
+  character that must walk through a fight hits meaningfully harder than one that never
+  leaves the back, and frontline/flank characters close the gap faster than they walk (gap
+  closers, abstracted). Stated once as a balance rule rather than hand-tuned into fifteen
+  characters. Discovered the hard way: without it an all-ranged draft beat a melee-heavy one
+  82% of the time.
 - **Fights are continuous, not instantaneous.** Each tick a player scans for threats, picks a
   target (weighted by low HP, threat and reachability — which is what produces focus-fire on
   carries), steers toward its preferred range, attacks when in range, and disengages when hurt.

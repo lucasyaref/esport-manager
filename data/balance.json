@@ -31,9 +31,8 @@
   "health": {
     "regen_pct_per_s": 0.004,
     "base_regen_pct_per_s": 0.1,
-    "recall_hp_threshold": 0.35,
-    "fight_damage_loser_pct": 0.45,
-    "fight_damage_winner_pct": 0.22
+    "recall_hp_threshold": 0.4,
+    "regen_lockout_s": 6
   },
   "cs": {
     "base_chance": 0.55,
@@ -54,21 +53,12 @@
     "min_kill_worth": 150,
     "kill_xp_base": 100,
     "kill_xp_per_victim_level": 30,
-    "fight_variance": 0.18,
-    "power_item_divisor": 10000,
+    "power_item_divisor": 6000,
     "mechanics_power_base": 0.85,
     "mechanics_power_divisor": 650,
     "ehp_norm": 1000,
-    "numbers_advantage_per_member": 0.22,
     "respawn_base_s": 8,
     "respawn_per_level_s": 1.4,
-    "fight_duration_s": 6,
-    "fight_cooldown_s": 60,
-    "loser_deaths_base": 1.2,
-    "deaths_ratio_scale": 3.5,
-    "max_deaths_per_fight": 5,
-    "protect_carry_death_factor": 0.6,
-    "frontline_death_weight": 1.6,
     "ult_impact": {
       "aoe_cc": 0.3,
       "single_cc": 0.15,
@@ -81,19 +71,15 @@
       "global_teleport": 0.1,
       "zone_denial": 0.22,
       "execute": 0.2
-    },
-    "macro_setpiece_pivot": 70,
-    "macro_setpiece_divisor": 85
+    }
   },
   "ganks": {
     "check_interval_s": 15,
     "min_interval_s": 70,
     "base_chance_early_tag": 0.35,
     "base_chance_other": 0.12,
-    "success_base": 0.48,
-    "ward_penalty": 0.3,
     "overextend_weight": 2.0,
-    "escape_mechanics_divisor": 500
+    "commit_timeout_s": 25
   },
   "wards": {
     "support_ward_interval_s": 40,
@@ -121,5 +107,49 @@
     "take_channel_s": 15,
     "dragon_xp_per_player": 150,
     "baron_xp_per_player": 250
+  },
+  "fight": {
+    "awareness_radius": 9.0,
+    "danger_radius": 5.5,
+    "damage_scale": 2.2,
+    "damage_variance": 0.15,
+    "threat_norm": 100.0,
+    "commit_margin": 0.85,
+    "lane_commit_margin": 1.65,
+    "disengage_hp": 0.45,
+    "lane_disengage_hp": 0.55,
+    "disengage_lock_s": 12,
+    "reach_falloff": 4.0,
+    "stand_inset": 0.25,
+    "low_hp_focus": 1.6,
+    "flank_backline_bias": 1.8,
+    "peel_target_bias": 2.0,
+    "backline_kite": 2.0,
+    "frontline_screen": 0.45,
+    "frontline_screen_lerp": 0.35,
+    "peel_standoff": 1.6,
+    "retreat_home_bias": 0.8,
+    "retreat_step": 10.0,
+    "assist_window_s": 10,
+    "fight_group_radius": 14.0,
+    "fight_end_grace_s": 5,
+    "pit_context_radius": 14.0,
+    "ult_default_radius": 6.0,
+    "ult_aoe_min_targets": 2,
+    "ult_execute_hp": 0.35,
+    "ult_heal_ally_hp": 0.55,
+    "ult_damage_scale": 3.0,
+    "ult_single_mult": 2.0,
+    "ult_execute_mult": 3.0,
+    "ult_cc_damage_mult": 0.4,
+    "ult_heal_mult": 1.5,
+    "stun_duration_s": 1.5,
+    "steroid_duration_s": 8,
+    "steroid_damage_mult": 1.35,
+    "contest_margin": 0.92,
+    "contest_macro_divisor": 400.0,
+    "max_reach": 5.5,
+    "melee_damage_bonus": 0.6,
+    "engage_speed_bonus": 0.35
   }
 }
