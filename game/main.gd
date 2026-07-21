@@ -17,6 +17,12 @@ const FEED_MAX := 12
 const C_BLUE := "6fa8ff"
 const C_RED := "ff7f7f"
 
+# Minion dot layout (world units / lane param) — presentation only.
+const MINION_DOTS_MAX := 8          # cap so a big army stays a clump, not a snake
+const MINION_FRONT_GAP := 0.006     # first rank sits just behind the contact point
+const MINION_SPACING := 0.010       # lane param between ranks
+const MINION_RANK_OFFSET := 0.9     # world units either side of the lane centre
+
 # --- match data (rebuilt per sim run) ----------------------------------------
 var data := {}
 var seed_val := 42
@@ -314,9 +320,11 @@ func _render() -> void:
 		var alive: bool = int(r0[6]) == 1
 		var wpos := Vector2(r0[1], r0[2]).lerp(Vector2(r1[1], r1[2]), frac)
 		gold[m.team] += float(r0[4])
+		var max_hp := float(r0[8])
 		var ch := {
 			"pos": wpos, "team": m.team, "role": m.role, "name": m.name,
 			"char_id": m.char_id, "level": int(r0[3]), "alive": alive,
+			"hp_frac": clampf(float(r0[7]) / max_hp, 0.0, 1.0) if max_hp > 0.0 else 0.0,
 			"respawn_frac": 1.0, "fighting": false, "casting": 0.0,
 			"recalling": false, "shake": Vector2.ZERO,
 		}
@@ -335,6 +343,7 @@ func _render() -> void:
 
 	map.set_frame({
 		"champs": champs,
+		"minions": _minion_dots(s0),
 		"towers_down": towers_down,
 		"effects": _render_effects(pt),
 		"wards": _render_wards(pt),
@@ -343,6 +352,29 @@ func _render() -> void:
 	})
 	_purge(pt)
 	_update_hud(pt, gold)
+
+
+## Minion wave dots. The sim models each lane as an aggregate front + per-side
+## counts (LaneState), never individual minions — keeping 1000-sim batches
+## cheap. The dots are derived here at render time: each side's army marches
+## back from the contact point toward its own base, two ranks wide.
+func _minion_dots(s: Dictionary) -> Array:
+	var out: Array = []
+	for row: Array in s.get("lanes", []):
+		var lane: String = row[0]
+		var front: float = float(row[1])
+		for side in SimMap.TEAMS:
+			var count: int = int(row[2] if side == "blue" else row[3])
+			var dir := -1.0 if side == "blue" else 1.0
+			for i in mini(count, MINION_DOTS_MAX):
+				var lt := clampf(front + dir * (MINION_FRONT_GAP + i * MINION_SPACING), 0.0, 1.0)
+				var p := smap.pos_on_lane(lane, lt)
+				var ahead := smap.pos_on_lane(lane, clampf(lt + 0.01, 0.0, 1.0))
+				var perp := Vector2.ZERO
+				if p.distance_to(ahead) > 0.001:
+					perp = (ahead - p).orthogonal().normalized() * MINION_RANK_OFFSET
+				out.append({"pos": p + (perp if i % 2 == 0 else -perp), "team": side})
+	return out
 
 
 func _render_effects(pt: float) -> Array:

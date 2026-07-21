@@ -13,6 +13,7 @@ const PAD := 14.0            # inner margin, px
 const CHAMP_R := 10.0        # champion disc radius, px (fixed, not world-scaled)
 const TOWER_R := 6.0
 const CAMP_R := 3.0
+const MINION_R := 2.2
 const PIT_R := 15.0
 const NEXUS_R := 13.0
 
@@ -104,6 +105,7 @@ func _draw() -> void:
 	_draw_towers()
 	if frame.is_empty():
 		return
+	_draw_minions()
 	_draw_wards()
 	_draw_champions()
 	_draw_effects()
@@ -188,6 +190,15 @@ func _draw_towers() -> void:
 		draw_rect(Rect2(c - Vector2(r, r), Vector2(r * 2, r * 2)), t.ring, false, 1.5)
 
 
+## Minion waves. Drawn under the champions so they read as background pressure:
+## which lane is pushed, and by whom, at a glance.
+func _draw_minions() -> void:
+	for mn: Dictionary in frame.get("minions", []):
+		var c := _w2s(mn.pos)
+		var col: Color = TEAM[mn.team].fill
+		draw_circle(c, MINION_R, Color(col.r, col.g, col.b, 0.75))
+
+
 func _draw_wards() -> void:
 	for wd: Dictionary in frame.get("wards", []):
 		var c := _w2s(wd.pos)
@@ -235,8 +246,10 @@ func _draw_champions() -> void:
 		draw_circle(bp, 6.5, Color(0.08, 0.09, 0.12, 0.9))
 		_centered(str(ch.level), bp, 10, Color(0.95, 0.9, 0.7))
 
-		# Vitality bar (full while alive) + handle.
-		_draw_bar(c + Vector2(0, CHAMP_R + 4), 1.0, Color(0.40, 0.85, 0.45))
+		# Health bar + handle. Colour shifts green -> amber -> red as it drops,
+		# so a hurt player is readable without reading the bar length.
+		var hp_frac: float = ch.get("hp_frac", 1.0)
+		_draw_bar(c + Vector2(0, CHAMP_R + 4), hp_frac, _hp_color(hp_frac))
 		_centered(ch.name, c + Vector2(0, CHAMP_R + 16), 10, Color(0.85, 0.87, 0.92))
 
 
@@ -249,6 +262,14 @@ func _draw_dead(base: Vector2, ch: Dictionary, t: Dictionary) -> void:
 	draw_line(base + Vector2(0, -4), base + Vector2(0, 3), Color(0.6, 0.6, 0.6), 1.5)
 	_draw_bar(base + Vector2(0, CHAMP_R + 4), ch.get("respawn_frac", 0.0), t.dark)
 	_centered(ch.name, base + Vector2(0, CHAMP_R + 16), 10, Color(0.5, 0.52, 0.56))
+
+
+func _hp_color(frac: float) -> Color:
+	if frac > 0.5:
+		return Color(0.40, 0.85, 0.45)
+	if frac > 0.25:
+		return Color(0.95, 0.75, 0.25)
+	return Color(0.95, 0.35, 0.30)
 
 
 func _draw_bar(center: Vector2, frac: float, col: Color) -> void:

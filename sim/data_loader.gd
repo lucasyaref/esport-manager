@@ -12,15 +12,23 @@ const ULT_EFFECTS: Array[String] = [
 	"team_heal", "self_steroid", "global_teleport", "zone_denial", "execute",
 ]
 
+## Where a character wants to stand in a fight. Drives target selection and
+## the steering forces in the combat engine.
+const FIGHT_ROLES: Array[String] = ["frontline", "backline", "flank", "peel"]
+
 const CHARACTERS_PER_ROLE := 3
 const TEAM_COUNT := 2
 
 # Sanity ranges: catches typos (6200 hp), not balance opinions.
+# Combat ranges are in map units — the map is 100x100 and 1 unit ≈ 125 LoL
+# units (from PlayerAgent.SPEED_SCALE), so melee ≈ 1.2 and artillery ≈ 5.
 const STAT_RANGES := {
 	"base/hp": [400, 800], "base/damage": [30, 90],
 	"base/armor": [15, 50], "base/speed": [300, 400],
 	"growth/hp": [50, 130], "growth/damage": [1, 6], "growth/armor": [1, 6],
 	"ultimate/cooldown": [30, 300],
+	"combat/attack_range": [1.0, 6.0], "combat/preferred_range": [1.0, 6.0],
+	"combat/attack_speed": [0.5, 1.2],
 }
 const MAX_LEVEL := 18
 
@@ -106,9 +114,18 @@ static func _validate_characters(characters: Dictionary, errors: Array[String]) 
 	for id: String in characters:
 		var c: Dictionary = characters[id]
 		var where := "characters/%s" % id
-		for field in ["name", "role", "sprite", "curve", "base", "growth", "ultimate", "tags"]:
+		for field in ["name", "role", "sprite", "curve", "base", "growth", "combat",
+				"ultimate", "tags"]:
 			if not c.has(field):
 				errors.append("%s: missing field \"%s\"" % [where, field])
+		var fight_role: Variant = c.get("combat", {}).get("fight_role")
+		if not fight_role in FIGHT_ROLES:
+			errors.append("%s: unknown combat.fight_role \"%s\"" % [where, str(fight_role)])
+		var pref: Variant = c.get("combat", {}).get("preferred_range")
+		var reach: Variant = c.get("combat", {}).get("attack_range")
+		if _is_number(pref) and _is_number(reach) and pref > reach:
+			errors.append("%s: combat.preferred_range (%s) exceeds attack_range (%s)" % [
+				where, str(pref), str(reach)])
 		if not c.get("role", "") in ROLES:
 			errors.append("%s: unknown role \"%s\"" % [where, c.get("role")])
 		else:
@@ -266,6 +283,8 @@ static func _validate_balance(balance: Dictionary, errors: Array[String]) -> voi
 		"economy": ["starting_gold", "passive_gold_per_s", "support_income_per_s",
 			"buy_threshold_base", "buy_threshold_per_level", "recall_channel_s"],
 		"xp": ["level_up_base", "level_up_step", "duo_share"],
+		"health": ["regen_pct_per_s", "base_regen_pct_per_s", "recall_hp_threshold",
+			"fight_damage_loser_pct", "fight_damage_winner_pct"],
 		"cs": ["base_chance", "laning_divisor", "support_assist_bonus", "max_chance"],
 		"jungle": ["camp_first_spawn_s", "camp_respawn_s", "clear_jitter_s"],
 		"combat": ["kill_gold", "assist_gold_total", "shutdown_per_streak", "shutdown_max",

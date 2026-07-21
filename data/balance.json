@@ -8,7 +8,7 @@
     "gold_melee": 21,
     "gold_caster": 14,
     "gold_cannon": 60,
-    "xp_per_minion": 34,
+    "xp_per_minion": 60,
     "speed": 2.5,
     "combat_kill_rate": 0.004,
     "front_drift": 0.0001,
@@ -24,9 +24,16 @@
     "recall_channel_s": 8
   },
   "xp": {
-    "level_up_base": 280,
-    "level_up_step": 90,
-    "duo_share": 0.7
+    "level_up_base": 235,
+    "level_up_step": 72,
+    "duo_share": 0.78
+  },
+  "health": {
+    "regen_pct_per_s": 0.004,
+    "base_regen_pct_per_s": 0.1,
+    "recall_hp_threshold": 0.35,
+    "fight_damage_loser_pct": 0.45,
+    "fight_damage_winner_pct": 0.22
   },
   "cs": {
     "base_chance": 0.55,

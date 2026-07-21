@@ -21,6 +21,8 @@ var attrs: Dictionary
 
 var pos: Vector2
 var state: int = State.TO_LANE
+var hp := 0.0                    # live health; drives retreat/recall and death
+var max_hp := 0.0
 var level := 1
 var xp := 0.0
 var cs := 0
@@ -61,6 +63,8 @@ func _init(player: Dictionary, p_team: String, p_character: Dictionary, base_pos
 	item_power = starting_gold
 	state = State.TO_CAMP if role == "jungle" else State.TO_LANE
 	_speed_per_tick = float(p_character.base.speed) * SPEED_SCALE / SimMatch.TICKS_PER_SECOND
+	max_hp = DataLoader.stat_at_level(character, "hp", level)
+	hp = max_hp
 
 
 ## m = the SimMatch. Not stored (would leak a RefCounted cycle).
@@ -68,11 +72,13 @@ func update(t: int, m: SimMatch) -> void:
 	if not alive:
 		if t >= _respawn_at:
 			alive = true
+			hp = max_hp
 			state = State.TO_CAMP if role == "jungle" else State.TO_LANE
 		return
 	if t < busy_until:
 		return
 	_earn_passive(m)
+	_regen(m)
 	if role == "support":
 		_maybe_ward(t, m)
 	match state:
@@ -115,6 +121,10 @@ func add_xp(t: int, amount: float, m: SimMatch) -> void:
 	while level < DataLoader.MAX_LEVEL and xp >= _level_cost(xp_bal):
 		xp -= _level_cost(xp_bal)
 		level += 1
+		# Levelling grants the HP growth as bonus current health, LoL-style.
+		var new_max := DataLoader.stat_at_level(character, "hp", level)
+		hp += new_max - max_hp
+		max_hp = new_max
 		m.emit_event(t, "level_up", {"player": id, "level": level})
 
 
@@ -138,6 +148,7 @@ func cast_ult(t: int, m: SimMatch) -> void:
 func die(t: int, m: SimMatch) -> void:
 	var c: Dictionary = m.balance.combat
 	alive = false
+	hp = 0.0
 	deaths += 1
 	death_streak += 1
 	kill_streak = 0
@@ -146,6 +157,16 @@ func die(t: int, m: SimMatch) -> void:
 	_camp_index = -1
 	_respawn_at = t + int((float(c.respawn_base_s) + float(c.respawn_per_level_s) * level)
 		* SimMatch.TICKS_PER_SECOND)
+
+
+## Applies damage without resolving death — the caller decides whether a
+## player at 0 HP dies now (and who gets the kill credit).
+func take_damage(amount: float) -> void:
+	hp = maxf(hp - amount, 0.0)
+
+
+func hp_fraction() -> float:
+	return hp / max_hp if max_hp > 0.0 else 0.0
 
 
 ## Called by combat when this player gets a kill.
@@ -202,6 +223,18 @@ func _earn_passive(m: SimMatch) -> void:
 	earn(per_tick)
 
 
+## Out-of-combat regen: slow on the map, fast in the fountain. This is what
+## makes a low-HP player choose to go home instead of grinding at 20%.
+func _regen(m: SimMatch) -> void:
+	if hp >= max_hp:
+		return
+	var health: Dictionary = m.balance.health
+	var pct: float = float(health.regen_pct_per_s)
+	if pos.distance_to(m.map.bases[team]) < 6.0:
+		pct = float(health.base_regen_pct_per_s)
+	hp = minf(hp + max_hp * pct / SimMatch.TICKS_PER_SECOND, max_hp)
+
+
 func _move_toward(target: Vector2) -> bool:
 	var dist := pos.distance_to(target)
 	if dist <= ARRIVE_DIST:
@@ -215,13 +248,20 @@ func _buy_threshold(m: SimMatch) -> float:
 	return float(eco.buy_threshold_base) + level * float(eco.buy_threshold_per_level)
 
 
+## Two reasons to go home: enough gold to buy, or low enough health that
+## staying out is not worth the risk.
+func _should_go_home(m: SimMatch) -> bool:
+	return gold_carried >= _buy_threshold(m) \
+		or hp_fraction() <= float(m.balance.health.recall_hp_threshold)
+
+
 func _maybe_recall(t: int, m: SimMatch) -> void:
-	if gold_carried >= _buy_threshold(m):
+	if _should_go_home(m):
 		_start_recall(t, m)
 
 
 func _check_buy(t: int, m: SimMatch) -> bool:
-	if gold_carried >= _buy_threshold(m):
+	if _should_go_home(m):
 		_start_recall(t, m)
 		return true
 	return false
@@ -235,6 +275,7 @@ func _start_recall(t: int, m: SimMatch) -> void:
 
 func _finish_recall(t: int, m: SimMatch) -> void:
 	pos = m.map.bases[team]
+	hp = max_hp
 	item_power += gold_carried
 	m.emit_event(t, "item_power_up", {"player": id, "spent": roundi(gold_carried)})
 	gold_carried = 0.0

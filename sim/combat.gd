@@ -76,6 +76,11 @@ func resolve(t: int, blue: Array, red: Array, location: Vector2, context: String
 	var end_tick := t + int(float(c.fight_duration_s) * SimMatch.TICKS_PER_SECOND)
 	_apply_casualties(end_tick, sides[loser], sides[winner], loser_deaths)
 	_apply_casualties(end_tick, sides[winner], sides[loser], winner_deaths)
+	# Interim (Phase A): survivors walk away hurt, so health is already a real
+	# resource before the spatial engine replaces this resolver in Phase B.
+	var health: Dictionary = m.balance.health
+	_apply_chip_damage(sides[loser], float(health.fight_damage_loser_pct))
+	_apply_chip_damage(sides[winner], float(health.fight_damage_winner_pct))
 	m.emit_event(end_tick, "fight_end", {
 		"context": context, "winner": winner, "pos": [location.x, location.y],
 	})
@@ -128,6 +133,13 @@ func _apply_casualties(t: int, victims_side: Array, killers_side: Array, count: 
 			"killer": killer.id, "victim": victim.id, "assists": assists,
 			"gold": roundi(bounty),
 		})
+
+
+func _apply_chip_damage(side: Array, pct: float) -> void:
+	for agent: PlayerAgent in side:
+		if not agent.alive:
+			continue
+		agent.take_damage(agent.max_hp * pct * m.rng.randf_range(0.6, 1.4))
 
 
 func _death_weight(agent: PlayerAgent, side: Array) -> float:

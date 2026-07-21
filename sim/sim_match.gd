@@ -395,6 +395,7 @@ func _capture_snapshot(t: int) -> Dictionary:
 		players.append([
 			agent.id, agent.pos.x, agent.pos.y, agent.level,
 			agent.gold_total, agent.cs, 1 if agent.alive else 0,
+			agent.hp, agent.max_hp,
 		])
 	var lane_rows := []
 	for lane in SimMap.LANES:

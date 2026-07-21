@@ -19,6 +19,12 @@
         "damage": 2.8,
         "armor": 4.5
       },
+      "combat": {
+        "attack_range": 1.2,
+        "preferred_range": 1.2,
+        "attack_speed": 0.65,
+        "fight_role": "frontline"
+      },
       "ultimate": {
         "name": "Unbreakable Line",
         "effect": "aoe_cc",
@@ -53,6 +59,12 @@
         "damage": 3.6,
         "armor": 3.6
       },
+      "combat": {
+        "attack_range": 1.2,
+        "preferred_range": 1.2,
+        "attack_speed": 0.9,
+        "fight_role": "flank"
+      },
       "ultimate": {
         "name": "Warpath",
         "effect": "global_teleport",
@@ -83,6 +95,12 @@
         "hp": 90,
         "damage": 3.0,
         "armor": 3.4
+      },
+      "combat": {
+        "attack_range": 1.4,
+        "preferred_range": 1.4,
+        "attack_speed": 0.7,
+        "fight_role": "frontline"
       },
       "ultimate": {
         "name": "Gravemaker",
@@ -115,6 +133,12 @@
         "hp": 88,
         "damage": 3.2,
         "armor": 3.2
+      },
+      "combat": {
+        "attack_range": 1.2,
+        "preferred_range": 1.2,
+        "attack_speed": 0.8,
+        "fight_role": "flank"
       },
       "ultimate": {
         "name": "Lupine Pounce",
@@ -149,6 +173,12 @@
         "damage": 3.8,
         "armor": 3.0
       },
+      "combat": {
+        "attack_range": 3.8,
+        "preferred_range": 3.4,
+        "attack_speed": 0.65,
+        "fight_role": "flank"
+      },
       "ultimate": {
         "name": "Umbral Feast",
         "effect": "aoe_cc",
@@ -181,6 +211,12 @@
         "hp": 100,
         "damage": 2.6,
         "armor": 4.2
+      },
+      "combat": {
+        "attack_range": 1.4,
+        "preferred_range": 1.4,
+        "attack_speed": 0.72,
+        "fight_role": "frontline"
       },
       "ultimate": {
         "name": "Rootprison",
@@ -215,6 +251,12 @@
         "damage": 3.9,
         "armor": 2.8
       },
+      "combat": {
+        "attack_range": 1.5,
+        "preferred_range": 1.5,
+        "attack_speed": 0.85,
+        "fight_role": "flank"
+      },
       "ultimate": {
         "name": "Tempest Dance",
         "effect": "single_burst",
@@ -245,6 +287,12 @@
         "hp": 84,
         "damage": 3.4,
         "armor": 2.9
+      },
+      "combat": {
+        "attack_range": 5.2,
+        "preferred_range": 5.0,
+        "attack_speed": 0.62,
+        "fight_role": "backline"
       },
       "ultimate": {
         "name": "Sunlance Barrage",
@@ -278,6 +326,12 @@
         "damage": 4.2,
         "armor": 3.0
       },
+      "combat": {
+        "attack_range": 3.4,
+        "preferred_range": 2.6,
+        "attack_speed": 0.68,
+        "fight_role": "frontline"
+      },
       "ultimate": {
         "name": "Riftstorm",
         "effect": "aoe_damage",
@@ -310,6 +364,12 @@
         "damage": 4.4,
         "armor": 2.7
       },
+      "combat": {
+        "attack_range": 4.6,
+        "preferred_range": 4.4,
+        "attack_speed": 0.75,
+        "fight_role": "backline"
+      },
       "ultimate": {
         "name": "Deathbloom",
         "effect": "self_steroid",
@@ -341,6 +401,12 @@
         "hp": 84,
         "damage": 3.4,
         "armor": 2.8
+      },
+      "combat": {
+        "attack_range": 5.2,
+        "preferred_range": 5.0,
+        "attack_speed": 0.7,
+        "fight_role": "backline"
       },
       "ultimate": {
         "name": "Dawnpiercer",
@@ -375,6 +441,12 @@
         "damage": 3.8,
         "armor": 2.8
       },
+      "combat": {
+        "attack_range": 4.8,
+        "preferred_range": 4.6,
+        "attack_speed": 0.72,
+        "fight_role": "backline"
+      },
       "ultimate": {
         "name": "Murder of Crows",
         "effect": "aoe_cc",
@@ -408,6 +480,12 @@
         "damage": 2.2,
         "armor": 3.0
       },
+      "combat": {
+        "attack_range": 4.4,
+        "preferred_range": 3.6,
+        "attack_speed": 0.62,
+        "fight_role": "peel"
+      },
       "ultimate": {
         "name": "Aegis of Dawn",
         "effect": "team_shield",
@@ -438,6 +516,12 @@
         "hp": 95,
         "damage": 2.4,
         "armor": 4.0
+      },
+      "combat": {
+        "attack_range": 1.2,
+        "preferred_range": 1.2,
+        "attack_speed": 0.68,
+        "fight_role": "frontline"
       },
       "ultimate": {
         "name": "Seismic Maw",
@@ -471,6 +555,12 @@
         "hp": 78,
         "damage": 2.8,
         "armor": 2.8
+      },
+      "combat": {
+        "attack_range": 3.6,
+        "preferred_range": 3.4,
+        "attack_speed": 0.64,
+        "fight_role": "peel"
       },
       "ultimate": {
         "name": "Threadsnare",
