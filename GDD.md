@@ -71,7 +71,19 @@ that appears.
   target (weighted by low HP, threat and reachability — which is what produces focus-fire on
   carries), steers toward its preferred range, attacks when in range, and disengages when hurt.
   A fight detector groups these engagements so the kill feed and viewer still get
-  `fight_start` / `fight_end` events.
+  `fight_start` / `fight_end` events. A team also **spreads its targets**: an enemy already
+  being focused by allies is worth less to the next player, so five players never converge
+  on one runner.
+- **A chase has to end.** Players give up when the target has been out of reach too long,
+  when the chase has dragged them too far from where they committed, or when continuing
+  means diving a tower they cannot afford. Without a give-up rule and with equal move speed,
+  every fight decays into an infinite chase off the edge of the map — the M4.5-B playtest
+  showed exactly that.
+- **The map has edges, and towers punish.** Positions are clamped to the playable area.
+  Towers have range and dps and follow LoL aggro (minions first, then the nearest enemy
+  player, switching to whoever attacks an ally in the zone), so a tower can kill: diving is a
+  cost/benefit decision rather than a free chase. Kill credit for a tower kill goes to the
+  diver who forced it, or to nobody.
 - **Lanes are contested, not a ping-pong equation.** Laners pick a stance (push / freeze /
   trade / back / roam), trade HP, and a big enough advantage converts into a solo kill.
 - **Intent is communicated, not assumed.** Players post intent ("ganking bot", "committing to
@@ -82,8 +94,11 @@ that appears.
 
 **Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
 collision resolution — steering toward a desired point along the precomputed lane paths only.
-Minions stay an aggregate front with per-side counts (never individual entities), so headless
-batch runs stay cheap; the viewer derives minion dots from those counts at render time.
+Minions are **squads, not entities**: a handful of moving points per lane, each carrying a
+count, marching out of base along its lane, stopping on contact and grinding the enemy squad
+down by attrition. They cannot leave their lane by construction. Aggregate counts still drive
+CS, gold and the push front (the front is now *derived* from where the squads meet), so
+headless batch runs stay cheap while the viewer draws real minion dots that walk.
 
 ## 7. Viewer ✅
 - Top-down 2D map, sprite per character (shared placeholder sprite: team tint + role marker; per-character sprites later via data field).
