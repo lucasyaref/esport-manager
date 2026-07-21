@@ -160,6 +160,21 @@ func rally_pos(team: String) -> Vector2:
 	return brains[team].rally
 
 
+## Where a laner of `team` stands on `lane`: behind its own wave, and never
+## inside a live enemy tower's range. You last-hit from outside the turret;
+## walking under it is a dive, which is a fight decision (Combat) rather than
+## something farming should do by accident.
+func lane_stand_pos(lane_name: String, team: String) -> Vector2:
+	var back := -0.02 if team == "blue" else 0.02
+	var t: float = lanes[lane_name].farm_t(team)
+	for _i in 6:
+		var p := map.pos_on_lane(lane_name, clampf(t, 0.0, 1.0))
+		if not objectives.under_enemy_tower(team, p):
+			return p
+		t += back
+	return map.pos_on_lane(lane_name, clampf(t, 0.0, 1.0))
+
+
 func award_team(t: int, team: String, gold_each: float, xp_each: float) -> void:
 	for agent in agents:
 		if agent.team == team:
@@ -192,7 +207,7 @@ func teleport_to(agent: PlayerAgent, where: Vector2, t: int) -> bool:
 	if agent.character.ultimate.effect != "global_teleport":
 		return false
 	agent.cast_ult(t, self)
-	agent.pos = where
+	agent.move_to(where)
 	emit_event(t, "teleport", {"player": agent.id, "pos": [where.x, where.y]})
 	return true
 
@@ -239,7 +254,7 @@ func try_gank(jungler: PlayerAgent, t: int) -> bool:
 		# Overextension: how far the enemy laner is pushed toward the
 		# jungler's side of the map (easier to reach, further from safety).
 		var overext: float = clampf(
-			((0.5 - front) if jungler.team == "blue" else (front - 0.5)) / 0.08, 0.0, 1.0)
+			((0.5 - front) if jungler.team == "blue" else (front - 0.5)) / 0.2, 0.0, 1.0)
 		lane_names.append(lane)
 		weights.append(1.0 + float(g.overextend_weight) * overext)
 	if lane_names.is_empty():
@@ -259,7 +274,7 @@ func _spawn_agents() -> void:
 			var player: Dictionary = _data.players[roster[role]]
 			var character: Dictionary = _data.characters[picks[player.id]]
 			agents.append(PlayerAgent.new(
-				agents.size(), player, side, character, map.bases[side],
+				agents.size(), player, side, character, map,
 				float(balance.economy.starting_gold)))
 
 

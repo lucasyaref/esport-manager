@@ -7,6 +7,11 @@ extends RefCounted
 const LANES: Array[String] = ["top", "mid", "bot"]
 const TEAMS: Array[String] = ["blue", "red"]
 
+## How close to the edge of the world anything may stand. Terrain comes later;
+## the outer boundary is not optional — steering is free 2D movement, so a
+## player fleeing a fight follows the away-vector straight off the map.
+const EDGE_MARGIN := 2.0
+
 var size: float
 var bases: Dictionary = {}        # team -> Vector2
 var lane_paths: Dictionary = {}   # lane -> PackedVector2Array
@@ -48,6 +53,20 @@ func pos_on_lane(lane: String, t: float) -> Vector2:
 			return path[i].lerp(path[i + 1], remaining / seg if seg > 0.0 else 0.0)
 		remaining -= seg
 	return path[path.size() - 1]
+
+
+## Confines a position to the playable square. Every position write in the sim
+## goes through here (PlayerAgent.move_to, teleports).
+func clamp_pos(p: Vector2) -> Vector2:
+	return Vector2(
+		clampf(p.x, EDGE_MARGIN, size - EDGE_MARGIN),
+		clampf(p.y, EDGE_MARGIN, size - EDGE_MARGIN))
+
+
+## For batch-run assertions: nothing should ever be found outside the map.
+func in_bounds(p: Vector2) -> bool:
+	return p.x >= EDGE_MARGIN - 0.001 and p.x <= size - EDGE_MARGIN + 0.001 \
+		and p.y >= EDGE_MARGIN - 0.001 and p.y <= size - EDGE_MARGIN + 0.001
 
 
 ## Lane fronts can't push past the outer towers until sieging exists (M3).

@@ -44,6 +44,8 @@ var disengage_until := -1        # broke off a fight; won't re-commit until then
 var stunned_until := -1
 var steroid_until := -1          # self-buff ultimates
 var last_damaged_at := -999999
+var commit_pos := Vector2.ZERO   # where this agent committed to its current fight
+var last_hit_at := -999999       # last tick it landed a hit (chase patience)
 
 var alive := true
 var kills := 0
@@ -60,10 +62,11 @@ var _last_ward_t := -999999
 var _last_gank_t := -999999
 var _gank_lane := ""
 var _speed_per_tick: float
+var _map: SimMap                 # static geometry only — no cycle back to us
 
 
 func _init(p_idx: int, player: Dictionary, p_team: String, p_character: Dictionary,
-		base_pos: Vector2, starting_gold: float) -> void:
+		map: SimMap, starting_gold: float) -> void:
 	idx = p_idx
 	id = player.id
 	handle = player.handle
@@ -72,7 +75,8 @@ func _init(p_idx: int, player: Dictionary, p_team: String, p_character: Dictiona
 	lane = {"top": "top", "mid": "mid", "carry": "bot", "support": "bot"}.get(role, "")
 	character = p_character
 	attrs = player.attributes
-	pos = base_pos
+	_map = map
+	pos = map.bases[p_team]
 	gold_total = starting_gold
 	gold_carried = 0.0  # starting gold is considered already spent on boots etc.
 	item_power = starting_gold
@@ -100,16 +104,16 @@ func update(t: int, m: SimMatch) -> void:
 		# Not _move_toward: its ARRIVE_DIST slack is for walking to a lane or a
 		# camp. In a fight, stopping a unit short of where you meant to stand
 		# means a melee character never reaches its own attack range.
-		pos = pos.move_toward(desired_pos, _speed_per_tick * speed_mult)
+		move_to(pos.move_toward(desired_pos, _speed_per_tick * speed_mult))
 		return
 	if role == "support":
 		_maybe_ward(t, m)
 	match state:
 		State.TO_LANE:
-			if _move_toward(m.lanes[lane].farm_pos(team)):
+			if _move_toward(m.lane_stand_pos(lane, team)):
 				state = State.FARMING
 		State.FARMING:
-			_move_toward(m.lanes[lane].farm_pos(team))
+			_move_toward(m.lane_stand_pos(lane, team))
 			_maybe_recall(t, m)
 		State.TO_CAMP, State.WAITING_CAMP:
 			if role == "jungle" and m.try_gank(self, t):
@@ -123,8 +127,8 @@ func update(t: int, m: SimMatch) -> void:
 		State.GANKING:
 			# Walk to the lane and let proximity do the rest — the fight, if
 			# there is one, is resolved by the combat engine like any other.
-			var gank_target: Vector2 = m.lanes[_gank_lane].farm_pos(
-				"red" if team == "blue" else "blue")
+			var gank_target: Vector2 = m.lane_stand_pos(
+				_gank_lane, "red" if team == "blue" else "blue")
 			if _move_toward(gank_target) or t - _last_gank_t > m.gank_timeout_ticks():
 				m.gank_arrived(self, _gank_lane, t)
 		State.GROUPING:
@@ -135,6 +139,13 @@ func update(t: int, m: SimMatch) -> void:
 		State.RECALLING:
 			if t >= _state_until:
 				_finish_recall(t, m)
+
+
+## The only way this agent's position ever changes. The map has edges: steering
+## is free 2D movement, so anything that produces a direction — fleeing a fight,
+## kiting, a teleport — can point off the world if nothing stops it.
+func move_to(p: Vector2) -> void:
+	pos = _map.clamp_pos(p)
 
 
 func is_farming_lane(lane_name: String) -> bool:
@@ -274,7 +285,7 @@ func _move_toward(target: Vector2) -> bool:
 	var dist := pos.distance_to(target)
 	if dist <= ARRIVE_DIST:
 		return true
-	pos = pos.move_toward(target, _speed_per_tick)
+	move_to(pos.move_toward(target, _speed_per_tick))
 	return false
 
 

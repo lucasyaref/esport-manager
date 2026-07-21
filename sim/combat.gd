@@ -76,6 +76,18 @@ func update_intent(t: int) -> void:
 		# for a few seconds. Without it, agents re-evaluate every tick, bounce
 		# straight back into range, and one engagement reads as twenty.
 		var commit := _wants_to_fight(agent, allies, enemies, t)
+		if commit and _chase_exhausted(agent, t, f):
+			commit = false
+		var tgt: PlayerAgent = null
+		var stand := agent.pos
+		if commit and t >= agent.disengage_until:
+			tgt = _select_target(agent, allies, enemies, t, f)
+			stand = _stand_pos(agent, tgt, allies, enemies, f)
+			# The third way a chase ends, and the one that reads best: the runner
+			# makes it home and the pursuers peel off at the tower line.
+			if m.objectives.under_enemy_tower(agent.team, stand) \
+					and not _dive_worth_it(agent, tgt, allies, enemies, t, f):
+				commit = false
 		if t < agent.disengage_until:
 			commit = false
 		elif not commit:
@@ -96,10 +108,13 @@ func update_intent(t: int) -> void:
 				if agent.pos.distance_to(chased.pos) <= float(agent.character.combat.attack_range):
 					targets[i] = chased.idx
 			continue
+		# A fresh commitment anchors the leash and restarts the patience clock.
+		if not agent.in_combat or agent.disengaging:
+			agent.commit_pos = agent.pos
+			agent.last_hit_at = t
 		engaged[i] = true
-		var tgt := _select_target(agent, allies, enemies, t, f)
 		targets[i] = tgt.idx
-		stands[i] = _stand_pos(agent, tgt, allies, enemies, f)
+		stands[i] = stand
 		# Gap closers, abstracted: a frontline or flank character crossing open
 		# ground to reach its target moves faster than it walks. Without it the
 		# approach is free damage for whoever is already in range.
@@ -204,6 +219,41 @@ func _wants_to_fight(agent: PlayerAgent, allies: Array, enemies: Array, t: int) 
 	return mine >= theirs * float(f.lane_commit_margin if laning else f.commit_margin)
 
 
+## When to stop chasing. Everyone moves at the same speed, so a runner is never
+## caught by walking after it: without this, a healthy team keeps passing
+## _wants_to_fight against one fleeing enemy and follows it across the map
+## forever (M4.5-B playtest). Two ways out — nothing landed for a while, or the
+## chase has dragged us too far from where we chose to fight. The third, tower
+## lines, is in update_intent where the destination is known.
+func _chase_exhausted(agent: PlayerAgent, t: int, f: Dictionary) -> bool:
+	if not agent.in_combat or agent.disengaging:
+		return false  # not chasing anything yet
+	if t - agent.last_hit_at > int(float(f.chase_patience_s) * SimMatch.TICKS_PER_SECOND):
+		return true
+	return agent.pos.distance_to(agent.commit_pos) > float(f.leash_radius)
+
+
+## Standing under a live enemy tower has to be paid for, so it takes a reason:
+## a target already nearly dead, or enough of a local advantage that the tower
+## can hit somebody who can afford it. Never on low health. That is the
+## difference between "they dove him" and "he wandered into the turret".
+func _dive_worth_it(agent: PlayerAgent, tgt: PlayerAgent, allies: Array, enemies: Array,
+		t: int, f: Dictionary) -> bool:
+	if agent.hp_fraction() < float(f.dive_hp):
+		return false
+	if tgt.hp_fraction() <= float(f.dive_target_hp):
+		return true
+	# Numbers make a dive: a jungler arriving on a 2v1 goes in, a solo laner
+	# who merely won the trade does not.
+	var mine := _live_power(agent, t)
+	for ally: PlayerAgent in allies:
+		mine += _live_power(ally, t)
+	var theirs := 0.0
+	for enemy: PlayerAgent in enemies:
+		theirs += _live_power(enemy, t)
+	return mine >= theirs * float(f.dive_margin)
+
+
 ## Power discounted by how much health is left to spend on the fight.
 func _live_power(agent: PlayerAgent, t: int) -> float:
 	return threat(agent, t) * agent.hp_fraction()
@@ -227,6 +277,15 @@ func _select_target(agent: PlayerAgent, allies: Array, enemies: Array, t: int,
 			score *= float(f.flank_backline_bias)
 		if ward != null and enemy.target_idx == ward.idx:
 			score *= float(f.peel_target_bias)  # get off my carry
+		# Somebody else's problem: an enemy already being handled by team-mates
+		# is worth less than the one nobody is on. Five players scoring targets
+		# with the same formula all picked the same victim, which is why a fight
+		# read as the whole team chasing one runner.
+		var on_it := 0
+		for ally: PlayerAgent in allies:
+			if ally.target_idx == enemy.idx:
+				on_it += 1
+		score /= 1.0 + float(f.focus_penalty) * on_it
 		if score > best_score:
 			best_score = score
 			best = enemy
@@ -363,33 +422,82 @@ func _deal_damage(t: int, attacker: PlayerAgent, victim: PlayerAgent, amount: fl
 	if not victim.alive or amount <= 0.0:
 		return
 	victim.take_damage(amount, t)
+	attacker.last_hit_at = t
 	var hits: Dictionary = _damage_log.get(victim.idx, {})
 	hits[attacker.idx] = t
 	_damage_log[victim.idx] = hits
 	if victim.hp <= 0.0:
-		_kill(t, attacker, victim)
+		_kill(t, attacker, victim, "player")
 
 
-func _kill(t: int, killer: PlayerAgent, victim: PlayerAgent) -> void:
+## Damage from a structure. Called by Objectives — towers have no PlayerAgent
+## behind them, which is why kill credit needs its own rule below.
+func tower_damage(t: int, defender_team: String, tower_pos: Vector2, victim: PlayerAgent,
+		amount: float) -> void:
+	if not victim.alive or amount <= 0.0:
+		return
+	victim.take_damage(amount, t)
+	if victim.hp > 0.0:
+		return
+	_kill(t, _tower_credit(t, defender_team, tower_pos, victim), victim, "tower")
+
+
+## Who gets a tower kill: the defender who was last trading with the diver — the
+## reason it was low enough to die — else the closest defender under the tower,
+## else nobody. A dive that nobody was home to punish still reads as "the turret
+## got him", which is a true and useful thing for the feed to say.
+func _tower_credit(t: int, defender_team: String, tower_pos: Vector2,
+		victim: PlayerAgent) -> PlayerAgent:
+	var window := int(float(m.balance.fight.assist_window_s) * SimMatch.TICKS_PER_SECOND)
+	var best: PlayerAgent = null
+	var best_t := -1
+	var hits: Dictionary = _damage_log.get(victim.idx, {})
+	for attacker_idx: int in hits:
+		var hit_t := int(hits[attacker_idx])
+		var candidate: PlayerAgent = m.agents[attacker_idx]
+		if candidate.team != defender_team or t - hit_t > window or hit_t <= best_t:
+			continue
+		best_t = hit_t
+		best = candidate
+	if best != null:
+		return best
+	var radius := float(m.balance.towers.credit_radius)
+	var nearest_d := radius
+	for agent in m.agents:
+		if not agent.alive or agent.team != defender_team:
+			continue
+		var d := agent.pos.distance_to(tower_pos)
+		if d < nearest_d:
+			nearest_d = d
+			best = agent
+	return best
+
+
+## `killer` may be null: a tower can finish someone with no player involved.
+func _kill(t: int, killer: PlayerAgent, victim: PlayerAgent, source: String) -> void:
 	var c: Dictionary = m.balance.combat
 	var window := int(float(m.balance.fight.assist_window_s) * SimMatch.TICKS_PER_SECOND)
+	var credit_team: String = killer.team if killer != null else _enemy_of(victim.team)
 	var helpers: Array[PlayerAgent] = []
 	var hits: Dictionary = _damage_log.get(victim.idx, {})
 	for attacker_idx: int in hits:
-		if attacker_idx == killer.idx or t - int(hits[attacker_idx]) > window:
+		if (killer != null and attacker_idx == killer.idx) or t - int(hits[attacker_idx]) > window:
 			continue
 		var helper: PlayerAgent = m.agents[attacker_idx]
-		if helper.team == killer.team:
+		if helper.team == credit_team:
 			helpers.append(helper)
 
 	var bounty: float = maxf(
 		float(c.min_kill_worth),
 		float(c.kill_gold) - victim.death_streak * 50.0
 	) + minf(victim.kill_streak * float(c.shutdown_per_streak), float(c.shutdown_max))
-	killer.earn(bounty)
-	killer.kills += 1
-	killer.kill_streak += 1
-	killer.credit_kill_reset()  # a kill clears the killer's own feeding discount
+	if killer != null:
+		killer.earn(bounty)
+		killer.kills += 1
+		killer.kill_streak += 1
+		killer.credit_kill_reset()  # a kill clears the killer's own feeding discount
+	else:
+		bounty = 0.0  # the tower does not spend gold
 
 	var assist_ids: Array[String] = []
 	var assist_each: float = float(c.assist_gold_total) / maxf(helpers.size(), 1)
@@ -398,18 +506,21 @@ func _kill(t: int, killer: PlayerAgent, victim: PlayerAgent) -> void:
 		helper.assists += 1
 		assist_ids.append(helper.id)
 	var kill_xp: float = float(c.kill_xp_base) + float(c.kill_xp_per_victim_level) * victim.level
-	var share := float(helpers.size() + 1)
-	killer.add_xp(t, kill_xp / share, m)
-	for helper in helpers:
-		helper.add_xp(t, kill_xp / share, m)
+	var share := float(helpers.size() + (1 if killer != null else 0))
+	if share > 0.0:
+		if killer != null:
+			killer.add_xp(t, kill_xp / share, m)
+		for helper in helpers:
+			helper.add_xp(t, kill_xp / share, m)
 
 	var where := victim.pos  # die() sends the victim home; keep where it happened
 	_damage_log.erase(victim.idx)
 	victim.die(t, m)
 	_record_fight_death(victim, where)
 	m.emit_event(t, "kill", {
-		"killer": killer.id, "victim": victim.id, "assists": assist_ids,
-		"gold": roundi(bounty), "pos": [where.x, where.y],
+		"killer": killer.id if killer != null else "", "victim": victim.id,
+		"assists": assist_ids, "gold": roundi(bounty), "source": source,
+		"pos": [where.x, where.y],
 	})
 
 

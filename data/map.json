@@ -58,14 +58,14 @@
   },
   "towers": {
     "blue": {
-      "outer": 0.42,
-      "inner": 0.28,
-      "base": 0.14
+      "outer": 0.3,
+      "inner": 0.18,
+      "base": 0.08
     },
     "red": {
-      "outer": 0.58,
-      "inner": 0.72,
-      "base": 0.86
+      "outer": 0.7,
+      "inner": 0.82,
+      "base": 0.92
     }
   },
   "pits": {

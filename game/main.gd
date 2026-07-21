@@ -260,20 +260,25 @@ func _apply_event(ev: Dictionary) -> void:
 
 
 func _on_kill(t: int, d: Dictionary) -> void:
-	var killer: String = d.killer
+	# A turret can finish someone with no player behind it: killer is then "",
+	# nobody scores, and the feed says so.
+	var killer: String = d.get("killer", "")
 	var victim: String = d.victim
-	kda[killer].k += 1
+	var by_player: bool = kda.has(killer)
+	if by_player:
+		kda[killer].k += 1
+		team_score[_team(killer)] += 1
 	kda[victim].d += 1
 	for a in d.assists:
 		kda[a].a += 1
-	team_score[_team(killer)] += 1
 	var vlevel: int = _level_of(victim, t)
 	var rt := int((respawn_base + respawn_per_level * vlevel) * TPS)
 	var vpos := _pos_of(victim, t)
 	deaths_info[victim] = {"since": t, "at": t + rt, "pos": vpos}
 	_add_effect(t, vpos, "text", 18, Color(1.0, 0.5, 0.5), "✖ " + _name(victim), 0.0)
-	feed.append("[color=#%s]%s[/color] ✚ [color=#%s]%s[/color]" % [
-		_hex(killer), _name(killer), _hex(victim), _name(victim)])
+	var by := "[color=#%s]%s[/color]" % [_hex(killer), _name(killer)] if by_player \
+		else "[color=#%s]TURRET[/color]" % _teamhex(_enemy(_team(victim)))
+	feed.append("%s ✚ [color=#%s]%s[/color]" % [by, _hex(victim), _name(victim)])
 	_trim_feed()
 
 
@@ -493,6 +498,7 @@ func _team(id: String) -> String: return meta_of[id].team
 func _name(id: String) -> String: return meta_of[id].name
 func _hex(id: String) -> String: return C_BLUE if meta_of[id].team == "blue" else C_RED
 func _teamhex(team: String) -> String: return C_BLUE if team == "blue" else C_RED
+func _enemy(team: String) -> String: return "red" if team == "blue" else "blue"
 func _team_name(team: String) -> String: return blue_name if team == "blue" else red_name
 func _vec(a: Array) -> Vector2: return Vector2(float(a[0]), float(a[1]))
 func _clock(t: int) -> String:

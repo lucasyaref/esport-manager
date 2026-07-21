@@ -11,7 +11,7 @@
     "xp_per_minion": 60,
     "speed": 2.5,
     "combat_kill_rate": 0.004,
-    "front_drift": 0.0001,
+    "front_drift": 0.00018,
     "presence_pressure": 0.0015,
     "tower_kill_rate": 0.05
   },
@@ -90,7 +90,11 @@
     "minion_dps": 4,
     "player_base_dps": 26,
     "gold_per_player": 125,
-    "nexus_hp": 4200
+    "nexus_hp": 4200,
+    "range": 6.0,
+    "player_dps": 85,
+    "aggro_window_s": 2,
+    "credit_radius": 12.0
   },
   "objectives": {
     "dragon_first_spawn_s": 300,
@@ -150,6 +154,12 @@
     "contest_macro_divisor": 400.0,
     "max_reach": 5.5,
     "melee_damage_bonus": 0.6,
-    "engage_speed_bonus": 0.35
+    "engage_speed_bonus": 0.35,
+    "chase_patience_s": 5,
+    "leash_radius": 14.0,
+    "dive_hp": 0.6,
+    "dive_target_hp": 0.3,
+    "dive_margin": 2.2,
+    "focus_penalty": 0.7
   }
 }

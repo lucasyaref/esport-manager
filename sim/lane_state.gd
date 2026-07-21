@@ -94,7 +94,8 @@ func front_pos() -> Vector2:
 	return _map.pos_on_lane(lane, front_t)
 
 
-## Where a farming player of `team` stands: slightly behind the front.
-func farm_pos(team: String) -> Vector2:
-	var offset := -0.03 if team == "blue" else 0.03
-	return _map.pos_on_lane(lane, front_t + offset)
+## Lane param a farming player of `team` holds: slightly behind the front.
+## SimMatch.lane_stand_pos turns this into a position, pulling it back out of
+## enemy tower range first.
+func farm_t(team: String) -> float:
+	return front_t + (-0.03 if team == "blue" else 0.03)

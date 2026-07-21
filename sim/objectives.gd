@@ -10,6 +10,8 @@ var towers := {}
 var nexus_hp := {}
 var winner := ""                 # set when a nexus falls
 
+var tower_damage := {"blue": 0.0, "red": 0.0}  # dealt by each side's towers (stats)
+
 var dragon := {}                 # {alive, spawn_tick, stacks: {blue, red}}
 var baron := {}                  # {alive, spawn_tick, buff_until: {blue, red}}
 var _channel := {}               # objective -> {team, done_tick} while taking
@@ -21,11 +23,13 @@ func _init(match_ref: SimMatch) -> void:
 	for team in SimMap.TEAMS:
 		towers[team] = {}
 		for lane in SimMap.LANES:
-			towers[team][lane] = [
-				{"tier": "outer", "hp": float(bal.towers.hp)},
-				{"tier": "inner", "hp": float(bal.towers.hp)},
-				{"tier": "base", "hp": float(bal.towers.hp)},
-			]
+			var standing: Array = []
+			for tier in ["outer", "inner", "base"]:
+				standing.append({
+					"tier": tier, "hp": float(bal.towers.hp),
+					"pos": m.map.pos_on_lane(lane, float(m.map.towers[team][tier])),
+				})
+			towers[team][lane] = standing
 		nexus_hp[team] = float(bal.towers.nexus_hp)
 	dragon = {
 		"alive": false,
@@ -66,6 +70,19 @@ func update(t: int) -> void:
 	for lane in SimMap.LANES:
 		_update_siege(t, lane, "blue")
 		_update_siege(t, lane, "red")
+	_update_tower_threat(t)
+
+
+## True if `pos` sits under a standing enemy tower of `team`. Read by the combat
+## engine before it chases someone home.
+func under_enemy_tower(team: String, pos: Vector2) -> bool:
+	var enemy := "red" if team == "blue" else "blue"
+	var reach := float(m.balance.towers.range)
+	for lane in SimMap.LANES:
+		for tower: Dictionary in towers[enemy][lane]:
+			if pos.distance_to(tower.pos) <= reach:
+				return true
+	return false
 
 
 ## Where a team should rally for the current objective, or ZERO if none.
@@ -139,6 +156,54 @@ func _take(t: int, name: String, obj: Dictionary, team: String) -> void:
 
 
 # --- towers / nexus ----------------------------------------------------------
+
+## Towers shoot back. Until now they only ever *received* damage, so nothing on
+## the map punished a dive and a chase could run all the way into the enemy
+## base for free (M4.5-B playtest).
+func _update_tower_threat(t: int) -> void:
+	var bal: Dictionary = m.balance.towers
+	var dps: float = float(bal.player_dps) / SimMatch.TICKS_PER_SECOND
+	for defender in SimMap.TEAMS:
+		for lane in SimMap.LANES:
+			for tower: Dictionary in towers[defender][lane]:
+				var victim := _tower_target(t, defender, lane, tower.pos)
+				if victim != null:
+					m.combat.tower_damage(t, defender, tower.pos, victim, dps)
+					tower_damage[defender] += dps
+
+
+## LoL aggro, in priority order: a player attacking one of ours inside the zone
+## takes the shot immediately (that is what makes a dive cost something), else
+## the wave holds aggro if there is one, else the nearest enemy player.
+func _tower_target(t: int, defender: String, lane: String, tower_pos: Vector2) -> PlayerAgent:
+	var reach := float(m.balance.towers.range)
+	var attacker := "red" if defender == "blue" else "blue"
+	var in_range: Array[PlayerAgent] = []
+	for agent in m.agents:
+		if agent.alive and agent.team == attacker and agent.pos.distance_to(tower_pos) <= reach:
+			in_range.append(agent)
+	if in_range.is_empty():
+		return null
+
+	var window := int(float(m.balance.towers.aggro_window_s) * SimMatch.TICKS_PER_SECOND)
+	for agent in in_range:
+		if agent.target_idx < 0 or t - agent.last_hit_at > window:
+			continue
+		var victim: PlayerAgent = m.agents[agent.target_idx]
+		if victim.team == defender and victim.pos.distance_to(tower_pos) <= reach:
+			return agent
+
+	var lane_state: LaneState = m.lanes[lane]
+	if lane_state.minions[attacker] + lane_state.cannons[attacker] > 0 \
+			and lane_state.front_pos().distance_to(tower_pos) <= reach:
+		return null  # busy with the wave
+
+	var nearest: PlayerAgent = in_range[0]
+	for agent in in_range:
+		if agent.pos.distance_to(tower_pos) < nearest.pos.distance_to(tower_pos):
+			nearest = agent
+	return nearest
+
 
 func _bound_for(team: String, lane: String) -> float:
 	var standing: Array = towers[team][lane]
