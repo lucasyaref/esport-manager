@@ -207,6 +207,21 @@ func place_ward(team: String, pos: Vector2, t: int) -> void:
 	wards[team].append({"pos": pos, "expires": t + ttl})
 
 
+## Does `team` see `pos` right now — through a ward or a living team-mate nearby?
+## Vision gates the macro decisions (contesting an objective), so a ward at the
+## pit is what lets a team read a fight before walking into it.
+func vision_of(team: String, pos: Vector2) -> bool:
+	if pos == Vector2.ZERO:
+		return true
+	if ward_near(team, pos):
+		return true
+	var radius := float(balance.fight.vision_radius)
+	for agent in agents:
+		if agent.alive and agent.team == team and agent.pos.distance_to(pos) < radius:
+			return true
+	return false
+
+
 func ward_near(team: String, pos: Vector2) -> bool:
 	var active: Array = wards[team].filter(
 		func(w: Dictionary) -> bool: return w.expires >= now)
@@ -278,7 +293,12 @@ func try_gank(jungler: PlayerAgent, t: int) -> bool:
 		weights.append(1.0 + float(g.overextend_weight) * overext)
 	if lane_names.is_empty():
 		return false
-	jungler.start_gank(t, lane_names[rng.weighted_index(weights)])
+	var lane: String = lane_names[rng.weighted_index(weights)]
+	jungler.start_gank(t, lane)
+	# Tell the team. Who follows up is decided here, by macro — the whole point
+	# of the gank reading as coordinated (or not) is on the blackboard.
+	brains[jungler.team].post_gank(t, lane, jungler.idx,
+		t + gank_timeout_ticks(), self)
 	return true
 
 

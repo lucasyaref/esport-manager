@@ -11,6 +11,10 @@ var rally := Vector2.ZERO
 var target_lane := ""
 
 var _macro_avg := 0.0
+# The blackboard: calls a player posts for team-mates to read, keyed by name
+# ("gank_bot"). A call names who to react and until when — macro decides who
+# hears it (rolled once at post time, so it stays stable and deterministic).
+var _calls: Dictionary = {}
 
 
 func macro_avg() -> float:
@@ -25,7 +29,47 @@ func _init(p_team: String, agents: Array) -> void:
 	_macro_avg /= float(DataLoader.ROLES.size())
 
 
+## Posts a gank call: the jungler is committing to `lane`, so team-mates should
+## think about following up. Who actually reacts is rolled here, once, from each
+## eligible laner's macro — a sharp player reads the play and collapses, a poor
+## one keeps farming and the gank goes 1v1. This is macro made visible (Pillar 1).
+func post_gank(t: int, lane: String, by_idx: int, until: int, m: SimMatch) -> void:
+	var reactors: Array[int] = []
+	var norm: float = float(m.balance.ganks.react_macro_norm)
+	for agent in m.agents:
+		if agent.team != team or agent.idx == by_idx or not agent.alive:
+			continue
+		if agent.role == "jungle":
+			continue
+		# Laners in the ganked lane collapse; a shoved-in mid may roam to it.
+		var eligible: bool = agent.lane == lane \
+			or (agent.role == "mid" and agent.lane_stance == "push")
+		if eligible and m.rng.chance(float(agent.attrs.macro) / norm):
+			reactors.append(agent.idx)
+	_calls["gank_" + lane] = {"lane": lane, "by": by_idx, "until": until, "reactors": reactors}
+	m.emit_event(t, "gank_call", {"team": team, "lane": lane,
+		"by": m.agents[by_idx].id, "reactors": reactors.size()})
+
+
+## Is `idx` a player who heard the active gank call on `lane`?
+func gank_reactor(t: int, lane: String, idx: int) -> bool:
+	var c: Dictionary = _calls.get("gank_" + lane, {})
+	return not c.is_empty() and t <= int(c.until) and idx in c.reactors
+
+
+## A lane with a live gank call this player should rotate to (for roams).
+func gank_call_lane(t: int, idx: int) -> String:
+	for key: String in _calls:
+		var c: Dictionary = _calls[key]
+		if t <= int(c.until) and idx in c.reactors:
+			return c.lane
+	return ""
+
+
 func update(t: int, m: SimMatch) -> void:
+	for key: String in _calls.keys():
+		if t > int(_calls[key].until):
+			_calls.erase(key)
 	if m.phase_of(t) == "early":
 		intent = "lane"
 		return
@@ -58,10 +102,14 @@ func update(t: int, m: SimMatch) -> void:
 	_apply(t, m)
 
 
-## Do we actually want this objective? A team that is clearly the weaker side
-## right now gives it up and takes the trade elsewhere (siege, defend, farm)
-## rather than feeding a fight it cannot win. Without this both teams camp the
-## pit forever, nobody sieges, and the game never ends.
+## Do we actually want this objective — fight for it, or give it up and trade?
+## A team that is clearly weaker right now gives it up and takes the trade
+## elsewhere (siege, defend, farm) rather than feeding a fight it cannot win.
+## Without this both teams camp the pit forever, nobody sieges, and the game
+## never ends. The judgement is gated on **vision**: a team that cannot see the
+## pit is guessing at the enemy's strength, so it plays it safer (needs a
+## clearer advantage before it commits blind). That is what makes a ward at the
+## objective worth placing.
 func _will_contest(t: int, m: SimMatch) -> bool:
 	var mine := 0.0
 	var theirs := 0.0
@@ -77,6 +125,8 @@ func _will_contest(t: int, m: SimMatch) -> bool:
 	# judges the contest well, a weak one talks itself into bad fights.
 	var read: float = float(m.balance.fight.contest_margin) \
 		- (_macro_avg - 70.0) / float(m.balance.fight.contest_macro_divisor)
+	if not m.vision_of(team, m.objectives.objective_pos()):
+		read *= float(m.balance.fight.no_vision_caution)
 	return mine >= theirs * read
 
 

@@ -98,7 +98,8 @@
     "base_chance_early_tag": 0.35,
     "base_chance_other": 0.12,
     "overextend_weight": 2.0,
-    "commit_timeout_s": 25
+    "commit_timeout_s": 25,
+    "react_macro_norm": 95.0
   },
   "wards": {
     "support_ward_interval_s": 40,
@@ -171,6 +172,8 @@
     "steroid_damage_mult": 1.35,
     "contest_margin": 0.92,
     "contest_macro_divisor": 400.0,
+    "no_vision_caution": 1.15,
+    "vision_radius": 16.0,
     "max_reach": 5.5,
     "melee_damage_bonus": 0.6,
     "engage_speed_bonus": 0.35,

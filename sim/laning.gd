@@ -80,9 +80,16 @@ func _assign_stances(t: int, present: Dictionary, front: float, lb: Dictionary) 
 		# red enemy is caught below the midline (front pushed toward blue).
 		var enemy_overextended: bool = (front <= 0.5 - float(lb.allin_overext)) if team == "blue" \
 			else (front >= 0.5 + float(lb.allin_overext))
+		var brain: TeamBrain = m.brains[team]
 		for agent: PlayerAgent in present[team]:
-			agent.lane_stance = _stance_for(agent, power[team], power[enemy],
-				low_hp[enemy], present[enemy].is_empty(), enemy_overextended, lb)
+			# A player who heard the jungler's gank call collapses on the lane —
+			# steps up to add the body that turns a 1v1 into a kill. This is the
+			# "allied botlane reacts to the gank" the FSM never did.
+			if brain.gank_reactor(t, agent.lane, agent.idx):
+				agent.lane_stance = "allin"
+			else:
+				agent.lane_stance = _stance_for(agent, power[team], power[enemy],
+					low_hp[enemy], present[enemy].is_empty(), enemy_overextended, lb)
 
 
 ## A laner's stance is a pure read of what it can see: its own health, whether

@@ -114,7 +114,13 @@ func update(t: int, m: SimMatch) -> void:
 			if _move_toward(m.lane_stand_pos(lane, team, lane_stance)):
 				state = State.FARMING
 		State.FARMING:
-			_move_toward(m.lane_stand_pos(lane, team, lane_stance))
+			# A mid that shoved its wave and heard a gank call rotates to it —
+			# the roam the designer wanted instead of pushing back and forth.
+			var roam: String = m.brains[team].gank_call_lane(t, idx)
+			if roam != "" and roam != lane:
+				_move_toward(m.lane_stand_pos(roam, team, "trade"))
+			else:
+				_move_toward(m.lane_stand_pos(lane, team, lane_stance))
 			_maybe_recall(t, m)
 		State.TO_CAMP, State.WAITING_CAMP:
 			if role == "jungle" and m.try_gank(self, t):

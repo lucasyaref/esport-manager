@@ -249,6 +249,13 @@ func _apply_event(ev: Dictionary) -> void:
 			towers_down[key] = true
 			if tower_pos.has(key):
 				_add_effect(t, tower_pos[key], "text", 14, Color(0.85, 0.8, 0.6), "TOWER", 0.0)
+		"gank_call":
+			# Macro on screen: how many team-mates read the jungler's call.
+			var followers: int = int(d.reactors)
+			var tail := " (%d follow)" % followers if followers > 0 else " (no follow-up)"
+			feed.append("[color=#%s]%s[/color] gank %s%s" % [
+				_teamhex(d.team), _team_name(d.team), d.lane, tail])
+			_trim_feed()
 		"recall_start":
 			recall_until[d.player] = t + recall_ticks
 		"ward_placed":

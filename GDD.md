@@ -93,11 +93,15 @@ that appears.
   tower for the kill (the all-in) is gated on the enemy being overextended and low — you die
   for greed, not for standing at 60% behind your own tower. Stance also drives how hard the
   wave pushes, so a shoving laner moves the front and exposes itself to a gank.
-- **Intent is communicated, not assumed.** Players post intent ("ganking bot", "committing to
-  drake") to a team blackboard; teammates read it and react, gated by their `macro` attribute.
-  This is where a roster's macro quality becomes visible on screen (Pillar 1). Enemy intent is
-  perceived through vision, so wards matter and both teams make a real decision at an
-  objective: fight, trade, or give it up.
+- **Intent is communicated, not assumed.** Players post intent (a jungler committing to a gank)
+  to a team blackboard; team-mates read it and react, and *who reacts is decided by their
+  `macro` attribute* — a sharp laner collapses on the gank and adds the body that gets the
+  kill, a poor one keeps farming and it goes 1v1. A shoved-in mid roams to the call. This is
+  where a roster's macro quality becomes visible on screen (Pillar 1): the same gank reads as
+  coordinated or uncoordinated depending on who you fielded. Objective decisions are gated on
+  **vision** — a team that cannot see the pit (no ward, no ally nearby) judges the fight on
+  worse information and plays it safer, so wards decide objectives and both teams make a real
+  fight / trade / give-it-up call rather than blindly focusing the objective.
 
 **Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
 collision resolution — steering toward a desired point along the precomputed lane paths only.
