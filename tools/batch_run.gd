@@ -1,12 +1,19 @@
 extends SceneTree
-## M3 batch validation: runs N full matches headless and reports the
-## distributions that tell us whether the sim produces plausible games —
-## side win rate, match length, kills, objectives, first blood.
+## Batch validation: runs N full matches headless and reports the distributions
+## that tell us whether the sim produces plausible *and* well-behaved games.
+##
+## M3 measured outcomes (win rate, length, kills) and passed while the behaviour
+## underneath was broken — so M4.5-G adds behavioural metrics: where kills happen,
+## solo vs assisted, before vs after 14 min, fight count and duration, gank
+## coordination, mid-game levels — plus assertions for the bugs the designer had
+## to catch by eye (nobody off the map, no squad out of its lane).
 ##
 ## Usage:
 ##   godot --headless --path . --script res://tools/batch_run.gd -- [--sims=N] [--start-seed=N]
 
 const LENGTH_BUCKETS := [20, 25, 30, 35, 40, 45]
+const LANE_RADIUS := 6.0    # within this of a lane polyline counts as that lane
+const PIT_RADIUS := 8.0
 
 
 func _initialize() -> void:
@@ -26,6 +33,10 @@ func _initialize() -> void:
 		return
 
 	var team_ids: Array = data.teams.keys()
+	var map := SimMap.new(data.map)
+	var role_of := {}
+	for pid: String in data.players:
+		role_of[pid] = data.players[pid].role
 	var wins := {"blue": 0, "red": 0, "": 0}
 	var team_wins := {team_ids[0]: 0, team_ids[1]: 0}
 	var lengths: Array[float] = []
@@ -37,6 +48,22 @@ func _initialize() -> void:
 	var length_hist := {}
 	for b in LENGTH_BUCKETS:
 		length_hist[b] = 0
+	# --- behavioural metrics (G) ---
+	var solo_kills := 0
+	var tower_kills := 0
+	var early_kills := 0            # before 14 min
+	var region_hist := {"top": 0, "mid": 0, "bot": 0, "river_jungle": 0, "pit": 0}
+	var role_kills := {}
+	var fight_count := 0
+	var fight_dur: Array[float] = []
+	var gank_calls := 0
+	var gank_reactors := 0
+	var level_mid: Array[float] = []   # avg level at the ~30-min snapshot
+	# Assertions: things the designer had to spot by eye. Any hit is a hard fail.
+	var oob := 0
+	var squad_oob := 0
+	const EARLY_TICK := 14 * 60 * SimMatch.TICKS_PER_SECOND
+	const MID_TICK := 30 * 60 * SimMatch.TICKS_PER_SECOND
 	# Snowball measure: at 15 sim-min, which side leads in gold, and did they
 	# win? "Leads matter" pushes this above 50%; "comeback-friendly" keeps it
 	# well below 100%.
@@ -51,8 +78,9 @@ func _initialize() -> void:
 		# are measured independently.
 		var swap := i % 2 == 1
 		var setup := {
-			# Sparse snapshots (every 15 sim-min) keep 1000-sim batches cheap
-			# while still giving us the 15-min gold checkpoint.
+			# Snapshots every 15 sim-min keep 1000-sim batches cheap while giving
+			# us the 15-min gold checkpoint, the 30-min level checkpoint, and a
+			# sampled position stream for the out-of-bounds assertions.
 			"seed": start_seed + i, "snapshot_every": LEAD_TICK,
 			"teams": {
 				"blue": team_ids[1] if swap else team_ids[0],
@@ -91,6 +119,22 @@ func _initialize() -> void:
 					kills += 1
 					if fb < 0:
 						fb = ev.t / (60.0 * SimMatch.TICKS_PER_SECOND)
+					if ev.data.assists.is_empty() and ev.data.get("killer", "") != "":
+						solo_kills += 1
+					if ev.data.get("source", "player") == "tower":
+						tower_kills += 1
+					if ev.t < EARLY_TICK:
+						early_kills += 1
+					region_hist[_region(map, _vec(ev.data.pos))] += 1
+					var killer: String = ev.data.get("killer", "")
+					if role_of.has(killer):
+						role_kills[role_of[killer]] = role_kills.get(role_of[killer], 0) + 1
+				"fight_end":
+					fight_count += 1
+					fight_dur.append(float(ev.data.duration_s))
+				"gank_call":
+					gank_calls += 1
+					gank_reactors += int(ev.data.reactors)
 				"objective_taken":
 					if ev.data.objective == "dragon":
 						dragons += 1
@@ -101,6 +145,22 @@ func _initialize() -> void:
 		kill_totals.append(kills)
 		if fb >= 0:
 			first_bloods.append(fb)
+		# Snapshots: [0]=t0, [1]=15min, [2]=30min, ... Level checkpoint at 30 min,
+		# and every snapshot feeds the position assertions.
+		for si in range(result.snapshots.size()):
+			var snap: Dictionary = result.snapshots[si]
+			for row: Array in snap.players:
+				if not map.in_bounds(Vector2(row[1], row[2])):
+					oob += 1
+			for lane_row: Array in snap.get("lanes", []):
+				for q: Array in (lane_row[4] if lane_row.size() > 4 else []):
+					if q[1] < -0.001 or q[1] > 1.001:
+						squad_oob += 1
+			if int(snap.t) == MID_TICK:
+				var lv := 0.0
+				for row: Array in snap.players:
+					lv += row[3]
+				level_mid.append(lv / snap.players.size())
 	var elapsed := (Time.get_ticks_msec() - t_start) / 1000.0
 
 	print("Batch: %d sims (seeds %d..%d) in %.1fs\n" % [sims, start_seed, start_seed + sims - 1, elapsed])
@@ -129,7 +189,62 @@ func _initialize() -> void:
 	for b in LENGTH_BUCKETS:
 		print("| %d–%d min | %d |" % [prev, b, length_hist[b]])
 		prev = b
+
+	var total_kills := 0
+	for v in kill_totals:
+		total_kills += int(v)
+	print("")
+	print("| Behaviour | Value |")
+	print("|---|---|")
+	print("| Kills before 14 min | %.0f%% |" % (100.0 * early_kills / maxi(total_kills, 1)))
+	print("| Solo kills (no assist) | %.0f%% |" % (100.0 * solo_kills / maxi(total_kills, 1)))
+	print("| Tower kills | %.1f%% |" % (100.0 * tower_kills / maxi(total_kills, 1)))
+	print("| Fights per match | %.1f |" % (float(fight_count) / sims))
+	print("| Fight duration avg (s) | %.0f |" % _avg(fight_dur))
+	print("| Gank calls per match | %.1f |" % (float(gank_calls) / sims))
+	print("| Gank followers avg | %.2f |" % (float(gank_reactors) / maxi(gank_calls, 1)))
+	print("| Avg level @30min | %.1f |" % _avg(level_mid))
+	print("")
+	print("| Kill region | Share |")
+	print("|---|---|")
+	for r: String in region_hist:
+		print("| %s | %.0f%% |" % [r, 100.0 * region_hist[r] / maxi(total_kills, 1)])
+	print("")
+	print("| Killer role | Share |")
+	print("|---|---|")
+	for role in DataLoader.ROLES:
+		print("| %s | %.0f%% |" % [role, 100.0 * role_kills.get(role, 0) / maxi(total_kills, 1)])
+
+	print("")
+	if oob == 0 and squad_oob == 0:
+		print("ASSERTIONS: PASS (no agent off the map, no squad out of its lane)")
+	else:
+		print("ASSERTIONS: FAIL — off-map player samples: %d, out-of-lane squad samples: %d" % [
+			oob, squad_oob])
+		quit(1)
+		return
 	quit(0)
+
+
+## Classify where a kill happened: a pit, one of the three lanes, or the open
+## river/jungle between them. Lanes are polylines, so we sample each and take the
+## nearest — cheap and good enough for a distribution.
+func _region(map: SimMap, pos: Vector2) -> String:
+	if pos.distance_to(map.pits.dragon) < PIT_RADIUS or pos.distance_to(map.pits.baron) < PIT_RADIUS:
+		return "pit"
+	var best_lane := ""
+	var best_d := INF
+	for lane in SimMap.LANES:
+		for k in 24:
+			var d := pos.distance_to(map.pos_on_lane(lane, k / 23.0))
+			if d < best_d:
+				best_d = d
+				best_lane = lane
+	return best_lane if best_d <= LANE_RADIUS else "river_jungle"
+
+
+func _vec(p: Array) -> Vector2:
+	return Vector2(float(p[0]), float(p[1]))
 
 
 func _avg(values: Array[float]) -> float:
