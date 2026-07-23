@@ -392,7 +392,8 @@ func _capture_snapshot(t: int) -> Dictionary:
 	for lane in SimMap.LANES:
 		var l: LaneState = lanes[lane]
 		lane_rows.append([lane, l.front_t,
-			l.minions.blue + l.cannons.blue, l.minions.red + l.cannons.red])
+			l.minions.blue + l.cannons.blue, l.minions.red + l.cannons.red,
+			l.squad_rows()])
 	return {"t": t, "players": players, "lanes": lane_rows}
 
 

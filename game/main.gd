@@ -362,20 +362,21 @@ func _render() -> void:
 	_update_hud(pt, gold)
 
 
-## Minion wave dots. The sim models each lane as an aggregate front + per-side
-## counts (LaneState), never individual minions — keeping 1000-sim batches
-## cheap. The dots are derived here at render time: each side's army marches
-## back from the contact point toward its own base, two ranks wide.
+## Minion wave dots, drawn from the squads the sim actually walks down each
+## lane (LaneState). A squad is one point carrying a count — individual minions
+## are never simulated, which is what keeps 1000-sim batches cheap — so the
+## dots are spread here at render time, backward from the squad's position
+## toward its own base, two ranks wide.
 func _minion_dots(s: Dictionary) -> Array:
 	var out: Array = []
 	for row: Array in s.get("lanes", []):
 		var lane: String = row[0]
-		var front: float = float(row[1])
-		for side in SimMap.TEAMS:
-			var count: int = int(row[2] if side == "blue" else row[3])
+		for q: Array in (row[4] if row.size() > 4 else []):
+			var side: String = "blue" if int(q[0]) == 0 else "red"
+			var lead := float(q[1])
 			var dir := -1.0 if side == "blue" else 1.0
-			for i in mini(count, MINION_DOTS_MAX):
-				var lt := clampf(front + dir * (MINION_FRONT_GAP + i * MINION_SPACING), 0.0, 1.0)
+			for i in mini(int(q[2]), MINION_DOTS_MAX):
+				var lt := clampf(lead + dir * (MINION_FRONT_GAP + i * MINION_SPACING), 0.0, 1.0)
 				var p := smap.pos_on_lane(lane, lt)
 				var ahead := smap.pos_on_lane(lane, clampf(lt + 0.01, 0.0, 1.0))
 				var perp := Vector2.ZERO

@@ -11,7 +11,6 @@
     "xp_per_minion": 60,
     "speed": 2.5,
     "combat_kill_rate": 0.004,
-    "front_drift": 0.00018,
     "presence_pressure": 0.0015,
     "tower_kill_rate": 0.05
   },
