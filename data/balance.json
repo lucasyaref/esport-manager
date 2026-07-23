@@ -33,6 +33,26 @@
     "recall_hp_threshold": 0.4,
     "regen_lockout_s": 6
   },
+  "laning": {
+    "poke_interval_s": 2.0,
+    "poke_base": 17,
+    "poke_damage_norm": 45.0,
+    "poke_laning_div": 260.0,
+    "poke_variance": 0.25,
+    "poke_floor_hp": 0.63,
+    "poke_level_ramp_start": 0.15,
+    "allin_enemy_hp": 0.4,
+    "allin_self_hp": 0.65,
+    "allin_lead": 1.45,
+    "allin_overext": 0.08,
+    "allin_min_level": 3,
+    "trade_lead": 1.0,
+    "trade_offset": 0.025,
+    "allin_offset": 0.08,
+    "back_offset": 0.05,
+    "push_pressure_mult": 1.2,
+    "back_pressure_mult": 0.6
+  },
   "cs": {
     "base_chance": 0.55,
     "laning_divisor": 250,

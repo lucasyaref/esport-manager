@@ -23,6 +23,7 @@ var lanes: Dictionary = {}          # lane name -> LaneState
 var camps: Array[Dictionary] = []   # {def, alive, respawn_tick}
 var agents: Array[PlayerAgent] = []
 var combat: Combat
+var laning: Laning
 var objectives: Objectives
 var brains: Dictionary = {}         # team -> TeamBrain
 var wards: Dictionary = {"blue": [], "red": []}
@@ -57,6 +58,7 @@ func _init(setup: Dictionary, data: Dictionary) -> void:
 		camps.append({"def": camp_def, "alive": false, "respawn_tick": first_spawn})
 	_spawn_agents()
 	combat = Combat.new(self)
+	laning = Laning.new(self)
 	objectives = Objectives.new(self)
 	for team in SimMap.TEAMS:
 		brains[team] = TeamBrain.new(team, agents)
@@ -95,6 +97,11 @@ func run() -> Dictionary:
 		# from 10 at playback speed and it is the bulk of the batch-run cost.
 		if t % INTENT_INTERVAL == 0:
 			combat.update_intent(t)
+		# Lane stances + HP trading run before movement so a laner's chosen
+		# stance is reflected in where it walks this tick. Combat has already
+		# decided whether anyone is in a fight; laning only touches the players
+		# still farming, so the two never fight over the same agent.
+		laning.update(t)
 		for agent in agents:
 			agent.update(t, self)
 		combat.resolve_attacks(t)
@@ -124,6 +131,7 @@ func run() -> Dictionary:
 	}
 	# Break RefCounted reference cycles so 1000-sim batches don't leak.
 	combat.m = null
+	laning.m = null
 	objectives.m = null
 	return result
 
@@ -160,13 +168,24 @@ func rally_pos(team: String) -> Vector2:
 	return brains[team].rally
 
 
-## Where a laner of `team` stands on `lane`: behind its own wave, and never
-## inside a live enemy tower's range. You last-hit from outside the turret;
-## walking under it is a dive, which is a fight decision (Combat) rather than
-## something farming should do by accident.
-func lane_stand_pos(lane_name: String, team: String) -> Vector2:
+## Where a laner of `team` stands on `lane`, given its Laning stance. A holding
+## stance sits behind its wave and never inside a live enemy tower's range —
+## you last-hit from outside the turret. Aggressive stances (trade/allin) step
+## toward the enemy and are allowed under the tower: whether that dive is worth
+## it is the combat engine's call (Combat._dive_worth_it), not farming's.
+func lane_stand_pos(lane_name: String, team: String, stance := "push") -> Vector2:
+	var toward := 1.0 if team == "blue" else -1.0  # + = toward enemy base
+	var lb: Dictionary = balance.laning
+	var offset := 0.0
+	match stance:
+		"trade": offset = float(lb.trade_offset)
+		"allin": offset = float(lb.allin_offset)
+		"freeze": offset = -float(lb.back_offset) * 0.5
+		"back": offset = -float(lb.back_offset)
+	var t: float = lanes[lane_name].farm_t(team) + toward * offset
+	if stance in ["trade", "allin"]:
+		return map.clamp_pos(map.pos_on_lane(lane_name, clampf(t, 0.0, 1.0)))
 	var back := -0.02 if team == "blue" else 0.02
-	var t: float = lanes[lane_name].farm_t(team)
 	for _i in 6:
 		var p := map.pos_on_lane(lane_name, clampf(t, 0.0, 1.0))
 		if not objectives.under_enemy_tower(team, p):
@@ -340,10 +359,13 @@ func _tick_lane(t: int, lane_name: String) -> void:
 	for agent in agents:
 		if agent.is_farming_lane(lane_name):
 			present[agent.team].append(agent)
-	var pressure := {
-		"blue": present.blue.size() * float(balance.minions.presence_pressure),
-		"red": present.red.size() * float(balance.minions.presence_pressure),
-	}
+	# A laner shoving the wave (push/trade stance) pushes the front harder than
+	# one holding back — so stance physically moves the lane, and an overextended
+	# pusher is the one a jungler can punish.
+	var pressure := {"blue": 0.0, "red": 0.0}
+	for team in SimMap.TEAMS:
+		for agent: PlayerAgent in present[team]:
+			pressure[team] += float(balance.minions.presence_pressure) * laning.pressure_mult(agent)
 	var deaths := lane.tick(t, pressure, objectives.lane_bounds(lane_name))
 	for death in deaths:
 		var killer_side: String = "red" if death.team == "blue" else "blue"

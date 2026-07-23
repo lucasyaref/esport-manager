@@ -84,8 +84,15 @@ that appears.
   player, switching to whoever attacks an ally in the zone), so a tower can kill: diving is a
   cost/benefit decision rather than a free chase. Kill credit for a tower kill goes to the
   diver who forced it, or to nobody.
-- **Lanes are contested, not a ping-pong equation.** Laners pick a stance (push / freeze /
-  trade / back / roam), trade HP, and a big enough advantage converts into a solo kill.
+- **Lanes are contested, not a ping-pong equation.** Laners pick a stance (push / trade /
+  all-in / freeze / back), and trade HP through poke. Poke is only chip pressure — it is
+  floored high enough that it can never, on its own, drop a laner far enough for an equal
+  enemy to commit, so it pushes the loser toward home rather than deleting them at range. A
+  **solo kill** needs a real edge (a level/item lead, or a third body from a gank) and is
+  dealt by the combat engine, so it reads as a fight you watch. Stepping under the enemy
+  tower for the kill (the all-in) is gated on the enemy being overextended and low — you die
+  for greed, not for standing at 60% behind your own tower. Stance also drives how hard the
+  wave pushes, so a shoving laner moves the front and exposes itself to a gank.
 - **Intent is communicated, not assumed.** Players post intent ("ganking bot", "committing to
   drake") to a team blackboard; teammates read it and react, gated by their `macro` attribute.
   This is where a roster's macro quality becomes visible on screen (Pillar 1). Enemy intent is

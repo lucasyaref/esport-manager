@@ -46,6 +46,7 @@ var steroid_until := -1          # self-buff ultimates
 var last_damaged_at := -999999
 var commit_pos := Vector2.ZERO   # where this agent committed to its current fight
 var last_hit_at := -999999       # last tick it landed a hit (chase patience)
+var lane_stance := "push"        # push / trade / allin / freeze / back (Laning)
 
 var alive := true
 var kills := 0
@@ -110,10 +111,10 @@ func update(t: int, m: SimMatch) -> void:
 		_maybe_ward(t, m)
 	match state:
 		State.TO_LANE:
-			if _move_toward(m.lane_stand_pos(lane, team)):
+			if _move_toward(m.lane_stand_pos(lane, team, lane_stance)):
 				state = State.FARMING
 		State.FARMING:
-			_move_toward(m.lane_stand_pos(lane, team))
+			_move_toward(m.lane_stand_pos(lane, team, lane_stance))
 			_maybe_recall(t, m)
 		State.TO_CAMP, State.WAITING_CAMP:
 			if role == "jungle" and m.try_gank(self, t):
