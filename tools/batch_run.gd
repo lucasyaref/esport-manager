@@ -59,6 +59,9 @@ func _initialize() -> void:
 	var gank_calls := 0
 	var gank_reactors := 0
 	var level_mid: Array[float] = []   # avg level at the ~30-min snapshot
+	# --- macro metrics (M5; extended per phase as the plays land) ---
+	var first_tower_min: Array[float] = []             # when the match's first tower falls
+	var first_tower_lane := {"top": 0, "mid": 0, "bot": 0}
 	# Assertions: things the designer had to spot by eye. Any hit is a hard fail.
 	var oob := 0
 	var squad_oob := 0
@@ -113,6 +116,7 @@ func _initialize() -> void:
 				break
 		var kills := 0
 		var fb := -1.0
+		var first_tower_t := -1
 		for ev: Dictionary in result.events:
 			match ev.type:
 				"kill":
@@ -142,9 +146,14 @@ func _initialize() -> void:
 						barons += 1
 				"tower_destroyed":
 					towers += 1
+					if first_tower_t < 0:
+						first_tower_t = int(ev.t)
+						first_tower_lane[ev.data.lane] += 1
 		kill_totals.append(kills)
 		if fb >= 0:
 			first_bloods.append(fb)
+		if first_tower_t >= 0:
+			first_tower_min.append(first_tower_t / (60.0 * SimMatch.TICKS_PER_SECOND))
 		# Snapshots: [0]=t0, [1]=15min, [2]=30min, ... Level checkpoint at 30 min,
 		# and every snapshot feeds the position assertions.
 		for si in range(result.snapshots.size()):
@@ -214,6 +223,14 @@ func _initialize() -> void:
 	print("|---|---|")
 	for role in DataLoader.ROLES:
 		print("| %s | %.0f%% |" % [role, 100.0 * role_kills.get(role, 0) / maxi(total_kills, 1)])
+
+	print("")
+	print("| Macro (M5) | Value |")
+	print("|---|---|")
+	print("| First tower avg (min) | %.1f |" % _avg(first_tower_min))
+	var ft_total := first_tower_min.size()
+	for lane in ["top", "mid", "bot"]:
+		print("| First tower is %s | %.0f%% |" % [lane, 100.0 * first_tower_lane[lane] / maxi(ft_total, 1)])
 
 	print("")
 	if oob == 0 and squad_oob == 0:

@@ -61,7 +61,7 @@ func _init(setup: Dictionary, data: Dictionary) -> void:
 	laning = Laning.new(self)
 	objectives = Objectives.new(self)
 	for team in SimMap.TEAMS:
-		brains[team] = TeamBrain.new(team, agents)
+		brains[team] = TeamBrain.new(team, agents, balance.macro)
 	_compute_comp_modifiers()
 
 

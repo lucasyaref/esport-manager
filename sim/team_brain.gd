@@ -11,6 +11,7 @@ var rally := Vector2.ZERO
 var target_lane := ""
 
 var _macro_avg := 0.0
+var _macro_cfg: Dictionary = {}      # balance.macro: pivot / span / floor_frac / ...
 # The blackboard: calls a player posts for team-mates to read, keyed by name
 # ("gank_bot"). A call names who to react and until when — macro decides who
 # hears it (rolled once at post time, so it stays stable and deterministic).
@@ -21,8 +22,27 @@ func macro_avg() -> float:
 	return _macro_avg
 
 
-func _init(p_team: String, agents: Array) -> void:
+## The blend model (M5). Every team gets a deterministic BASELINE of coordination
+## so it always reads as a team on screen; a roster's `macro` scales the quality
+## and frequency on top. macro_gate() is the single place that shape lives: pass
+## the probability an *average* roster (macro == pivot) should hit and how much a
+## full `span` of extra macro lifts it, and get back a probability to roll
+## against. Below-pivot rosters sink toward a floor (base * floor_frac) but never
+## to zero — that floor is the "always reads as a team" guarantee. Above-pivot
+## rosters climb toward `ceil_p`. The per-player version (gank reactors, roam
+## decisions) shares the maths against one player's macro instead of the average.
+func macro_gate(base: float, lift: float, ceil_p := 1.0) -> float:
+	return macro_gate_of(_macro_avg, base, lift, ceil_p)
+
+
+func macro_gate_of(macro: float, base: float, lift: float, ceil_p := 1.0) -> float:
+	var p: float = base + lift * (macro - float(_macro_cfg.pivot)) / float(_macro_cfg.span)
+	return clampf(p, base * float(_macro_cfg.floor_frac), ceil_p)
+
+
+func _init(p_team: String, agents: Array, macro_cfg: Dictionary) -> void:
 	team = p_team
+	_macro_cfg = macro_cfg
 	for agent: PlayerAgent in agents:
 		if agent.team == team:
 			_macro_avg += float(agent.attrs.macro)
@@ -81,7 +101,7 @@ func update(t: int, m: SimMatch) -> void:
 	if m.objectives.objective_soon(t) and m.objectives.objective_pos() != Vector2.ZERO \
 			and _will_contest(t, m):
 		# Macro gate: low-macro teams are slow to rotate. Once grouped, stay.
-		if intent == "group_objective" or m.rng.chance(_macro_avg / 600.0):
+		if intent == "group_objective" or m.rng.chance(_macro_avg / float(_macro_cfg.rotate_divisor)):
 			new_intent = "group_objective"
 			new_rally = m.objectives.objective_pos()
 	if new_intent == "farm":

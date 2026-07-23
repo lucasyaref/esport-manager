@@ -101,6 +101,12 @@
     "commit_timeout_s": 25,
     "react_macro_norm": 95.0
   },
+  "macro": {
+    "pivot": 70.0,
+    "span": 30.0,
+    "floor_frac": 0.4,
+    "rotate_divisor": 600.0
+  },
   "wards": {
     "support_ward_interval_s": 40,
     "ward_duration_s": 90

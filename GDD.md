@@ -102,6 +102,19 @@ that appears.
   **vision** — a team that cannot see the pit (no ward, no ally nearby) judges the fight on
   worse information and plays it safer, so wards decide objectives and both teams make a real
   fight / trade / give-it-up call rather than blindly focusing the objective.
+- **Macro is a blend of baseline and roster quality (M5).** Coordination is not all-or-nothing.
+  Every team runs a deterministic *baseline* of team play — it groups, rotates and follows up
+  on calls enough to always read as a team on screen — and each roster's `macro` attribute
+  scales the *quality and frequency* on top: a high-macro side ganks with more followers,
+  rotates to objectives sooner, spots and takes cross-map openings, dispatches multi-man plays,
+  and swaps lanes to snowball a tower lead, while a low-macro side does the baseline and little
+  more. One primitive, `TeamBrain.macro_gate`, expresses this everywhere — the probability an
+  average roster (macro == pivot, 70) should hit, lifted by macro above that pivot and floored
+  (never zero) below it — so macro reads consistently across ganks, roams, multi-man plays and
+  lane swaps instead of a pile of ad-hoc dice. This is the macro **win-vector**: the designed
+  path by which fielding a smarter roster visibly changes the game and converts map movement
+  into advantage (and the lever intended to pull the macro-vs-mechanics balance back toward
+  43/57).
 
 **Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
 collision resolution — steering toward a desired point along the precomputed lane paths only.
