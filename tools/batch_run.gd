@@ -62,6 +62,8 @@ func _initialize() -> void:
 	# --- macro metrics (M5; extended per phase as the plays land) ---
 	var first_tower_min: Array[float] = []             # when the match's first tower falls
 	var first_tower_lane := {"top": 0, "mid": 0, "bot": 0}
+	var swap_events := 0                               # total lane swaps (both teams)
+	var both_swapped := 0                              # matches where both teams swapped (mirror)
 	# Assertions: things the designer had to spot by eye. Any hit is a hard fail.
 	var oob := 0
 	var squad_oob := 0
@@ -117,6 +119,7 @@ func _initialize() -> void:
 		var kills := 0
 		var fb := -1.0
 		var first_tower_t := -1
+		var swaps_this := 0
 		for ev: Dictionary in result.events:
 			match ev.type:
 				"kill":
@@ -139,6 +142,8 @@ func _initialize() -> void:
 				"gank_call":
 					gank_calls += 1
 					gank_reactors += int(ev.data.reactors)
+				"lane_swap":
+					swaps_this += 1
 				"objective_taken":
 					if ev.data.objective == "dragon":
 						dragons += 1
@@ -154,6 +159,9 @@ func _initialize() -> void:
 			first_bloods.append(fb)
 		if first_tower_t >= 0:
 			first_tower_min.append(first_tower_t / (60.0 * SimMatch.TICKS_PER_SECOND))
+		swap_events += swaps_this
+		if swaps_this >= 2:
+			both_swapped += 1
 		# Snapshots: [0]=t0, [1]=15min, [2]=30min, ... Level checkpoint at 30 min,
 		# and every snapshot feeds the position assertions.
 		for si in range(result.snapshots.size()):
@@ -231,6 +239,8 @@ func _initialize() -> void:
 	var ft_total := first_tower_min.size()
 	for lane in ["top", "mid", "bot"]:
 		print("| First tower is %s | %.0f%% |" % [lane, 100.0 * first_tower_lane[lane] / maxi(ft_total, 1)])
+	print("| Lane swap rate (team-games) | %.0f%% |" % (100.0 * swap_events / maxi(2 * sims, 1)))
+	print("| Both teams swapped (mirror) | %.0f%% |" % (100.0 * both_swapped / sims))
 
 	print("")
 	if oob == 0 and squad_oob == 0:

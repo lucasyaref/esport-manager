@@ -105,7 +105,11 @@
     "pivot": 70.0,
     "span": 30.0,
     "floor_frac": 0.4,
-    "rotate_divisor": 600.0
+    "rotate_divisor": 600.0,
+    "swap_base": 0.35,
+    "swap_lift": 0.35,
+    "mirror_base": 0.6,
+    "mirror_lift": 0.3
   },
   "wards": {
     "support_ward_interval_s": 40,
@@ -116,6 +120,7 @@
     "minion_dps": 4,
     "player_base_dps": 26,
     "gold_per_player": 125,
+    "first_tower_bonus_per_player": 30,
     "nexus_hp": 6000,
     "range": 6.0,
     "player_dps": 85,

@@ -10,6 +10,20 @@ var intent := "lane"        # lane / farm / group_objective / siege / defend
 var rally := Vector2.ZERO
 var target_lane := ""
 
+# --- lane assignment (M5-B): the lane swap as a team STATE ------------------
+# A formation is a role->lane map; `standard` is the default 1-1-2. A swap is a
+# transition to a different map — `bot_top_swap` sends the bot duo to top and the
+# top solo to bot (the classic opening swap). Holding it as state is what makes a
+# swap read on screen and lets the enemy DETECT it and mirror. Kept as a table so
+# mid-collapse / 1-3-1 are just more entries later, no new machinery.
+const FORMATIONS := {
+	"standard":     {"top": "top", "mid": "mid", "carry": "bot", "support": "bot"},
+	"bot_top_swap": {"top": "bot", "mid": "mid", "carry": "top", "support": "top"},
+}
+var formation := "standard"
+var _swap_rolled := false     # the one-time "do we open swapped?" roll happened
+var _mirror_rolled := false   # the one-time "enemy swapped, match it?" roll happened
+
 var _macro_avg := 0.0
 var _macro_cfg: Dictionary = {}      # balance.macro: pivot / span / floor_frac / ...
 # The blackboard: calls a player posts for team-mates to read, keyed by name
@@ -47,6 +61,42 @@ func _init(p_team: String, agents: Array, macro_cfg: Dictionary) -> void:
 		if agent.team == team:
 			_macro_avg += float(agent.attrs.macro)
 	_macro_avg /= float(DataLoader.ROLES.size())
+
+
+## Transition to a formation, rewriting each laner's home lane. Because `lane`
+## (not `role`) is what drives where a player farms and stands, this is all the
+## swap needs — done at t=0 the laners route to the swapped lanes from the
+## fountain, so it reads as an opening swap. No RNG here: deterministic.
+func set_formation(new_formation: String, t: int, m: SimMatch) -> void:
+	if new_formation == formation:
+		return
+	formation = new_formation
+	var mapping: Dictionary = FORMATIONS[formation]
+	for agent in m.agents:
+		if agent.team == team and mapping.has(agent.role):
+			agent.lane = mapping[agent.role]
+	m.emit_event(t, "lane_swap", {"team": team, "formation": formation})
+
+
+## The opening lane-swap decision (M5-B), run each brain tick but self-limiting:
+## the initiate roll fires once (at t=0, before minions, so the swap is an
+## opening), and the mirror roll fires once, when a standard team first sees the
+## enemy swapped. Both are macro-gated through the blend primitive — a sharp
+## roster sets up the 2v1 and, crucially, is rarely the one left 1v2, because it
+## reliably reads and matches an enemy swap. That asymmetry is the point: it is
+## how a macro edge turns into an early tower and a gold swing (item 4).
+func _consider_lane_swap(t: int, m: SimMatch) -> void:
+	var mc: Dictionary = _macro_cfg
+	if not _swap_rolled:
+		_swap_rolled = true
+		if m.rng.chance(macro_gate(float(mc.swap_base), float(mc.swap_lift))):
+			set_formation("bot_top_swap", t, m)
+	if formation == "standard" and not _mirror_rolled:
+		var enemy := "red" if team == "blue" else "blue"
+		if m.brains[enemy].formation == "bot_top_swap":
+			_mirror_rolled = true
+			if m.rng.chance(macro_gate(float(mc.mirror_base), float(mc.mirror_lift))):
+				set_formation("bot_top_swap", t, m)
 
 
 ## Posts a gank call: the jungler is committing to `lane`, so team-mates should
@@ -91,6 +141,7 @@ func update(t: int, m: SimMatch) -> void:
 		if t > int(_calls[key].until):
 			_calls.erase(key)
 	if m.phase_of(t) == "early":
+		_consider_lane_swap(t, m)
 		intent = "lane"
 		return
 	var enemy := "red" if team == "blue" else "blue"

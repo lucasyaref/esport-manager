@@ -9,6 +9,7 @@ var m: SimMatch  # back-reference; cleared by SimMatch at end of run()
 var towers := {}
 var nexus_hp := {}
 var winner := ""                 # set when a nexus falls
+var first_tower_taken := false   # first-blood tower gives a one-off bonus swing
 
 var tower_damage := {"blue": 0.0, "red": 0.0}  # dealt by each side's towers (stats)
 
@@ -258,4 +259,11 @@ func _update_siege(t: int, lane: String, defender: String) -> void:
 		var tier: String = standing[0].tier
 		standing.pop_front()
 		m.award_team(t, attacker, float(bal.gold_per_player), 0.0)
-		m.emit_event(t, "tower_destroyed", {"team": defender, "lane": lane, "tier": tier})
+		# First tower of the match is a real swing — the tempo a coordinated
+		# team's lane swap / dive is racing for (M5-B, item 4).
+		var is_first: bool = not first_tower_taken
+		if is_first:
+			first_tower_taken = true
+			m.award_team(t, attacker, float(bal.first_tower_bonus_per_player), 0.0)
+		m.emit_event(t, "tower_destroyed", {
+			"team": defender, "lane": lane, "tier": tier, "first": is_first})
