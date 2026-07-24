@@ -115,6 +115,17 @@ that appears.
   path by which fielding a smarter roster visibly changes the game and converts map movement
   into advantage (and the lever intended to pull the macro-vs-mechanics balance back toward
   43/57).
+- **A few characters carry CC, and CC is how a play catches (M5).** Equal move speed means a
+  healthy target just walks away from a gank or a roam — which is why proactive plays whiffed,
+  and, measured, made the *macro* team lose by trading lane presence for nothing. Catching
+  someone takes crowd control: a slow or stun on the initiator's signature spell. CC lives on a
+  **few** characters (jungle and support archetypes, one unique spell each — variety grows as
+  characters are added), so *having* a CC ganker/roamer is a roster and draft decision, not a
+  given. The signature spell unlocks at level 6, so hard CC lands in mid-game skirmishes and
+  teamfights; early-laning plays are gated instead on the target being catchable (low, or pinned
+  under a tower). A landed play converts to **tempo** — a kill or a forced recall buys a tower or
+  an objective — while the enemy, freed elsewhere, banks tempo of its own on the far side of the
+  map. Reading that cross-map trade well is macro.
 
 **Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
 collision resolution — steering toward a desired point along the precomputed lane paths only.
