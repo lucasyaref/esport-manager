@@ -19,7 +19,8 @@ Each role has a distinct sim behavior profile — this is core, not polish.
 | **Support** | Bot lane with Carry, takes almost no farm; wards (vision events), peels/protects carry in fights, roams with or ahead of mid; engage or shield profile depending on character. |
 
 ## 3. Characters ✅ (15 for PoC, 3 per role)
-- Each character: role, base stats (HP, damage, armor, speed, scaling curve), one **unique Ultimate** (distinct sim effect + distinct animation later), a simple tag set for comp logic (engage / poke / scaling / early-game / protect).
+- ✅ **Three actions per character (designer decision, 2026-07-24)**: (1) **auto-attack**, (2) one **basic ability** — an active spell *or* a passive, unlocking early (laning phase), (3) one **ultimate**, unlocking at level 6. Each is one signature thing, distinct sim effect + distinct animation later; no mana, no combos. Both ability slots reuse the same data shape (`effect` + `params` + `cooldown` + unlock level) and the same combat firing rule, so a basic ability is not a new system — it's a second instance of the ultimate machine. Passives are the default (a persistent modifier, no activation AI, near-free in sim); active basic spells go only on the kits that want them, which keeps the count of AI-driven abilities low. This model exists so **CC can live on the basic ability** (early) for the few CC characters, letting laning plays actually connect — see §6.1.
+- Each character: role, base stats (HP, damage, armor, speed, scaling curve), the three actions above, a simple tag set for comp logic (engage / poke / scaling / early-game / protect).
 - Data-driven (file-defined). Names/kits are original (LoL-inspired archetypes, no copyrighted names).
 - ✅ Each character is **explicitly modeled on a LoL champion** (designer decision, 2026-07-19), recorded as `model` in characters.json (e.g. Bastion→Malphite, Vexa→Jinx). The model anchors kit fantasy and sim behavior (how they lane/gank/fight). Names, art and lore stay original from day one — no re-skin debt, no trademark risk. LoL *numeric* balance is not imported: it doesn't survive the abstraction to our sim; balance comes from headless batch runs (M3).
 - Comp logic v1: team comp tags produce modifiers (e.g., full-scaling comp weaker before 20:00, stronger after; engage comp gets better fight initiations).
@@ -118,14 +119,16 @@ that appears.
 - **A few characters carry CC, and CC is how a play catches (M5).** Equal move speed means a
   healthy target just walks away from a gank or a roam — which is why proactive plays whiffed,
   and, measured, made the *macro* team lose by trading lane presence for nothing. Catching
-  someone takes crowd control: a slow or stun on the initiator's signature spell. CC lives on a
-  **few** characters (jungle and support archetypes, one unique spell each — variety grows as
+  someone takes crowd control: a slow or stun. CC lives on the **basic ability** (see §3's
+  three-action model) of a **few** characters (jungle and support archetypes — variety grows as
   characters are added), so *having* a CC ganker/roamer is a roster and draft decision, not a
-  given. The signature spell unlocks at level 6, so hard CC lands in mid-game skirmishes and
-  teamfights; early-laning plays are gated instead on the target being catchable (low, or pinned
-  under a tower). A landed play converts to **tempo** — a kill or a forced recall buys a tower or
-  an objective — while the enemy, freed elsewhere, banks tempo of its own on the far side of the
-  map. Reading that cross-map trade well is macro.
+  given. Because the basic ability unlocks **early** (laning phase), a CC ganker can catch a
+  target *in lane*, not only after level 6 — that's the whole reason the three-action model was
+  adopted. The **ultimate** (level 6) stays the bigger, rarer payoff on top. Plays without a CC
+  carrier still need the target to be catchable on its own (low, or pinned under a tower). A
+  landed play converts to **tempo** — a kill or a forced recall buys a tower or an objective —
+  while the enemy, freed elsewhere, banks tempo of its own on the far side of the map. Reading
+  that cross-map trade well is macro.
 
 **Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
 collision resolution — steering toward a desired point along the precomputed lane paths only.
