@@ -42,6 +42,8 @@ var speed_mult := 1.0            # gap-closer bonus while committing to a fight
 var attack_ready_at := 0
 var disengage_until := -1        # broke off a fight; won't re-commit until then
 var stunned_until := -1
+var slowed_until := -1           # movement slowed by CC (a basic ability that catches)
+var slow_mult := 1.0             # speed multiplier while slowed (< 1.0)
 var steroid_until := -1          # self-buff ultimates
 var last_damaged_at := -999999
 var commit_pos := Vector2.ZERO   # where this agent committed to its current fight
@@ -56,7 +58,17 @@ var kill_streak := 0
 var death_streak := 0
 
 var _respawn_at := 0
-var _ult_ready_at := 0
+# Per-slot cooldown timers (§3 three-action model): each ability slot runs on its
+# own cooldown and unlock level, so the basic ability is a second instance of the
+# ultimate machine rather than a new subsystem.
+var _ability_ready_at := {"basic_ability": 0, "ultimate": 0}
+var _has_cc := false             # basic ability is an active CC (catches a target)
+# Passive basic abilities are persistent combat modifiers, resolved once at spawn
+# and read by Combat (public, like stunned_until / steroid_until).
+var passive_power := 1.0         # multiplies threat and outgoing damage
+var passive_guard := 1.0         # multiplies incoming damage (< 1.0 = tankier)
+var passive_sustain := 0.0       # heals this fraction of damage dealt
+var _move_step := 0.0            # this tick's movement distance (base speed x slow)
 var _state_until := 0            # tick when CLEARING / RECALLING ends
 var _camp_index := -1
 var _last_ward_t := -999999
@@ -85,6 +97,7 @@ func _init(p_idx: int, player: Dictionary, p_team: String, p_character: Dictiona
 	_speed_per_tick = float(p_character.base.speed) * SPEED_SCALE / SimMatch.TICKS_PER_SECOND
 	max_hp = DataLoader.stat_at_level(character, "hp", level)
 	hp = max_hp
+	_init_basic_ability()
 
 
 ## m = the SimMatch. Not stored (would leak a RefCounted cycle).
@@ -99,13 +112,16 @@ func update(t: int, m: SimMatch) -> void:
 	_regen(t, m)
 	if t < stunned_until:
 		return
+	# One place computes this tick's movement distance so every mover — combat
+	# steering and the FSM's walk helpers — is slowed together when CC lands.
+	_move_step = _eff_speed(t)
 	# Combat owns movement whenever this agent is engaged or backing off:
 	# the FSM's farm/camp/group destinations resume once the danger passes.
 	if in_combat:
 		# Not _move_toward: its ARRIVE_DIST slack is for walking to a lane or a
 		# camp. In a fight, stopping a unit short of where you meant to stand
 		# means a melee character never reaches its own attack range.
-		move_to(pos.move_toward(desired_pos, _speed_per_tick * speed_mult))
+		move_to(pos.move_toward(desired_pos, _move_step * speed_mult))
 		return
 	if role == "support":
 		_maybe_ward(t, m)
@@ -177,16 +193,45 @@ func earn(amount: float) -> void:
 	gold_carried += amount
 
 
-## Ultimates unlock at level 6 (LoL-like) and run on their data cooldown.
+## An ability slot is castable when it is unlocked (its level) and off cooldown.
+## Both the basic ability and the ultimate go through here — one machine, two
+## slots (§3). Ultimates default to unlock 6 (LoL-like); the basic ability's
+## unlock comes from its data (early, laning phase).
+func ability_ready(slot_name: String, t: int) -> bool:
+	var slot: Dictionary = character.get(slot_name, {})
+	if slot.is_empty():
+		return false
+	var unlock: int = int(slot.get("unlock", 6 if slot_name == "ultimate" else 1))
+	return alive and level >= unlock and t >= int(_ability_ready_at[slot_name])
+
+
+func cast_ability(slot_name: String, t: int, m: SimMatch) -> void:
+	var slot: Dictionary = character[slot_name]
+	_ability_ready_at[slot_name] = t + int(float(slot.cooldown) * SimMatch.TICKS_PER_SECOND)
+	var type := "ultimate_cast" if slot_name == "ultimate" else "basic_cast"
+	m.emit_event(t, type, {"player": id, "name": slot.name, "effect": slot.effect})
+
+
+## Kept for the callers that only care about the ultimate (split-push teleport).
 func ult_ready(t: int) -> bool:
-	return alive and level >= 6 and t >= _ult_ready_at
+	return ability_ready("ultimate", t)
 
 
 func cast_ult(t: int, m: SimMatch) -> void:
-	_ult_ready_at = t + int(float(character.ultimate.cooldown) * SimMatch.TICKS_PER_SECOND)
-	m.emit_event(t, "ultimate_cast", {
-		"player": id, "name": character.ultimate.name, "effect": character.ultimate.effect,
-	})
+	cast_ability("ultimate", t, m)
+
+
+## Whether this player carries an active-CC basic ability — the tool that catches
+## a target for a gank/roam. Read by the connectability gate on ganks (§6.1).
+func has_cc() -> bool:
+	return _has_cc
+
+
+## Apply a movement slow (a CC that catches). Keeps the strongest overlapping
+## slow and the latest expiry, so re-applying does not weaken an active slow.
+func apply_slow(t: int, until: int, mult: float) -> void:
+	slow_mult = minf(mult, slow_mult) if t < slowed_until else mult
+	slowed_until = maxi(slowed_until, until)
 
 
 func die(t: int, m: SimMatch) -> void:
@@ -202,6 +247,8 @@ func die(t: int, m: SimMatch) -> void:
 	disengaging = false
 	target_idx = -1
 	stunned_until = -1
+	slowed_until = -1
+	slow_mult = 1.0
 	steroid_until = -1
 	_camp_index = -1
 	_respawn_at = t + int((float(c.respawn_base_s) + float(c.respawn_per_level_s) * level)
@@ -265,6 +312,28 @@ func _level_cost(xp_bal: Dictionary) -> float:
 	return float(xp_bal.level_up_base) + (level - 1) * float(xp_bal.level_up_step)
 
 
+## Resolve the basic-ability slot once at spawn (§3 three-action model). A passive
+## becomes a set of persistent combat multipliers; an active CC only flags this
+## player as a catcher (the firing itself is Combat's job, like the ultimate).
+func _init_basic_ability() -> void:
+	var slot: Dictionary = character.get("basic_ability", {})
+	var effect: String = str(slot.get("effect", ""))
+	_has_cc = effect in ["single_cc", "aoe_cc"]
+	var pct: float = float(slot.get("params", {}).get("pct", 0.0))
+	match effect:
+		"passive_power":
+			passive_power = 1.0 + pct
+		"passive_bulwark":
+			passive_guard = 1.0 - pct
+		"passive_sustain":
+			passive_sustain = pct
+
+
+## This tick's per-tick movement distance: base speed, cut while slowed by CC.
+func _eff_speed(t: int) -> float:
+	return _speed_per_tick * (slow_mult if t < slowed_until else 1.0)
+
+
 func _earn_passive(m: SimMatch) -> void:
 	var eco: Dictionary = m.balance.economy
 	var per_tick: float = float(eco.passive_gold_per_s) / SimMatch.TICKS_PER_SECOND
@@ -292,7 +361,7 @@ func _move_toward(target: Vector2) -> bool:
 	var dist := pos.distance_to(target)
 	if dist <= ARRIVE_DIST:
 		return true
-	move_to(pos.move_toward(target, _speed_per_tick))
+	move_to(pos.move_toward(target, _move_step))
 	return false
 
 

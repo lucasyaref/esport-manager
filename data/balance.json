@@ -90,6 +90,9 @@
       "global_teleport": 0.1,
       "zone_denial": 0.22,
       "execute": 0.2
+    },
+    "basic_impact": {
+      "single_cc": 0.14
     }
   },
   "ganks": {
@@ -99,7 +102,9 @@
     "base_chance_other": 0.12,
     "overextend_weight": 2.0,
     "commit_timeout_s": 25,
-    "react_macro_norm": 95.0
+    "react_macro_norm": 95.0,
+    "connect_low_hp": 0.55,
+    "connect_overext": 0.5
   },
   "macro": {
     "pivot": 70.0,
@@ -174,11 +179,13 @@
     "ult_execute_hp": 0.35,
     "ult_heal_ally_hp": 0.55,
     "ult_damage_scale": 3.0,
+    "basic_damage_scale": 2.0,
     "ult_single_mult": 2.0,
     "ult_execute_mult": 3.0,
     "ult_cc_damage_mult": 0.4,
     "ult_heal_mult": 1.5,
     "stun_duration_s": 1.5,
+    "cc_catch_range": 6.0,
     "steroid_duration_s": 8,
     "steroid_damage_mult": 1.35,
     "contest_margin": 0.92,

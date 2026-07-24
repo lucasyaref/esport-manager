@@ -25,6 +25,15 @@
         "attack_speed": 0.65,
         "fight_role": "frontline"
       },
+      "basic_ability": {
+        "name": "Stone Skin",
+        "effect": "passive_bulwark",
+        "params": {
+          "pct": 0.12
+        },
+        "cooldown": 0,
+        "unlock": 1
+      },
       "ultimate": {
         "name": "Unbreakable Line",
         "effect": "aoe_cc",
@@ -65,6 +74,15 @@
         "attack_speed": 0.9,
         "fight_role": "flank"
       },
+      "basic_ability": {
+        "name": "Duelist Cadence",
+        "effect": "passive_power",
+        "params": {
+          "pct": 0.09
+        },
+        "cooldown": 0,
+        "unlock": 1
+      },
       "ultimate": {
         "name": "Warpath",
         "effect": "global_teleport",
@@ -101,6 +119,15 @@
         "preferred_range": 1.4,
         "attack_speed": 0.7,
         "fight_role": "frontline"
+      },
+      "basic_ability": {
+        "name": "Hemorrhage",
+        "effect": "passive_sustain",
+        "params": {
+          "pct": 0.12
+        },
+        "cooldown": 0,
+        "unlock": 1
       },
       "ultimate": {
         "name": "Gravemaker",
@@ -139,6 +166,17 @@
         "preferred_range": 1.2,
         "attack_speed": 0.8,
         "fight_role": "flank"
+      },
+      "basic_ability": {
+        "name": "Blood Scent",
+        "effect": "single_cc",
+        "params": {
+          "cc": "slow",
+          "duration": 2.0,
+          "slow_mult": 0.45
+        },
+        "cooldown": 13,
+        "unlock": 2
       },
       "ultimate": {
         "name": "Lupine Pounce",
@@ -179,6 +217,15 @@
         "attack_speed": 0.65,
         "fight_role": "flank"
       },
+      "basic_ability": {
+        "name": "Reap",
+        "effect": "passive_power",
+        "params": {
+          "pct": 0.09
+        },
+        "cooldown": 0,
+        "unlock": 1
+      },
       "ultimate": {
         "name": "Umbral Feast",
         "effect": "aoe_cc",
@@ -217,6 +264,17 @@
         "preferred_range": 1.4,
         "attack_speed": 0.72,
         "fight_role": "frontline"
+      },
+      "basic_ability": {
+        "name": "Skewer",
+        "effect": "single_cc",
+        "params": {
+          "cc": "slow",
+          "duration": 2.0,
+          "slow_mult": 0.45
+        },
+        "cooldown": 15,
+        "unlock": 2
       },
       "ultimate": {
         "name": "Rootprison",
@@ -257,6 +315,15 @@
         "attack_speed": 0.85,
         "fight_role": "flank"
       },
+      "basic_ability": {
+        "name": "Killer Instinct",
+        "effect": "passive_power",
+        "params": {
+          "pct": 0.1
+        },
+        "cooldown": 0,
+        "unlock": 1
+      },
       "ultimate": {
         "name": "Tempest Dance",
         "effect": "single_burst",
@@ -293,6 +360,15 @@
         "preferred_range": 5.0,
         "attack_speed": 0.62,
         "fight_role": "backline"
+      },
+      "basic_ability": {
+        "name": "Arcane Focus",
+        "effect": "passive_power",
+        "params": {
+          "pct": 0.08
+        },
+        "cooldown": 0,
+        "unlock": 1
       },
       "ultimate": {
         "name": "Sunlance Barrage",
@@ -332,6 +408,15 @@
         "attack_speed": 0.68,
         "fight_role": "frontline"
       },
+      "basic_ability": {
+        "name": "Crimson Pact",
+        "effect": "passive_sustain",
+        "params": {
+          "pct": 0.12
+        },
+        "cooldown": 0,
+        "unlock": 1
+      },
       "ultimate": {
         "name": "Riftstorm",
         "effect": "aoe_damage",
@@ -370,6 +455,15 @@
         "attack_speed": 0.75,
         "fight_role": "backline"
       },
+      "basic_ability": {
+        "name": "Rapid Fire",
+        "effect": "passive_power",
+        "params": {
+          "pct": 0.09
+        },
+        "cooldown": 0,
+        "unlock": 1
+      },
       "ultimate": {
         "name": "Deathbloom",
         "effect": "self_steroid",
@@ -407,6 +501,15 @@
         "preferred_range": 5.0,
         "attack_speed": 0.7,
         "fight_role": "backline"
+      },
+      "basic_ability": {
+        "name": "Headshot",
+        "effect": "passive_power",
+        "params": {
+          "pct": 0.09
+        },
+        "cooldown": 0,
+        "unlock": 1
       },
       "ultimate": {
         "name": "Dawnpiercer",
@@ -447,6 +550,15 @@
         "attack_speed": 0.72,
         "fight_role": "backline"
       },
+      "basic_ability": {
+        "name": "Focus Fire",
+        "effect": "passive_power",
+        "params": {
+          "pct": 0.08
+        },
+        "cooldown": 0,
+        "unlock": 1
+      },
       "ultimate": {
         "name": "Murder of Crows",
         "effect": "aoe_cc",
@@ -486,6 +598,15 @@
         "attack_speed": 0.62,
         "fight_role": "peel"
       },
+      "basic_ability": {
+        "name": "Guardian Grace",
+        "effect": "passive_bulwark",
+        "params": {
+          "pct": 0.1
+        },
+        "cooldown": 0,
+        "unlock": 1
+      },
       "ultimate": {
         "name": "Aegis of Dawn",
         "effect": "team_shield",
@@ -522,6 +643,17 @@
         "preferred_range": 1.2,
         "attack_speed": 0.68,
         "fight_role": "frontline"
+      },
+      "basic_ability": {
+        "name": "Trample",
+        "effect": "single_cc",
+        "params": {
+          "cc": "slow",
+          "duration": 1.8,
+          "slow_mult": 0.5
+        },
+        "cooldown": 14,
+        "unlock": 2
       },
       "ultimate": {
         "name": "Seismic Maw",
@@ -561,6 +693,17 @@
         "preferred_range": 3.4,
         "attack_speed": 0.64,
         "fight_role": "peel"
+      },
+      "basic_ability": {
+        "name": "Ensnaring Mist",
+        "effect": "single_cc",
+        "params": {
+          "cc": "slow",
+          "duration": 2.2,
+          "slow_mult": 0.45
+        },
+        "cooldown": 14,
+        "unlock": 2
       },
       "ultimate": {
         "name": "Threadsnare",

@@ -239,6 +239,10 @@ func _apply_event(ev: Dictionary) -> void:
 		"ultimate_cast":
 			last_ult[d.player] = t
 			_add_effect(t, _pos_of(d.player, t), "text", 14, Color(1.0, 0.92, 0.5), d.name, 0.0)
+		"basic_cast":
+			# The basic ability (early CC that catches) — a lighter, cooler popup
+			# than the ult so the two read differently on screen.
+			_add_effect(t, _pos_of(d.player, t), "text", 12, Color(0.55, 0.85, 1.0), d.name, 0.0)
 		"objective_spawn":
 			if d.objective == "dragon": dragon_up = true
 			else: baron_up = true

@@ -27,15 +27,15 @@ func _print_report(data: Dictionary) -> void:
 	print("\n## Characters by role (level 1 → level %d)\n" % DataLoader.MAX_LEVEL)
 	for role in DataLoader.ROLES:
 		print("**%s**\n" % role.capitalize())
-		print("| Character | Curve | Tags | HP | Damage | Armor | Speed | Ultimate |")
-		print("|---|---|---|---|---|---|---|---|")
+		print("| Character | Curve | Tags | HP | Damage | Armor | Speed | Basic | Ultimate |")
+		print("|---|---|---|---|---|---|---|---|---|")
 		for c: Dictionary in _characters_of_role(data, role):
-			print("| %s | %s | %s | %d → %d | %d → %d | %d → %d | %d | %s (%s) |" % [
+			print("| %s | %s | %s | %d → %d | %d → %d | %d → %d | %d | %s | %s (%s) |" % [
 				c.name, c.curve, ", ".join(c.tags),
 				_lvl(c, "hp", 1), _lvl(c, "hp", DataLoader.MAX_LEVEL),
 				_lvl(c, "damage", 1), _lvl(c, "damage", DataLoader.MAX_LEVEL),
 				_lvl(c, "armor", 1), _lvl(c, "armor", DataLoader.MAX_LEVEL),
-				int(c.base.speed), c.ultimate.name, c.ultimate.effect,
+				int(c.base.speed), _basic_desc(c.basic_ability), c.ultimate.name, c.ultimate.effect,
 			])
 		print("")
 
@@ -87,6 +87,17 @@ func _characters_of_role(data: Dictionary, role: String) -> Array[Dictionary]:
 
 func _lvl(c: Dictionary, stat: String, level: int) -> int:
 	return int(DataLoader.stat_at_level(c, stat, level))
+
+
+## One-line summary of the basic-ability slot (§3 three-action model).
+func _basic_desc(slot: Dictionary) -> String:
+	var effect: String = slot.effect
+	if effect in DataLoader.PASSIVE_EFFECTS:
+		return "%s (%s +%d%%)" % [slot.name, effect.trim_prefix("passive_"),
+			int(round(float(slot.params.pct) * 100.0))]
+	if effect in ["single_cc", "aoe_cc"]:
+		return "%s (%s %ss, u%d)" % [slot.name, slot.params.cc, slot.params.duration, int(slot.unlock)]
+	return "%s (%s, u%d)" % [slot.name, effect, int(slot.unlock)]
 
 
 func _amin(values: Array[float]) -> float:

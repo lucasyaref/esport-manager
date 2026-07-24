@@ -129,6 +129,12 @@ that appears.
   landed play converts to **tempo** — a kill or a forced recall buys a tower or an objective —
   while the enemy, freed elsewhere, banks tempo of its own on the far side of the map. Reading
   that cross-map trade well is macro.
+  - *Timing is the whole trick (learned in M5-C):* a slow only catches if it lands **as the
+    target commits to fleeing**. Fired from max perception range it is spent before the chaser
+    can close and the even-speed chase just resumes — so a CC carrier holds the slow until the
+    target is at catch range. With that, ganks and skirmishes connect; the wider **multi-man
+    pincer** (converging from two sides so the target cannot simply run home) is the M5-E layer
+    on top, which is what lets a high-macro roster convert the catch into kills more often.
 
 **Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
 collision resolution — steering toward a desired point along the precomputed lane paths only.

@@ -138,7 +138,10 @@ func update_intent(t: int) -> void:
 func resolve_attacks(t: int) -> void:
 	for agent in m.agents:
 		if agent.alive and t >= agent.stunned_until:
-			_try_ultimate(agent, t, m.balance.fight)
+			# Two ability slots, one firing rule (§3): the basic first (the early
+			# CC that catches), then the ultimate.
+			_try_ability(agent, "basic_ability", t, m.balance.fight)
+			_try_ability(agent, "ultimate", t, m.balance.fight)
 	for agent in m.agents:
 		if not agent.alive or agent.target_idx < 0 or t < agent.stunned_until:
 			continue
@@ -180,8 +183,10 @@ func _threat_uncached(agent: PlayerAgent, t: int) -> float:
 	var item_factor: float = 1.0 + agent.item_power / float(c.power_item_divisor)
 	var mech: float = float(c.mechanics_power_base) \
 		+ float(agent.attrs.mechanics) / float(c.mechanics_power_divisor)
+	# An offensive passive makes a player more threatening (more damage, valued
+	# higher as a target); a defensive passive shows up in survival, not here.
 	return damage * item_factor * mech * m.phase_curve_mult(agent.character.curve, t) \
-		* m.mood_mult(agent.id) * sqrt(ehp / float(c.ehp_norm))
+		* m.mood_mult(agent.id) * sqrt(ehp / float(c.ehp_norm)) * float(agent.passive_power)
 
 
 # --- perception ---------------------------------------------------------------
@@ -404,6 +409,7 @@ func _attack_damage(agent: PlayerAgent, victim: PlayerAgent, t: int) -> float:
 	dmg *= m.mood_mult(agent.id)
 	dmg *= m.team_comp_mult(agent.team, t)
 	dmg *= 1.0 + m.objectives.team_buff(agent.team)
+	dmg *= float(agent.passive_power)  # offensive passive (defensive applied on the victim)
 	if t < agent.steroid_until:
 		dmg *= float(f.steroid_damage_mult)
 	# Reach is paid for in damage. A melee character has to walk through the
@@ -421,7 +427,12 @@ func _attack_damage(agent: PlayerAgent, victim: PlayerAgent, t: int) -> float:
 func _deal_damage(t: int, attacker: PlayerAgent, victim: PlayerAgent, amount: float) -> void:
 	if not victim.alive or amount <= 0.0:
 		return
-	victim.take_damage(amount, t)
+	# Defensive passives reduce all incoming player damage in one place; offensive
+	# passives are already baked into `amount` (auto damage / ability power).
+	var dealt: float = amount * float(victim.passive_guard)
+	victim.take_damage(dealt, t)
+	if float(attacker.passive_sustain) > 0.0:
+		attacker.hp = minf(attacker.hp + dealt * float(attacker.passive_sustain), attacker.max_hp)
 	attacker.last_hit_at = t
 	var hits: Dictionary = _damage_log.get(victim.idx, {})
 	hits[attacker.idx] = t
@@ -524,18 +535,25 @@ func _kill(t: int, killer: PlayerAgent, victim: PlayerAgent, source: String) -> 
 	})
 
 
-# --- ultimates ----------------------------------------------------------------
+# --- abilities: basic + ultimate (§3 three-action model) ----------------------
 
-## Ultimates fire on a condition, not on a timer: an AoE stun waits for bodies
+## Abilities fire on a condition, not on a timer: an AoE stun waits for bodies
 ## to hit, an execute waits for a target low enough to delete, a heal waits for
 ## an ally in trouble. That is what makes them read as a moment in the fight.
-func _try_ultimate(agent: PlayerAgent, t: int, f: Dictionary) -> void:
-	if not agent.ult_ready(t) or not agent.in_combat or agent.disengaging:
+##
+## One firing rule serves both slots (§3 three-action model): `slot_name` is
+## "basic_ability" or "ultimate". A passive basic ability does not fire — it was
+## resolved into persistent modifiers at spawn — so it returns here immediately.
+func _try_ability(agent: PlayerAgent, slot_name: String, t: int, f: Dictionary) -> void:
+	var slot: Dictionary = agent.character.get(slot_name, {})
+	var effect: String = str(slot.get("effect", ""))
+	if effect == "" or effect in DataLoader.PASSIVE_EFFECTS:
 		return
-	var effect: String = agent.character.ultimate.effect
+	if not agent.ability_ready(slot_name, t) or not agent.in_combat or agent.disengaging:
+		return
 	if effect == "global_teleport":
 		return  # a rotation tool, handled by the split-push logic, not here
-	var radius: float = float(agent.character.ultimate.params.get("radius", f.ult_default_radius))
+	var radius: float = float(slot.params.get("radius", f.ult_default_radius))
 	var enemies := _near(agent, radius, true)
 	var allies := _near(agent, radius, false)
 	var tgt: PlayerAgent = m.agents[agent.target_idx] if agent.target_idx >= 0 else null
@@ -546,6 +564,12 @@ func _try_ultimate(agent: PlayerAgent, t: int, f: Dictionary) -> void:
 		"single_cc", "single_burst", "snipe":
 			if tgt == null:
 				return
+			# A slow only catches if it lands as the target tries to flee — fired at
+			# max perception range it is spent before the chaser can close and the
+			# even-speed chase resumes. Hold it until the target is at catch range.
+			if String(slot.params.get("cc", "")) == "slow" \
+					and agent.pos.distance_to(tgt.pos) > float(f.cc_catch_range):
+				return
 		"execute":
 			if tgt == null or tgt.hp_fraction() > float(f.ult_execute_hp):
 				return
@@ -555,14 +579,18 @@ func _try_ultimate(agent: PlayerAgent, t: int, f: Dictionary) -> void:
 		"self_steroid":
 			if enemies.is_empty():
 				return
-	agent.cast_ult(t, m)
-	_apply_ult(t, agent, effect, tgt, enemies, allies, f)
+	agent.cast_ability(slot_name, t, m)
+	_apply_ability(t, agent, slot_name, effect, slot.params, tgt, enemies, allies, f)
 
 
-func _apply_ult(t: int, agent: PlayerAgent, effect: String, tgt: PlayerAgent,
-		enemies: Array, allies: Array, f: Dictionary) -> void:
-	var power := threat(agent, t) * float(m.balance.combat.ult_impact[effect]) \
-		* float(f.ult_damage_scale)
+func _apply_ability(t: int, agent: PlayerAgent, slot_name: String, effect: String,
+		params: Dictionary, tgt: PlayerAgent, enemies: Array, allies: Array, f: Dictionary) -> void:
+	var is_ult := slot_name == "ultimate"
+	var impact: Dictionary = m.balance.combat.ult_impact if is_ult else m.balance.combat.basic_impact
+	var scale: float = float(f.ult_damage_scale if is_ult else f.basic_damage_scale)
+	var power := threat(agent, t) * float(impact.get(effect, 0.0)) * scale
+	# Lock duration for the stun/knockup/root path (unchanged from the ult tuning):
+	# single-target CC holds twice as long as the AoE version.
 	var stun := int(float(f.stun_duration_s) * SimMatch.TICKS_PER_SECOND)
 	match effect:
 		"aoe_damage", "zone_denial":
@@ -574,16 +602,31 @@ func _apply_ult(t: int, agent: PlayerAgent, effect: String, tgt: PlayerAgent,
 			_deal_damage(t, agent, tgt, power * float(f.ult_execute_mult))
 		"aoe_cc":
 			for enemy: PlayerAgent in enemies:
-				enemy.stunned_until = maxi(enemy.stunned_until, t + stun)
-				_deal_damage(t, agent, enemy, power * float(f.ult_cc_damage_mult))
+				_apply_cc(t, agent, enemy, params, power, stun, f)
 		"single_cc":
-			tgt.stunned_until = maxi(tgt.stunned_until, t + stun * 2)
-			_deal_damage(t, agent, tgt, power * float(f.ult_cc_damage_mult))
+			_apply_cc(t, agent, tgt, params, power, stun * 2, f)
 		"team_heal", "team_shield":
 			for ally: PlayerAgent in allies + [agent]:
 				ally.hp = minf(ally.hp + power * float(f.ult_heal_mult), ally.max_hp)
 		"self_steroid":
 			agent.steroid_until = t + int(float(f.steroid_duration_s) * SimMatch.TICKS_PER_SECOND)
+
+
+## The CC that catches. A `slow` cuts the target's move speed for its data
+## duration (an equal-speed pursuer can now close — the whole point of the
+## three-action model), everything else (stun/knockup/root/fear) is a hard lock
+## for `lock_ticks`. Both chip a little damage. This is shared by the basic
+## ability (early, the catch) and CC ultimates (the bigger, later payoff).
+func _apply_cc(t: int, agent: PlayerAgent, victim: PlayerAgent, params: Dictionary,
+		power: float, lock_ticks: int, f: Dictionary) -> void:
+	if victim == null:
+		return
+	if String(params.get("cc", "")) == "slow":
+		var dur := int(float(params.get("duration", f.stun_duration_s)) * SimMatch.TICKS_PER_SECOND)
+		victim.apply_slow(t, t + dur, float(params.get("slow_mult", 0.5)))
+	else:
+		victim.stunned_until = maxi(victim.stunned_until, t + lock_ticks)
+	_deal_damage(t, agent, victim, power * float(f.ult_cc_damage_mult))
 
 
 func _any_hurt(group: Array, below: float) -> bool:

@@ -11,6 +11,20 @@ const ULT_EFFECTS: Array[String] = [
 	"aoe_cc", "single_cc", "aoe_damage", "single_burst", "snipe", "team_shield",
 	"team_heal", "self_steroid", "global_teleport", "zone_denial", "execute",
 ]
+## Basic-ability passives: persistent combat modifiers, never fired (M5-C).
+## Each carries a params.pct. See PlayerAgent._init_passive / Combat.
+const PASSIVE_EFFECTS: Array[String] = [
+	"passive_power", "passive_bulwark", "passive_sustain",
+]
+## The three-action model (§3): a basic ability is an active spell (a subset of
+## the ultimate effects, minus global_teleport which is a rotation tool) OR a
+## passive. Both slots share this data shape; the ultimate slot uses ULT_EFFECTS.
+const BASIC_EFFECTS: Array[String] = [
+	"single_cc", "aoe_cc", "single_burst", "snipe", "aoe_damage", "self_steroid",
+	"team_shield", "team_heal", "zone_denial", "execute",
+	"passive_power", "passive_bulwark", "passive_sustain",
+]
+const CC_KINDS: Array[String] = ["slow", "stun", "root", "knockup", "fear"]
 
 ## Where a character wants to stand in a fight. Drives target selection and
 ## the steering forces in the combat engine.
@@ -115,7 +129,7 @@ static func _validate_characters(characters: Dictionary, errors: Array[String]) 
 		var c: Dictionary = characters[id]
 		var where := "characters/%s" % id
 		for field in ["name", "role", "sprite", "curve", "base", "growth", "combat",
-				"ultimate", "tags"]:
+				"basic_ability", "ultimate", "tags"]:
 			if not c.has(field):
 				errors.append("%s: missing field \"%s\"" % [where, field])
 		var fight_role: Variant = c.get("combat", {}).get("fight_role")
@@ -139,6 +153,7 @@ static func _validate_characters(characters: Dictionary, errors: Array[String]) 
 			errors.append("%s: unknown ultimate effect \"%s\"" % [where, ult.get("effect")])
 		if not ult.get("name") is String or not ult.get("params") is Dictionary:
 			errors.append("%s: ultimate needs \"name\" and \"params\"" % where)
+		_validate_basic_ability(c.get("basic_ability", {}), where, errors)
 		var tags: Array = c.get("tags", [])
 		if tags.is_empty():
 			errors.append("%s: needs at least one tag" % where)
@@ -304,12 +319,15 @@ static func _validate_balance(balance: Dictionary, errors: Array[String]) -> voi
 			"peel_standoff", "retreat_home_bias", "retreat_step", "assist_window_s",
 			"fight_group_radius", "fight_end_grace_s", "pit_context_radius",
 			"ult_default_radius", "ult_aoe_min_targets", "ult_execute_hp", "ult_heal_ally_hp",
-			"ult_damage_scale", "ult_single_mult", "ult_execute_mult", "ult_cc_damage_mult",
-			"ult_heal_mult", "stun_duration_s", "steroid_duration_s", "steroid_damage_mult",
+			"ult_damage_scale", "basic_damage_scale", "ult_single_mult", "ult_execute_mult",
+			"ult_cc_damage_mult",
+			"ult_heal_mult", "stun_duration_s", "cc_catch_range", "steroid_duration_s",
+			"steroid_damage_mult",
 			"chase_patience_s", "leash_radius", "dive_hp", "dive_target_hp", "dive_margin", "focus_penalty",
 			"no_vision_caution", "vision_radius"],
 		"ganks": ["check_interval_s", "min_interval_s", "base_chance_early_tag",
-			"base_chance_other", "overextend_weight", "commit_timeout_s", "react_macro_norm"],
+			"base_chance_other", "overextend_weight", "commit_timeout_s", "react_macro_norm",
+			"connect_low_hp", "connect_overext"],
 		"wards": ["support_ward_interval_s", "ward_duration_s"],
 		"towers": ["hp", "minion_dps", "player_base_dps", "gold_per_player", "nexus_hp",
 			"range", "player_dps", "aggro_window_s", "credit_radius"],
@@ -328,6 +346,11 @@ static func _validate_balance(balance: Dictionary, errors: Array[String]) -> voi
 	for effect in ULT_EFFECTS:
 		if not _is_number(ult_impact.get(effect)):
 			errors.append("balance/combat/ult_impact: missing coefficient for \"%s\"" % effect)
+	# basic_impact only needs coefficients for the active basic effects actually
+	# authored (single_cc today); it grows as active basics are added.
+	var basic_impact: Dictionary = balance.get("combat", {}).get("basic_impact", {})
+	if not _is_number(basic_impact.get("single_cc")):
+		errors.append("balance/combat/basic_impact: missing coefficient for \"single_cc\"")
 
 
 # --- helpers -----------------------------------------------------------------
@@ -358,3 +381,41 @@ static func _check_bonus(entry: Dictionary, what: String, errors: Array[String])
 	var bonus: Variant = entry.get("bonus")
 	if not _is_number(bonus) or bonus < 0 or bonus > 0.5:
 		errors.append("comp_rules/%s: bonus must be 0..0.5, got %s" % [what, str(bonus)])
+
+
+## The basic-ability slot (§3 three-action model). Same shape as the ultimate —
+## effect + params + cooldown + unlock — but its effect may be a persistent
+## passive (no activation) or an active spell that fires like a mini-ultimate.
+static func _validate_basic_ability(slot: Dictionary, where: String, errors: Array[String]) -> void:
+	if slot.is_empty():
+		return  # the missing-field check above already reported it
+	var effect: String = str(slot.get("effect", ""))
+	if not effect in BASIC_EFFECTS:
+		errors.append("%s: unknown basic_ability effect \"%s\"" % [where, effect])
+		return
+	if not slot.get("name") is String or not slot.get("params") is Dictionary:
+		errors.append("%s: basic_ability needs \"name\" and \"params\"" % where)
+		return
+	var unlock: Variant = slot.get("unlock")
+	if not _is_int(unlock) or unlock < 1 or unlock > MAX_LEVEL:
+		errors.append("%s: basic_ability.unlock must be an integer 1..%d" % [where, MAX_LEVEL])
+	var params: Dictionary = slot.params
+	if effect in PASSIVE_EFFECTS:
+		# A passive is a persistent modifier: it needs a strength, not a cooldown.
+		var pct: Variant = params.get("pct")
+		if not _is_number(pct) or pct <= 0.0 or pct > 0.5:
+			errors.append("%s: basic_ability passive needs params.pct in (0, 0.5]" % where)
+	else:
+		# An active fires on a cooldown like the ultimate.
+		var cd: Variant = slot.get("cooldown")
+		if not _is_number(cd) or cd <= 0.0 or cd > 300.0:
+			errors.append("%s: basic_ability active needs cooldown in (0, 300]" % where)
+		if effect in ["single_cc", "aoe_cc"]:
+			if not params.get("cc", "") in CC_KINDS:
+				errors.append("%s: basic_ability cc must be one of %s" % [where, str(CC_KINDS)])
+			elif params.cc == "slow":
+				var sm: Variant = params.get("slow_mult")
+				if not _is_number(sm) or sm <= 0.0 or sm >= 1.0:
+					errors.append("%s: slow basic_ability needs params.slow_mult in (0, 1)" % where)
+				if not _is_number(params.get("duration")) or params.get("duration", 0) <= 0.0:
+					errors.append("%s: slow basic_ability needs positive params.duration" % where)

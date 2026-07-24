@@ -277,18 +277,24 @@ func try_gank(jungler: PlayerAgent, t: int) -> bool:
 	var lane_names: Array[String] = []
 	var weights: Array[float] = []
 	for lane in SimMap.LANES:
-		var has_victim := false
+		var victims: Array[PlayerAgent] = []
 		for agent in agents:
 			if agent.team == enemy and agent.is_farming_lane(lane):
-				has_victim = true
-				break
-		if not has_victim:
+				victims.append(agent)
+		if victims.is_empty():
 			continue
 		var front: float = lanes[lane].front_t
 		# Overextension: how far the enemy laner is pushed toward the
 		# jungler's side of the map (easier to reach, further from safety).
 		var overext: float = clampf(
 			((0.5 - front) if jungler.team == "blue" else (front - 0.5)) / 0.2, 0.0, 1.0)
+		# Connectability gate (§6.1): only commit to a lane where the play can
+		# actually catch someone — a CC carrier is on hand, or the target is low
+		# or shoved too far up to get home. Equal move speed means an uncatchable
+		# target just walks away; the macro team measured worse for launching
+		# those whiffs (M5-C diagnostic), so this refuses to launch them.
+		if not _gank_connectable(jungler, lane, victims, overext, g):
+			continue
 		lane_names.append(lane)
 		weights.append(1.0 + float(g.overextend_weight) * overext)
 	if lane_names.is_empty():
@@ -300,6 +306,24 @@ func try_gank(jungler: PlayerAgent, t: int) -> bool:
 	brains[jungler.team].post_gank(t, lane, jungler.idx,
 		t + gank_timeout_ticks(), self)
 	return true
+
+
+## Can this gank actually catch someone (§6.1, M5-C)? Yes when a CC carrier is on
+## hand to lock the target — the jungler itself, or a CC laner already in that
+## lane who sets up the play — or when the target is catchable unaided: low enough
+## to collapse on, or shoved so far up the lane it cannot get home. No RNG here.
+func _gank_connectable(jungler: PlayerAgent, lane: String, victims: Array,
+		overext: float, g: Dictionary) -> bool:
+	if jungler.has_cc():
+		return true
+	for ally in agents:
+		if ally.team == jungler.team and ally.lane == lane and ally.alive \
+				and ally.state == PlayerAgent.State.FARMING and ally.has_cc():
+			return true
+	for v: PlayerAgent in victims:
+		if v.hp_fraction() <= float(g.connect_low_hp):
+			return true
+	return overext >= float(g.connect_overext)
 
 
 # --- setup -------------------------------------------------------------------
