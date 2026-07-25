@@ -86,6 +86,14 @@ func under_enemy_tower(team: String, pos: Vector2) -> bool:
 	return false
 
 
+## Has `team`'s outer tower on `lane` fallen? The objective-triggered lane swap
+## reads this: taking the enemy's bot outer is what cues the bot duo to rotate
+## (2026-07-25 designer model — take bot T1 first, then swap).
+func outer_down(team: String, lane: String) -> bool:
+	var standing: Array = towers[team][lane]
+	return standing.is_empty() or str(standing[0].tier) != "outer"
+
+
 ## Where a team should rally for the current objective, or ZERO if none.
 func objective_pos() -> Vector2:
 	if baron.alive:

@@ -296,7 +296,15 @@ func try_gank(jungler: PlayerAgent, t: int) -> bool:
 		if not _gank_connectable(jungler, lane, victims, overext, g):
 			continue
 		lane_names.append(lane)
-		weights.append(1.0 + float(g.overextend_weight) * overext)
+		# Bot focus (2026-07-25 designer model): bias the jungler toward bot in
+		# laning so the team takes bot T1 — the tower that cues the objective-driven
+		# lane swap. GATED to 0 in M5-D: a naive gank-weight backfired, starving the
+		# 1v1 solo lanes so THEY cracked first (first-tower-is-bot fell, not rose).
+		# Bot focus is re-approached in M5-E as coordinated bot-taking, not a die roll.
+		var w: float = 1.0 + float(g.overextend_weight) * overext
+		if lane == "bot":
+			w += float(g.bot_focus_weight)
+		weights.append(w)
 	if lane_names.is_empty():
 		return false
 	var lane: String = lane_names[rng.weighted_index(weights)]

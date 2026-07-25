@@ -291,6 +291,11 @@ func start_gank(t: int, target_lane: String) -> void:
 
 func gank_over() -> void:
 	state = State.TO_CAMP
+	# Drop the pre-gank camp target: after ganking (e.g. top) the jungler is now
+	# far from the camp it was walking to (e.g. bot-side), so re-pick the nearest
+	# camp from where it stands instead of yo-yoing all the way back (2026-07-25
+	# playtest, remark 5). _pick_camp re-selects on the next jungle step.
+	_camp_index = -1
 
 
 func last_gank_tick() -> int:

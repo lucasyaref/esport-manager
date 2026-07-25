@@ -108,14 +108,30 @@ that appears.
   on calls enough to always read as a team on screen — and each roster's `macro` attribute
   scales the *quality and frequency* on top: a high-macro side ganks with more followers,
   rotates to objectives sooner, spots and takes cross-map openings, dispatches multi-man plays,
-  and swaps lanes to snowball a tower lead, while a low-macro side does the baseline and little
-  more. One primitive, `TeamBrain.macro_gate`, expresses this everywhere — the probability an
+  and takes the first tower then swaps its bot duo onto a fresh lane to snowball that lead,
+  while a low-macro side does the baseline and little more. One primitive, `TeamBrain.macro_gate`, expresses this everywhere — the probability an
   average roster (macro == pivot, 70) should hit, lifted by macro above that pivot and floored
   (never zero) below it — so macro reads consistently across ganks, roams, multi-man plays and
   lane swaps instead of a pile of ad-hoc dice. This is the macro **win-vector**: the designed
   path by which fielding a smarter roster visibly changes the game and converts map movement
   into advantage (and the lever intended to pull the macro-vs-mechanics balance back toward
   43/57).
+- **The lane swap is objective-triggered, not an opening (M5-D, 2026-07-25).** The swap is a
+  *consequence* of a lead, not a coin-flip at minute zero. A team focuses bot with its jungler,
+  takes the enemy's bot outer tower (bot T1), and *only then* rotates its bot duo onto a lane
+  that still has a tower to snowball — top if the enemy's top outer stands, else mid. The team
+  that wins bot first dictates the swap; the other reads it and matches so it is not left 2v1.
+  (The earlier opening-swap model sent both bot duos top before minions — the "botlane always
+  goes top" the designer caught — and is retired.) A jungler's macro-gated ability to *set up*
+  the bot lead and the roster's macro-gated ability to *execute* the rotation are both part of
+  the win-vector.
+- **Defensive macro: protect the base, punish the over-extension (M5-D, 2026-07-25).** A team
+  reads its own map, not only the enemy's. When a *deep* tower of its own (inner/base or the
+  nexus) is under real pressure, defending it outranks any siege or objective — you do not trade
+  a baron for your own nexus. And an enemy caught over-extended and *alone* on your half of the
+  map, where enough of yours can reach, is a pick to collapse on rather than let walk. Both read
+  on screen as a team that plays the whole board; the fuller multi-man convergence on such picks
+  is the M5-E/F layer.
 - **A few characters carry CC, and CC is how a play catches (M5).** Equal move speed means a
   healthy target just walks away from a gank or a roam — which is why proactive plays whiffed,
   and, measured, made the *macro* team lose by trading lane presence for nothing. Catching

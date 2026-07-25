@@ -19,6 +19,7 @@ var target_lane := ""
 const FORMATIONS := {
 	"standard":     {"top": "top", "mid": "mid", "carry": "bot", "support": "bot"},
 	"bot_top_swap": {"top": "bot", "mid": "mid", "carry": "top", "support": "top"},
+	"bot_mid_swap": {"top": "top", "mid": "bot", "carry": "mid", "support": "mid"},
 }
 var formation := "standard"
 var _swap_rolled := false     # the one-time "do we open swapped?" roll happened
@@ -78,25 +79,44 @@ func set_formation(new_formation: String, t: int, m: SimMatch) -> void:
 	m.emit_event(t, "lane_swap", {"team": team, "formation": formation})
 
 
-## The opening lane-swap decision (M5-B), run each brain tick but self-limiting:
-## the initiate roll fires once (at t=0, before minions, so the swap is an
-## opening), and the mirror roll fires once, when a standard team first sees the
-## enemy swapped. Both are macro-gated through the blend primitive — a sharp
-## roster sets up the 2v1 and, crucially, is rarely the one left 1v2, because it
-## reliably reads and matches an enemy swap. That asymmetry is the point: it is
-## how a macro edge turns into an early tower and a gold swing (item 4).
+## Objective-triggered lane swap (2026-07-25 reframe of item 4). The old version
+## fired an OPENING swap at t=0, so both bot duos teleported top before minions —
+## the designer's "botlane always goes top" bug. The real pro pattern is CAUSAL:
+## focus bot with the jungler, take the enemy's bot outer (bot T1), and ONLY THEN
+## rotate the bot duo onto a lane that still has a tower to snowball — top if the
+## enemy's top outer stands, else mid. The team that wins bot first dictates the
+## swap; the other reads it and matches so it is not left 2v1. Both rolls are
+## macro-gated and one-shot, so a sharp roster rotates on its lead AND reliably
+## answers an enemy rotation — that asymmetry is how a macro edge turns a bot-tower
+## lead into a second tower (item 4).
 func _consider_lane_swap(t: int, m: SimMatch) -> void:
+	if formation != "standard":
+		return  # committed to a rotation; hold it
 	var mc: Dictionary = _macro_cfg
-	if not _swap_rolled:
+	var enemy := "red" if team == "blue" else "blue"
+	# I took the enemy's bot outer -> rotate the bot duo onto a fresh tower.
+	if not _swap_rolled and m.objectives.outer_down(enemy, "bot"):
 		_swap_rolled = true
-		if m.rng.chance(macro_gate(float(mc.swap_base), float(mc.swap_lift))):
-			set_formation("bot_top_swap", t, m)
-	if formation == "standard" and not _mirror_rolled:
-		var enemy := "red" if team == "blue" else "blue"
-		if m.brains[enemy].formation == "bot_top_swap":
-			_mirror_rolled = true
-			if m.rng.chance(macro_gate(float(mc.mirror_base), float(mc.mirror_lift))):
-				set_formation("bot_top_swap", t, m)
+		var target := _rotation_target(enemy, m)
+		if target != "" and m.rng.chance(macro_gate(float(mc.swap_base), float(mc.swap_lift))):
+			set_formation("bot_top_swap" if target == "top" else "bot_mid_swap", t, m)
+			return
+	# The enemy rotated first -> match it so the map stays even (the answer).
+	if not _mirror_rolled and m.brains[enemy].formation != "standard":
+		_mirror_rolled = true
+		if m.rng.chance(macro_gate(float(mc.mirror_base), float(mc.mirror_lift))):
+			set_formation(m.brains[enemy].formation, t, m)
+
+
+## Which lane the bot duo rotates to after taking the enemy's bot outer: top if
+## the enemy's top outer still stands (a fresh tower to snowball), else mid, else
+## none — both side outers already gone, nothing to rotate onto, so just group.
+func _rotation_target(enemy: String, m: SimMatch) -> String:
+	if not m.objectives.outer_down(enemy, "top"):
+		return "top"
+	if not m.objectives.outer_down(enemy, "mid"):
+		return "mid"
+	return ""
 
 
 ## Posts a gank call: the jungler is committing to `lane`, so team-mates should
@@ -140,32 +160,57 @@ func update(t: int, m: SimMatch) -> void:
 	for key: String in _calls.keys():
 		if t > int(_calls[key].until):
 			_calls.erase(key)
+	# Objective-triggered now: fires whenever bot T1 has fallen (usually mid game),
+	# so it runs every tick and self-limits, not just during laning.
+	_consider_lane_swap(t, m)
 	if m.phase_of(t) == "early":
-		_consider_lane_swap(t, m)
 		intent = "lane"
 		return
 	var enemy := "red" if team == "blue" else "blue"
 	var new_intent := "farm"
 	var new_rally := Vector2.ZERO
 	var new_lane := ""
+	var home_lane := _pushed_lane(m, team)
 
-	if m.objectives.objective_soon(t) and m.objectives.objective_pos() != Vector2.ZERO \
-			and _will_contest(t, m):
+	# 1. Home in danger (2026-07-25 remark 6): a DEEP tower of ours (inner/base or
+	#    the nexus) is under real minion+player pressure. Defending it outranks any
+	#    siege or objective — you cannot trade a baron for your own nexus. This is
+	#    the "nobody protects the base" fix; a shallow (outer) threat stays the
+	#    lower-priority defend below.
+	if home_lane != "" and _is_deep_threat(m, home_lane):
+		new_intent = "defend"
+		new_lane = home_lane
+		new_rally = m.map.pos_on_lane(home_lane, m.objectives._bound_for(team, home_lane))
+
+	if new_intent == "farm" and m.objectives.objective_soon(t) \
+			and m.objectives.objective_pos() != Vector2.ZERO and _will_contest(t, m):
 		# Macro gate: low-macro teams are slow to rotate. Once grouped, stay.
 		if intent == "group_objective" or m.rng.chance(_macro_avg / float(_macro_cfg.rotate_divisor)):
 			new_intent = "group_objective"
 			new_rally = m.objectives.objective_pos()
+
+	# 2. Punish an over-extended, isolated enemy caught on our side of the map
+	#    (2026-07-25 remark 6). GATED OFF in M5-D (defense.punish_base/lift = 0):
+	#    measured, a blunt team-wide collapse drags the macro team (it rolls the
+	#    gate more, over-commits, and gets caught). M5-F enables and tunes it as a
+	#    committed multi-man pick (subset + window), the right vehicle. Wired now so
+	#    M5-F only turns the dial. Base defense (step 1) is remark 6's shipped half.
+	if new_intent == "farm":
+		var punish := _punish_target(t, m)
+		if punish != Vector2.ZERO:
+			new_intent = "collapse"
+			new_rally = punish
+
 	if new_intent == "farm":
 		var siege_lane := _pushed_lane(m, enemy)
-		var threat_lane := _pushed_lane(m, team)
 		if siege_lane != "":
 			new_intent = "siege"
 			new_lane = siege_lane
 			new_rally = m.map.pos_on_lane(siege_lane, m.objectives._bound_for(enemy, siege_lane))
-		elif threat_lane != "":
+		elif home_lane != "":
 			new_intent = "defend"
-			new_lane = threat_lane
-			new_rally = m.map.pos_on_lane(threat_lane, m.objectives._bound_for(team, threat_lane))
+			new_lane = home_lane
+			new_rally = m.map.pos_on_lane(home_lane, m.objectives._bound_for(team, home_lane))
 
 	intent = new_intent
 	rally = new_rally
@@ -219,6 +264,67 @@ func _pushed_lane(m: SimMatch, owner: String) -> String:
 	return best
 
 
+## A deep tower of ours (inner/base, or the lane open to the nexus) is the one
+## pinned on this lane — losing it is game-threatening, so defending it outranks
+## a siege or an objective. Shallow (outer) pressure is a lower-priority defend.
+func _is_deep_threat(m: SimMatch, lane: String) -> bool:
+	var bound: float = m.objectives._bound_for(team, lane)
+	var edge: float = float(m.balance.defense.deep_threat_bound)
+	return bound <= edge if team == "blue" else bound >= 1.0 - edge
+
+
+## An enemy caught over-extended and ALONE on our half of the map, where enough
+## of ours can reach to make it a pick — the position to collapse on (remark 6).
+## ZERO when there is nothing worth punishing. One macro-gated roll, latched via
+## the `collapse` intent so it does not re-roll every tick: a sharp roster spots
+## and converts the pick, a weak one lets it walk.
+func _punish_target(_t: int, m: SimMatch) -> Vector2:
+	var enemy := "red" if team == "blue" else "blue"
+	var d: Dictionary = m.balance.defense
+	var best := Vector2.ZERO
+	var best_depth := 0.0
+	for foe in m.agents:
+		if foe.team != enemy or not foe.alive:
+			continue
+		var depth: float = _side_depth(foe.pos, m)
+		if depth < float(d.punish_deep):
+			continue
+		if _has_ally_near(m, enemy, foe, float(d.punish_isolation_radius)):
+			continue  # not isolated — help is close
+		var collapsers := 0
+		for mate in m.agents:
+			if mate.team == team and mate.alive \
+					and mate.pos.distance_to(foe.pos) < float(d.punish_collapse_radius):
+				collapsers += 1
+		if collapsers < int(d.punish_min_collapsers):
+			continue
+		if depth > best_depth:
+			best_depth = depth
+			best = foe.pos
+	if best == Vector2.ZERO:
+		return Vector2.ZERO
+	if intent == "collapse" or m.rng.chance(macro_gate(float(d.punish_base), float(d.punish_lift))):
+		return best
+	return Vector2.ZERO
+
+
+func _has_ally_near(m: SimMatch, side: String, of: PlayerAgent, radius: float) -> bool:
+	for mate in m.agents:
+		if mate.team == side and mate.idx != of.idx and mate.alive \
+				and mate.pos.distance_to(of.pos) < radius:
+			return true
+	return false
+
+
+## How deep `pos` sits on OUR side of the map: 1 at our base, 0 at the midline or
+## beyond. An over-extended enemy near our base scores high.
+func _side_depth(pos: Vector2, m: SimMatch) -> float:
+	var base: Vector2 = m.map.bases[team]
+	var enemy_base: Vector2 = m.map.bases["red" if team == "blue" else "blue"]
+	var half := base.distance_to(enemy_base) * 0.5
+	return clampf(1.0 - pos.distance_to(base) / half, 0.0, 1.0) if half > 0.0 else 0.0
+
+
 func _apply(t: int, m: SimMatch) -> void:
 	for agent in m.agents:
 		if agent.team != team or not agent.alive:
@@ -226,7 +332,7 @@ func _apply(t: int, m: SimMatch) -> void:
 		match intent:
 			"lane", "farm":
 				agent.set_farming_intent()
-			"group_objective", "siege", "defend":
+			"group_objective", "siege", "defend", "collapse":
 				# The split-pusher (global TP ult) keeps pressuring a side lane
 				# instead of grouping — unless the base is threatened, or the
 				# teleport is up, in which case it pays to be in two places.
