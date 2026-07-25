@@ -122,6 +122,7 @@ func _draw() -> void:
 	_draw_champions()
 	_draw_beats()        # over the bodies: the swing lands on top of the fight
 	_draw_effects()
+	_draw_pops()         # numbers last: they must survive a crowded fight
 
 
 func _draw_field() -> void:
@@ -176,49 +177,90 @@ func _draw_pit(w: Vector2, col: Color, letter: String, up: bool, count: int) -> 
 
 func _draw_bases() -> void:
 	var nexus: Dictionary = frame.get("nexus_hp", {})
+	var siege: Dictionary = frame.get("siege", {})
 	for team: String in geom.bases:
 		var c := _w2s(geom.bases[team])
 		var t: Dictionary = TEAM[team]
 		var alive: bool = frame.get("winner", "") != _enemy(team)
 		var col: Color = t.fill if alive else Color(0.35, 0.35, 0.35)
+		var frac: float = clampf(float(nexus.get(team, 1.0)), 0.0, 1.0)
 		draw_circle(c, NEXUS_R, Color(col.r, col.g, col.b, 0.22))
 		draw_arc(c, NEXUS_R, 0, TAU, 28, col, 2.5, true)
-		# Nexus diamond.
+		# The nexus diamond drains as it takes damage: the sim can spend six minutes
+		# grinding one down with minions, so its health has to be readable at a
+		# glance and not only in a bar (2026-07-25 playtest, remark 4).
 		var d := NEXUS_R * 0.5
-		draw_colored_polygon(PackedVector2Array([
-			c + Vector2(0, -d), c + Vector2(d, 0), c + Vector2(0, d), c + Vector2(-d, 0)]), col)
-		# Nexus health, once it starts taking hits — the closing minutes of the game.
-		var frac: float = float(nexus.get(team, 1.0))
+		var hull := PackedVector2Array([
+			c + Vector2(0, -d), c + Vector2(d, 0), c + Vector2(0, d), c + Vector2(-d, 0)])
+		draw_colored_polygon(hull, Color(col.r, col.g, col.b, 0.20))
+		if frac > 0.0:
+			# Same diamond, scaled about its own centre — a shrinking core.
+			var core := PackedVector2Array()
+			for pnt: Vector2 in hull:
+				core.append(c + (pnt - c) * frac)
+			draw_colored_polygon(core, col)
+		var outline := hull.duplicate()
+		outline.append(hull[0])
+		draw_polyline(outline, Color(col.r, col.g, col.b, 0.85), 1.4, true)
 		if alive and frac < 1.0:
-			_draw_bar(c + Vector2(0, NEXUS_R + 6.0), frac, _hp_color(frac))
+			_draw_bar(c + Vector2(0, NEXUS_R + 7.0), frac, _hp_color(frac), true)
+			_centered("%d%%" % int(round(frac * 100.0)), c + Vector2(0, NEXUS_R + 18.0),
+				11, _hp_color(frac))
+		if alive:
+			_draw_siege_pulse(c, NEXUS_R + 3.0, float(siege.get("nexus_%s" % team, 0.0)))
 
 
-## Towers, with health. A turret only shows a bar once it has been chipped, so a
-## siege reads as sustained pressure building toward a kill (and a dive under a
-## 20% turret reads as the race it is) while an untouched map stays quiet.
+## Towers, with health on the glyph itself. A turret drains like a battery — the
+## coloured core shrinks with its HP — and adds a bar plus a red flash once it is
+## really hurt. The thin bar alone was missed entirely in the 2026-07-25 playtest
+## ("I do not see life of buildings"), even though it was on screen for 89% of a
+## match: it is 3 px tall, sitting on top of a lane line.
 func _draw_towers() -> void:
 	var down: Dictionary = frame.get("towers_down", {})
 	var hp: Dictionary = frame.get("tower_hp", {})
+	var siege: Dictionary = frame.get("siege", {})
 	for tw: Dictionary in geom.towers:
 		var key: String = "%s_%s_%s" % [tw.team, tw.lane, tw.tier]
 		var c := _w2s(tw.pos)
 		if down.has(key):
-			draw_line(c + Vector2(-4, -4), c + Vector2(4, 4), Color(0.30, 0.30, 0.30), 2.0)
-			draw_line(c + Vector2(-4, 4), c + Vector2(4, -4), Color(0.30, 0.30, 0.30), 2.0)
+			# Rubble: a dark stump where the turret was, so the hole in the map reads.
+			draw_rect(Rect2(c - Vector2(4, 4), Vector2(8, 8)), Color(0.13, 0.14, 0.17), true)
+			draw_line(c + Vector2(-5, -5), c + Vector2(5, 5), Color(0.34, 0.34, 0.36), 2.0)
+			draw_line(c + Vector2(-5, 5), c + Vector2(5, -5), Color(0.34, 0.34, 0.36), 2.0)
 			continue
 		var t: Dictionary = TEAM[tw.team]
-		var r := TOWER_R if tw.tier != "base" else TOWER_R + 1.5
-		draw_rect(Rect2(c - Vector2(r, r), Vector2(r * 2, r * 2)), t.dark, true)
+		var r := TOWER_R if tw.tier != "base" else TOWER_R + 2.0
+		var frac: float = clampf(float(hp.get(key, 1.0)), 0.0, 1.0)
+		# Shell, then a core scaled to health, then the outline on top.
+		draw_rect(Rect2(c - Vector2(r, r), Vector2(r * 2, r * 2)),
+			Color(t.dark.r, t.dark.g, t.dark.b, 0.35), true)
+		if frac > 0.0:
+			var cr := r * frac
+			draw_rect(Rect2(c - Vector2(cr, cr), Vector2(cr * 2, cr * 2)), t.dark, true)
 		draw_rect(Rect2(c - Vector2(r, r), Vector2(r * 2, r * 2)), t.ring, false, 1.5)
-		if not hp.has(key):
+		_draw_siege_pulse(c, r + 3.0, float(siege.get(key, 0.0)))
+		if frac >= 1.0:
 			continue
-		var frac: float = hp[key]
-		_draw_bar(c + Vector2(0, r + 5.0), frac, _hp_color(frac))
+		_draw_bar(c + Vector2(0, r + 6.0), frac, _hp_color(frac), true)
 		# Under real pressure it also flashes, so the eye is pulled to the siege.
 		if frac < 0.35:
 			var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 110.0)
 			draw_rect(Rect2(c - Vector2(r + 2, r + 2), Vector2((r + 2) * 2, (r + 2) * 2)),
-				Color(1.0, 0.45, 0.35, 0.35 + 0.4 * pulse), false, 1.5)
+				Color(1.0, 0.45, 0.35, 0.35 + 0.4 * pulse), false, 2.0)
+
+
+## "This structure is losing health right now." `heat` is 1 at the moment of the
+## hit and fades out, so a siege reads as ongoing work rather than a number that
+## quietly changed.
+func _draw_siege_pulse(c: Vector2, r: float, heat: float) -> void:
+	if heat <= 0.0:
+		return
+	var grow := r + 7.0 * (1.0 - heat)
+	draw_arc(c, grow, 0, TAU, 24, Color(1.0, 0.55, 0.25, 0.85 * heat), 2.4, true)
+	for i in 4:
+		var dir := Vector2.from_angle(TAU * float(i) / 4.0 + 0.4)
+		draw_line(c + dir * (grow + 1.0), c + dir * (grow + 5.0),
+			Color(1.0, 0.7, 0.4, 0.8 * heat), 2.0, true)
 
 
 ## Minion waves. Drawn under the champions so they read as background pressure:
@@ -327,9 +369,15 @@ func _draw_champions() -> void:
 			var a: float = ch.casting
 			draw_arc(c, r + 6 + (1.0 - a) * 16.0, 0, TAU, 24,
 				Color(1.0, 0.95, 0.5, a * 0.8), 2.0, true)
-		if ch.get("fighting", false):
+		# Trading blows — a swing given or taken in the last second, not merely
+		# "an enemy is nearby". Hot red so it never reads as the amber CC mark.
+		if ch.get("exchanging", false):
 			var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 90.0)
-			draw_arc(c, r + 4, 0, TAU, 20, Color(1.0, 0.85, 0.3, 0.4 + 0.4 * pulse), 2.0, true)
+			draw_arc(c, r + 4, 0, TAU, 20, Color(1.0, 0.42, 0.24, 0.45 + 0.45 * pulse), 2.2, true)
+		# Backing off: chevrons trailing behind, pointing the way out. A retreat is
+		# a decision the sim makes constantly and the viewer used to draw as a fight.
+		if ch.get("backing_off", false):
+			_draw_retreat(c, r, ch.get("facing", Vector2.RIGHT), t)
 		if ch.get("recalling", false):
 			var rp := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 120.0)
 			draw_arc(c, r + 8, 0, TAU, 24, Color(0.4, 0.9, 0.9, 0.35 + 0.3 * rp), 2.0, true)
@@ -338,6 +386,12 @@ func _draw_champions() -> void:
 		# silhouette for its role.
 		_draw_body(c, r, ch, t, textures.get(ch.char_id, null))
 
+		# Just hit: a white flash on the body itself. HP bars move a couple of
+		# pixels a swing, which is why a real exchange read as "nothing is
+		# happening" (2026-07-25 playtest, remark 2).
+		var flinch: float = ch.get("flinch", 0.0)
+		if flinch > 0.0:
+			draw_circle(c, r + 1.5, Color(1.0, 0.95, 0.92, 0.55 * flinch))
 		# Caught: the lock/slow mark sits over the body so it can't be missed.
 		if ch.get("stunned", false) or ch.get("slowed", false):
 			_draw_cc_mark(c, r, ch.get("stunned", false))
@@ -461,13 +515,48 @@ func _hp_color(frac: float) -> Color:
 	return Color(0.95, 0.35, 0.30)
 
 
-func _draw_bar(center: Vector2, frac: float, col: Color) -> void:
-	var w := 22.0
-	var h := 3.5
+## Backing off, drawn as motion: two chevrons behind the body pointing the way it
+## is leaving. The sim breaks off fights constantly (hysteresis, on purpose), and
+## before this a retreat looked exactly like a fight.
+func _draw_retreat(c: Vector2, r: float, look: Vector2, t: Dictionary) -> void:
+	var ang := Vector2(look.x, -look.y).angle()
+	var back := Vector2.from_angle(ang + PI)
+	var side := back.orthogonal()
+	var col := Color(t.ring.r, t.ring.g, t.ring.b, 0.55)
+	for i in 2:
+		var base := c + back * (r + 3.0 + 4.0 * float(i))
+		draw_line(base + side * 3.5, base - back * 3.0, col, 1.6, true)
+		draw_line(base - side * 3.5, base - back * 3.0, col, 1.6, true)
+
+
+## Floating damage numbers. The one unambiguous answer to "is the life actually
+## moving?" — every number here is a real HP delta the sim produced, read off
+## consecutive snapshots (MatchViewer._build_hits).
+func _draw_pops() -> void:
+	for h: Dictionary in frame.get("pops", []):
+		var age: float = h.age
+		var c := _w2s(h.pos) - Vector2(0, _champ_r() + 6.0 + 20.0 * age)
+		var alpha := clampf(1.0 - age * age, 0.0, 1.0)
+		var heal: bool = h.heal
+		var col := Color(0.55, 1.0, 0.6, alpha) if heal else Color(1.0, 0.86, 0.45, alpha)
+		var txt: String = ("+%d" if heal else "%d") % int(h.amount)
+		var fsize := 11 if int(h.amount) < 120 else 14
+		# Dark outline: numbers land on top of bodies, minions and lane lines.
+		_centered(txt, c + Vector2(1, 1), fsize, Color(0.0, 0.0, 0.0, 0.7 * alpha))
+		_centered(txt, c, fsize, col)
+
+
+## `strong` is for structures: a wider, taller, outlined bar. The player-sized
+## one is deliberately small — ten of them share the screen.
+func _draw_bar(center: Vector2, frac: float, col: Color, strong := false) -> void:
+	var w := 30.0 if strong else 22.0
+	var h := 5.5 if strong else 3.5
 	var tl := center - Vector2(w * 0.5, h * 0.5)
-	draw_rect(Rect2(tl, Vector2(w, h)), Color(0.05, 0.06, 0.08, 0.85), true)
+	draw_rect(Rect2(tl, Vector2(w, h)), Color(0.05, 0.06, 0.08, 0.9), true)
 	if frac > 0.0:
 		draw_rect(Rect2(tl, Vector2(w * clampf(frac, 0.0, 1.0), h)), col, true)
+	if strong:
+		draw_rect(Rect2(tl, Vector2(w, h)), Color(0.0, 0.0, 0.0, 0.55), false, 1.0)
 
 
 ## The transient layer: everything with a lifetime. `progress` (0 -> 1) is the
@@ -504,6 +593,14 @@ func _draw_effects() -> void:
 				draw_circle(c, rb * 0.92, Color(col.r, col.g, col.b, 0.16 * (1.0 - p)))
 				draw_arc(c, rb, 0, TAU, 28, Color(col.r, col.g, col.b, 0.9 * (1.0 - p)),
 					3.0 if heavy else 2.0, true)
+			"cast_flash":
+				# The caster flares white-hot for an instant, so an ultimate is visible
+				# even when its impact lands on someone else across the fight.
+				var cf := 1.0 - p
+				draw_circle(c, (_champ_r() + 3.0) * (1.0 + 1.6 * p),
+					Color(1.0, 1.0, 1.0, 0.30 * cf))
+				draw_arc(c, (_champ_r() + 5.0) * (1.0 + 2.2 * p), 0, TAU, 28,
+					Color(col.r, col.g, col.b, 0.9 * cf), 3.0 * cf + 1.0, true)
 			"aura":
 				var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 70.0)
 				var ra := _champ_r() + 4.0 + 2.5 * pulse

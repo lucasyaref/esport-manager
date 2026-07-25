@@ -185,9 +185,21 @@ playtest is the real gate, the viewer has to show what the sim decided. Rules:
   ability's real radius for AoE, a beam for single-target (piercing for a snipe, a cross for
   an execute), a bloom for heal/shield, an aura for a self-buff — bigger and louder than the
   same family fired from the basic-ability slot, so a level-6 ult never reads like a basic.
-- **Structures show health.** A turret displays a bar once it has been chipped (and flashes
-  when nearly dead); the nexus shows one when it starts taking hits. A siege is visible
-  pressure, not a sudden pop.
+- **Timing is real time, not sim ticks.** Playback at 1x runs four times sim-time, so every
+  transient is sized in *real seconds at the speed being watched* (and stretches with the
+  speed button, capped at 4x). A beat nobody can perceive is a beat that is not there.
+- **Damage is visible on the body.** Playback diffs HP between snapshots into floating
+  numbers and a hit-flash. Health bars alone move a couple of pixels a swing, which reads as
+  nothing happening; every number shown is a real delta the sim produced.
+- **"Fighting" means trading blows.** The sim's `in_combat` also covers standing off across a
+  wave (measured: only ~30% of in-combat player-frames are exchanges), so the fight marker
+  requires a swing given while still committed, and disengaging is drawn as a retreat instead.
+- **Structures show health, and the endgame is narrated.** A turret drains as it is chipped
+  (health on the glyph, not only in a bar), flashes when nearly dead, and leaves rubble;
+  anything losing HP right now pulses. Turrets standing and both nexus healths are permanently
+  on screen, and the feed calls every turret, an exposed nexus and each nexus threshold — a
+  match must never end without the viewer knowing why. (The sim currently ends games by a slow
+  minion grind; making that *decisive* is a balance job, making it *legible* is this one.)
 - **Bodies never stack.** Steering has no collision, and team-mates routinely aim at the
   same point (a rally spot, one lane stand position), so playback pushes overlapping bodies
   apart for drawing — a *layout* pass that preserves the group's centre, keeps the sim's

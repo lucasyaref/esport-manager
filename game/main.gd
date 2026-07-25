@@ -22,10 +22,29 @@ const P_MAX_HP := 8
 const P_TARGET := 9
 const P_FLAGS := 10
 const P_SWING := 11
-const SWING_TICKS := 5.0            # how long one auto-attack beat is drawn (ticks)
 const RANGED_AT := 2.0              # attack_range (world units) at/above which a swing flies
-const CC_TAG_TICKS := 12            # "SLOWED"/"STUNNED" popup life (ticks)
 const SELFTEST_STEP := 4.0          # playback ticks per step in --selftest
+
+# Transient lifetimes, in ticks. Playback at 1x runs *four times* sim-time
+# (BASE_TPS_1X = 40 ticks a real second against the sim's 10), so a lifetime
+# written in sim ticks is on screen four times shorter than it reads on paper:
+# M5.5's ult impact lasted 0.65 real seconds and its attack beat 0.12 s, which is
+# why the designer could see something happening but not read it (2026-07-25
+# playtest, remarks 2 and 3). These are sized in real seconds at 1x — the speed
+# the match is meant to be watched at — with the conversion spelled out.
+const SWING_TICKS := 8.0            # 0.20 s — one auto-attack beat (swings are ~0.35 s apart)
+const FLINCH_TICKS := 10.0          # 0.25 s — the hit-flash on a body that just lost HP
+const DMG_TTL := 44                 # 1.10 s — floating damage number
+const BASIC_TTL := 34               # 0.85 s — basic-ability impact
+const ULT_TTL := 64                 # 1.60 s — ultimate impact: the beat you must not miss
+const ULT_TAG_TTL := 80             # 2.00 s — the ultimate's name, readable over a fight
+const AURA_EXTRA := 60              # 1.50 s — self-buff auras outlive their own impact
+const CC_TAG_TICKS := 28            # 0.70 s — "SLOWED"/"STUNNED" popup
+const SIEGE_TICKS := 24             # 0.60 s — "structure is losing HP right now" pulse
+const HIT_MIN_DMG := 6.0            # below this an HP tick is noise, not a blow
+const HIT_MIN_HEAL := 25.0          # regen is not news; a heal ability is
+const EXCHANGE_TICKS := 40.0        # 1.00 s — a swing given or taken this recently
+                                    # means "trading blows", as opposed to a standoff
 # Body separation, for drawing only (see _spread_bodies).
 const BODY_SPACE := 1.9             # world units of personal space between bodies
 const SPREAD_PASSES := 3            # relaxation passes per frame
@@ -35,6 +54,10 @@ const SPEEDS := [1, 4, 16]
 const FEED_MAX := 12
 const C_BLUE := "6fa8ff"
 const C_RED := "ff7f7f"
+# How a structure is named in the feed, and the nexus levels worth announcing.
+const TIER_NAME := {"outer": "T1", "inner": "T2", "base": "base turret"}
+const NEXUS_MARKS := [0.75, 0.5, 0.25, 0.1]
+const NEXUS_CELLS := 9              # cells in the side-panel nexus bar
 
 # Minion dot layout (world units / lane param) — presentation only.
 const MINION_DOTS_MAX := 8          # cap so a big army stays a clump, not a snake
@@ -89,6 +112,10 @@ var deaths_info := {}
 var last_ult := {}
 var wards: Array = []
 var catches: Array = []             # live CC: {source, victim, kind, born, until}
+var hits: Array = []                # HP changes, tick-ordered: {t, k, amount, heal}
+var sieges: Array = []              # structure HP losses, tick-ordered: {t, key}
+var marks: Array = []               # synthetic feed lines, tick-ordered: {t, text}
+var mark_cursor := 0
 var facing := {}                    # row index -> unit world vector (sticky look direction)
 var effects: Array = []
 var feed: Array = []
@@ -104,6 +131,7 @@ var goldbar_blue: ColorRect
 var goldbar_red: ColorRect
 var golddiff_lbl: RichTextLabel
 var feed_lbl: RichTextLabel
+var struct_lbl: RichTextLabel
 var slider: HSlider
 var play_btn: Button
 var speed_btns: Array = []
@@ -176,6 +204,8 @@ func _run_sim(s: int) -> void:
 
 	smap = SimMap.new(data.map)
 	_build_meta()
+	_build_hits()
+	_build_marks()
 	_build_scoreboard()
 	map.setup_geometry(smap, _char_textures())
 	_reset_derived()
@@ -250,6 +280,12 @@ func _advance_events(upto: int) -> void:
 	while event_cursor < events.size() and int(events[event_cursor].t) <= upto:
 		_apply_event(events[event_cursor])
 		event_cursor += 1
+	# Feed lines the sim does not emit as events but the snapshots imply — the
+	# nexus bleeding down is the clearest example (see _build_marks).
+	while mark_cursor < marks.size() and int(marks[mark_cursor].t) <= upto:
+		feed.append(String(marks[mark_cursor].text))
+		_trim_feed()
+		mark_cursor += 1
 
 
 func _apply_event(ev: Dictionary) -> void:
@@ -282,7 +318,20 @@ func _apply_event(ev: Dictionary) -> void:
 			var key: String = "%s_%s_%s" % [d.team, d.lane, d.tier]
 			towers_down[key] = true
 			if tower_pos.has(key):
-				_add_effect(t, tower_pos[key], "text", 14, Color(0.85, 0.8, 0.6), "TOWER", 0.0)
+				_add_effect(t, tower_pos[key], "text", BASIC_TTL,
+					Color(0.85, 0.8, 0.6), "TOWER", 0.0)
+			# Structures were falling silently: nothing in the feed said who was
+			# taking the map, so a game decided by a siege had no story
+			# (2026-07-25 playtest, remark 4).
+			var taker := _enemy(String(d.team))
+			var tier_name: String = TIER_NAME.get(d.tier, String(d.tier))
+			feed.append("[color=#%s]%s[/color] ⌂ %s %s%s" % [
+				_teamhex(taker), _team_name(taker), d.lane, tier_name,
+				"  (first blood tower)" if bool(d.get("first", false)) else ""])
+			if String(d.tier) == "base":
+				feed.append("[color=#ffd479]%s nexus is exposed on %s[/color]" % [
+					_team_name(String(d.team)), d.lane])
+			_trim_feed()
 		"gank_call":
 			# Macro on screen: how many team-mates read the jungler's call.
 			var followers: int = int(d.reactors)
@@ -335,7 +384,7 @@ func _on_cast(t: int, d: Dictionary, is_ult: bool) -> void:
 	var radius: float = float(d.get("radius", 0.0))
 	var targets: Array = d.get("targets", [])
 	var col := _effect_color(effect, team)
-	var ttl := 26 if is_ult else 14
+	var ttl := ULT_TTL if is_ult else BASIC_TTL
 	match effect:
 		"aoe_cc", "aoe_damage", "zone_denial":
 			# A circle you can measure: the shockwave grows to the ability's real
@@ -351,13 +400,27 @@ func _on_cast(t: int, d: Dictionary, is_ult: bool) -> void:
 			for vid: String in targets:
 				_add_effect(t, _pos_of(vid, t), "bloom", ttl, col, "", 0.0, {"heavy": is_ult})
 		"self_steroid":
-			_add_effect(t, at, "aura", ttl + 20, col, "", 0.0, {"heavy": is_ult})
+			_add_effect(t, at, "aura", ttl + AURA_EXTRA, col, "", 0.0, {"heavy": is_ult})
 		"global_teleport":
 			_add_effect(t, at, "shockwave", ttl, col, "", 0.0,
 				{"world_radius": 3.0, "heavy": false})
 	# The name, as a tag rather than bare text, so it stays readable over a fight.
-	_add_effect(t, at, "tag", ttl, col, d.name, 0.0,
-		{"font": 14 if is_ult else 11, "heavy": is_ult})
+	_add_effect(t, at, "tag", ULT_TAG_TTL if is_ult else BASIC_TTL, col, d.name, 0.0,
+		{"font": 15 if is_ult else 11, "heavy": is_ult})
+	if not is_ult:
+		return
+	# An ultimate is the loudest thing a player does, so it also gets said out loud:
+	# 54 in a 27-minute match, which the feed absorbs comfortably, and it lets the
+	# designer connect a shape on the map to a name and a body count.
+	_add_effect(t, at, "cast_flash", ULT_TTL, col, "", 0.0, {})
+	var hit := targets.size()
+	var tail := ""
+	if hit > 0:
+		var verb := "helped" if effect == "team_heal" or effect == "team_shield" else "hit"
+		tail = " · %d %s" % [hit, verb]
+	feed.append("[color=#%s]%s[/color] ult ▸ %s%s" % [
+		_teamhex(team), _name(d.player), d.name, tail])
+	_trim_feed()
 
 
 ## Ultimates read by family, not by champion: hostile red-golds for damage,
@@ -446,7 +509,7 @@ func _render() -> void:
 			"respawn_frac": 1.0, "fighting": false, "casting": 0.0,
 			"recalling": false, "shake": Vector2.ZERO,
 			"stunned": false, "slowed": false, "backing_off": false,
-			"facing": Vector2.RIGHT,
+			"facing": Vector2.RIGHT, "exchanging": false, "flinch": 0.0,
 		}
 		if not alive:
 			var di: Dictionary = deaths_info.get(m.id, {})
@@ -461,22 +524,39 @@ func _render() -> void:
 			ch.slowed = (flags & SimMatch.FLAG_SLOWED) != 0
 			ch.recalling = (flags & SimMatch.FLAG_RECALLING) != 0
 			var lu: int = last_ult.get(m.id, -99999)
-			ch.casting = clampf(1.0 - (pt - lu) / 14.0, 0.0, 1.0)
-			if ch.fighting and not ch.backing_off:
+			ch.casting = clampf(1.0 - (pt - lu) / (float(ULT_TTL) * _time_scale()), 0.0, 1.0)
+			# "In combat" is not the same thing as trading blows: the sim sets it on
+			# anyone who has committed to a nearby enemy, which includes two laners
+			# standing off across the wave doing nothing to each other. Drawn as a
+			# pulsing halo, that made a standoff look like a fight in which no life
+			# moved (2026-07-25 playtest, remark 2). An *exchange* is a swing fired
+			# or a blow taken in the last second — the taken half is filled in by
+			# _hit_pops, which is reading real HP deltas.
+			# Still committed to a fight *and* swinging in it. The "still committed"
+			# half matters at 4x, where the recency window covers four seconds of sim
+			# time and would otherwise outlive the fight it belongs to.
+			ch.exchanging = ch.fighting \
+				and (pt - float(r0[P_SWING])) <= EXCHANGE_TICKS * _time_scale()
+			if ch.exchanging:
 				ch.shake = Vector2(sin(pt * 3.3 + k) * 1.4, cos(pt * 2.7 + k) * 1.0)
 		champs.append(ch)
 
 	_spread_bodies(champs)
 	_resolve_facing(s0, s1, champs)
+	# Writes the hit-flash back onto the bodies, so it runs before the frame is
+	# handed over.
+	var pops := _hit_pops(pt, champs)
 
 	last_frame = {
 		"champs": champs,
 		"beats": _render_beats(pt, s0, champs),
 		"tethers": _render_tethers(pt, champs),
+		"pops": pops,
 		"minions": _minion_dots(s0),
 		"towers_down": towers_down,
 		"tower_hp": _structure_hp(s0),
 		"nexus_hp": _nexus_frac(s0),
+		"siege": _siege_now(pt),
 		"effects": _render_effects(pt),
 		"wards": _render_wards(pt),
 		"dragon_total": dragon_total, "dragon_up": dragon_up, "baron_up": baron_up,
@@ -522,6 +602,12 @@ func _run_selftest() -> void:
 	var beats := 0
 	var tethers := 0
 	var tower_bars := 0
+	var pops := 0
+	var flinches := 0
+	var siege_pulses := 0
+	var in_combat_frames := 0
+	var exchange_frames := 0
+	var nexus_shown := 0
 	var kinds := {}
 	var problems: Array[String] = []
 	var frames := 0
@@ -536,6 +622,20 @@ func _run_selftest() -> void:
 		beats += last_frame.beats.size()
 		tethers += last_frame.tethers.size()
 		tower_bars = maxi(tower_bars, last_frame.tower_hp.size())
+		pops += last_frame.pops.size()
+		siege_pulses += last_frame.siege.size()
+		for ch: Dictionary in last_frame.champs:
+			if not ch.alive:
+				continue
+			if ch.flinch > 0.0:
+				flinches += 1
+			if ch.fighting:
+				in_combat_frames += 1
+			if ch.exchanging:
+				exchange_frames += 1
+		for team: String in last_frame.nexus_hp:
+			if float(last_frame.nexus_hp[team]) < 1.0:
+				nexus_shown += 1
 		for e: Dictionary in last_frame.effects:
 			kinds[e.kind] = int(kinds.get(e.kind, 0)) + 1
 		if problems.is_empty():
@@ -557,11 +657,38 @@ func _run_selftest() -> void:
 		problems.append("%d CC applications, no catch tether drawn" % casts.cc_applied)
 	if tower_bars == 0:
 		problems.append("no tower ever showed damage")
+	# The 2026-07-25 playtest gaps: damage the eye can see, an exchange that
+	# means blows are being traded, and a nexus that does not die silently.
+	if pops == 0:
+		problems.append("no damage numbers in the whole match")
+	if flinches == 0:
+		problems.append("no hit-flash on any body")
+	if exchange_frames == 0:
+		problems.append("nobody ever read as trading blows")
+	if exchange_frames >= in_combat_frames and in_combat_frames > 0:
+		problems.append("every in-combat frame counted as an exchange: the standoff"
+			+ " case is not being separated")
+	if winner != "" and siege_pulses == 0:
+		problems.append("a nexus fell with no structure ever drawn taking damage")
+	if winner != "" and marks.is_empty():
+		problems.append("a nexus fell with no nexus-health line in the feed")
 
 	print("VIEWER SELFTEST (seed %d, %d ticks, %d frames)" % [seed_val, last_tick, frames])
 	print("  attack beats: %d | catch tethers: %d | towers chipped (peak): %d" % [
 		beats, tethers, tower_bars])
+	print("  damage numbers: %d | hit-flashes: %d | siege pulses: %d" % [
+		pops, flinches, siege_pulses])
+	print("  player-frames in combat: %d, of which trading blows: %d (%.0f%%)" % [
+		in_combat_frames, exchange_frames,
+		100.0 * float(exchange_frames) / float(maxi(in_combat_frames, 1))])
+	print("  frames with a wounded nexus: %d | nexus feed lines: %d" % [
+		nexus_shown, marks.size()])
 	print("  effect kinds: %s" % str(kinds))
+	# The last thing the designer reads when a match ends: it has to explain the
+	# result on its own ("finished without any understanding how", remark 4).
+	print("  feed at the final whistle:")
+	for line: String in feed.slice(maxi(feed.size() - 6, 0)):
+		print("    %s" % _plain(line))
 	print("  sim events: %d ultimates, %d CC applications" % [
 		casts.ultimate_cast, casts.cc_applied])
 	if problems.is_empty():
@@ -572,6 +699,30 @@ func _run_selftest() -> void:
 		print("  FAIL: %s" % p)
 	print("VIEWER SELFTEST: FAIL")
 	get_tree().quit(1)
+
+
+## How much longer a transient stays on screen at the current playback speed.
+## Everything with a lifetime is measured in sim ticks, and 4x runs sixteen sim
+## seconds a real second — an ult impact would be back to a 0.16 s flicker. So
+## the *read* windows stretch with the speed, capped at 4x: past that the game is
+## being skipped rather than watched, and stretching further would leave a hit
+## marker on screen while its fight moved to another lane.
+func _time_scale() -> float:
+	return float(mini(SPEEDS[speed_index], 4))
+
+
+## BBCode out, for printing a feed line to a terminal.
+func _plain(line: String) -> String:
+	var out := ""
+	var depth := 0
+	for ch in line:
+		if ch == "[":
+			depth += 1
+		elif ch == "]":
+			depth = maxi(depth - 1, 0)
+		elif depth == 0:
+			out += ch
+	return out
 
 
 ## Sanity of one built frame: positions on the map, fractions in range, no NaN.
@@ -654,6 +805,140 @@ func _resolve_facing(s0: Dictionary, s1: Dictionary, champs: Array) -> void:
 		ch.facing = facing[k]
 
 
+## Damage, made visible. Every snapshot carries each player's HP and every chipped
+## structure's, so playback can diff consecutive snapshots and show blows *landing*:
+## a hit-flash on the body plus a floating number, and a pulse on a structure that
+## is losing HP this second.
+##
+## The designer watched two players trade for seconds and reported "the life does
+## not move" (2026-07-25 playtest, remark 2). It was moving — a few pixels at a
+## time on a 22-pixel bar, with no other sign that a swing had connected.
+##
+## Precomputed once per sim rather than diffed per frame: a frame at 1x covers less
+## than one snapshot step, and a scrub jumps many, so per-frame diffing would both
+## miss pops and double-count them. Read-only over the sim's output.
+func _build_hits() -> void:
+	hits.clear()
+	sieges.clear()
+	if snapshots.size() < 2:
+		return
+	var before := _structure_raw(snapshots[0])
+	for i in range(1, snapshots.size()):
+		var prev: Array = snapshots[i - 1].players
+		var cur: Dictionary = snapshots[i]
+		var t: int = cur.t
+		for k in pmeta.size():
+			var a: Array = prev[k]
+			var b: Array = cur.players[k]
+			# Dying is already a kill marker and respawning is not a heal.
+			if int(a[P_ALIVE]) == 0 or int(b[P_ALIVE]) == 0:
+				continue
+			var delta := float(b[P_HP]) - float(a[P_HP])
+			if delta <= -HIT_MIN_DMG:
+				hits.append({"t": t, "k": k, "amount": -delta, "heal": false})
+			elif delta >= HIT_MIN_HEAL:
+				hits.append({"t": t, "k": k, "amount": delta, "heal": true})
+		var now := _structure_raw(cur)
+		for key: String in now:
+			# A structure that has only just appeared in the snapshot took its first
+			# damage this tick, so a missing previous value counts as a loss too.
+			if float(now[key]) < float(before.get(key, INF)):
+				sieges.append({"t": t, "key": key})
+		before = now
+
+
+## Feed lines for what the snapshots say but the sim never emits as an event: the
+## nexus losing health. It matters because of *how* the sim ends games — measured
+## over 12 seeds, the losing nexus bleeds for 6 minutes on average (13 in the worst
+## case) under minion pressure, often with no champion anywhere near it. Watching
+## that, the designer reported the match "finished without any understanding how"
+## (2026-07-25 playtest, remark 4). The pacing itself is a balance question for
+## M5-G; what playback owes the viewer is the running commentary.
+func _build_marks() -> void:
+	marks.clear()
+	var next_mark := {"blue": 0, "red": 0}
+	for s: Dictionary in snapshots:
+		var n: Array = s.get("nexus", [])
+		if n.size() != 2:
+			continue
+		for i in 2:
+			var team := "blue" if i == 0 else "red"
+			var frac := float(n[i]) / nexus_max_hp
+			while next_mark[team] < NEXUS_MARKS.size() \
+					and frac <= float(NEXUS_MARKS[next_mark[team]]):
+				var level := float(NEXUS_MARKS[next_mark[team]])
+				next_mark[team] += 1
+				marks.append({"t": int(s.t), "text":
+					"[color=#ffd479]%s nexus at %d%%[/color]" % [
+						_team_name(team), int(round(level * 100.0))]})
+
+
+## Raw HP of everything the sim reports as damaged, structures and both nexuses,
+## under the keys the viewer draws them with.
+func _structure_raw(s: Dictionary) -> Dictionary:
+	var out := {}
+	for row: Array in s.get("towers", []):
+		out["%s_%s_%s" % [row[0], row[1], row[2]]] = float(row[3])
+	var n: Array = s.get("nexus", [])
+	if n.size() == 2:
+		if float(n[0]) < nexus_max_hp:
+			out["nexus_blue"] = float(n[0])
+		if float(n[1]) < nexus_max_hp:
+			out["nexus_red"] = float(n[1])
+	return out
+
+
+## Floating numbers for every HP change inside the last DMG_TTL ticks, and the
+## hit-flash written back onto the bodies themselves.
+func _hit_pops(pt: float, champs: Array) -> Array:
+	var out: Array = []
+	var window := float(DMG_TTL) * _time_scale()
+	var i := _index_from(hits, pt - window)
+	while i < hits.size() and float(hits[i].t) <= pt:
+		var h: Dictionary = hits[i]
+		i += 1
+		var ch: Dictionary = champs[h.k]
+		if not ch.alive:
+			continue
+		var age_ticks := pt - float(h.t)
+		out.append({
+			"pos": ch.pos, "amount": int(round(h.amount)), "heal": bool(h.heal),
+			"age": clampf(age_ticks / window, 0.0, 1.0),
+		})
+		var flinch_window := FLINCH_TICKS * _time_scale()
+		if not h.heal and age_ticks <= flinch_window:
+			ch.flinch = maxf(ch.flinch, 1.0 - age_ticks / flinch_window)
+	return out
+
+
+## Structures losing HP right now — the "something is being taken" cue, which is
+## what a slow minion siege on an empty base was missing entirely (remark 4).
+func _siege_now(pt: float) -> Dictionary:
+	var out := {}
+	var window := float(SIEGE_TICKS) * _time_scale()
+	var i := _index_from(sieges, pt - window)
+	while i < sieges.size() and float(sieges[i].t) <= pt:
+		var s: Dictionary = sieges[i]
+		i += 1
+		out[s.key] = maxf(float(out.get(s.key, 0.0)), 1.0 - (pt - float(s.t)) / window)
+	return out
+
+
+## First entry of a tick-ordered list at or after `t`. Binary search: these lists
+## run to tens of thousands of entries and are walked every frame.
+func _index_from(list: Array, t: float) -> int:
+	var lo := 0
+	var hi := list.size()
+	while lo < hi:
+		@warning_ignore("integer_division")
+		var mid := (lo + hi) / 2
+		if float(list[mid].t) < t:
+			lo = mid + 1
+		else:
+			hi = mid
+	return lo
+
+
 ## Health of the structures the sim has reported as chipped, keyed the same way
 ## the viewer keys towers. Anything absent is still at full health.
 func _structure_hp(s: Dictionary) -> Dictionary:
@@ -684,14 +969,15 @@ func _render_beats(pt: float, s0: Dictionary, champs: Array) -> Array:
 		var row: Array = s0.players[k]
 		var swing := float(row[P_SWING])
 		var age := pt - swing
-		if age < 0.0 or age > SWING_TICKS:
+		var span := SWING_TICKS * _time_scale()
+		if age < 0.0 or age > span:
 			continue
 		var tgt := int(row[P_TARGET])
 		if tgt < 0 or tgt >= champs.size() or not champs[tgt].alive:
 			continue
 		out.append({
 			"from": ch.pos, "to": champs[tgt].pos, "team": ch.team,
-			"ranged": bool(pmeta[k].ranged), "frac": age / SWING_TICKS,
+			"ranged": bool(pmeta[k].ranged), "frac": age / span,
 		})
 	return out
 
@@ -726,8 +1012,9 @@ func _cc_color(kind: String) -> Color:
 ## kind-specific fields the effect was created with.
 func _render_effects(pt: float) -> Array:
 	var out: Array = []
+	var scale := _time_scale()
 	for e: Dictionary in effects:
-		var age: float = (pt - e.born) / float(e.ttl)
+		var age: float = (pt - e.born) / (float(e.ttl) * scale)
 		if age < 0.0 or age > 1.0:
 			continue
 		var item := e.duplicate()
@@ -782,6 +1069,29 @@ func _update_hud(pt: float, gold: Dictionary) -> void:
 	if feed_dirty:
 		feed_lbl.text = "\n".join(feed)
 		feed_dirty = false
+	_update_structures()
+
+
+## Turrets standing and nexus health for both sides, every frame. This is the
+## match clock the map alone never showed: who is ahead on the map, and how
+## close the game is to ending.
+func _update_structures() -> void:
+	var nexus: Dictionary = last_frame.get("nexus_hp", {})
+	var lines: Array[String] = []
+	for team in ["blue", "red"]:
+		var standing := 0
+		for lane in SimMap.LANES:
+			for tier: String in TIER_NAME:
+				if not towers_down.has("%s_%s_%s" % [team, lane, tier]):
+					standing += 1
+		var frac := clampf(float(nexus.get(team, 1.0)), 0.0, 1.0)
+		var filled := int(round(frac * float(NEXUS_CELLS)))
+		var bar := "█".repeat(filled) + "░".repeat(NEXUS_CELLS - filled)
+		var hue := "d6dbe6" if frac > 0.5 else ("ffd479" if frac > 0.25 else "ff6b5e")
+		lines.append("[color=#%s]%s[/color]  ⌂%d  [color=#%s]%s[/color] %d%%" % [
+			_teamhex(team), _team_name(team).substr(0, 10), standing,
+			hue, bar, int(round(frac * 100.0))])
+	struct_lbl.text = "\n".join(lines)
 
 
 # --- effects / helpers --------------------------------------------------------
@@ -798,7 +1108,8 @@ func _add_effect(born: int, pos: Vector2, kind: String, ttl: int, col: Color, te
 
 
 func _purge(pt: float) -> void:
-	effects = effects.filter(func(e): return pt < e.born + e.ttl)
+	var scale := _time_scale()
+	effects = effects.filter(func(e): return pt < e.born + e.ttl * scale)
 	wards = wards.filter(func(w): return w.expires > pt)
 	catches = catches.filter(func(c): return pt < c.until)
 
@@ -854,6 +1165,7 @@ func _clock(t: int) -> String:
 
 func _reset_derived() -> void:
 	event_cursor = 0
+	mark_cursor = 0
 	kda = {}
 	for m: Dictionary in pmeta:
 		kda[m.id] = {"k": 0, "d": 0, "a": 0}
@@ -1034,6 +1346,17 @@ func _build_scoreboard() -> void:
 	_team_block(_side_vbox, "red", red_name)
 	var sep := HSeparator.new()
 	_side_vbox.add_child(sep)
+	# Structures, always on screen. A match is won by taking these, and the sim
+	# often wins one by grinding a nexus down over minutes with minions — with no
+	# standing readout, the end came out of nowhere (2026-07-25 playtest, remark 4).
+	_side_vbox.add_child(_small_label("STRUCTURES", "8a93a6"))
+	struct_lbl = RichTextLabel.new()
+	struct_lbl.bbcode_enabled = true
+	struct_lbl.fit_content = true
+	struct_lbl.scroll_active = false
+	struct_lbl.add_theme_font_size_override("normal_font_size", 12)
+	_side_vbox.add_child(struct_lbl)
+	_side_vbox.add_child(HSeparator.new())
 	var feed_title := _small_label("KILL FEED", "8a93a6")
 	_side_vbox.add_child(feed_title)
 	feed_lbl = RichTextLabel.new()

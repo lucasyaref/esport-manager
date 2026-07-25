@@ -15,7 +15,7 @@ Full rationale, diagnostics and batch numbers behind completed work live in `CHA
 | M4 — Viewer v1 | done |
 | M4.5 — Sim depth: space, health, agency | done |
 | M5 — Macro play: cross-map coordination | paused — A–D done, E–G to-do (resumes after M5.5) |
-| **M5.5 — Viewer v2: combat readability & juice** | **in-progress** |
+| **M5.5 — Viewer v2: combat readability & juice** | **in-progress — A–G done, designer playtest is the gate** |
 | M6 — Draft screen | to-do |
 | M7 — PoC polish pass | to-do |
 
@@ -29,7 +29,33 @@ From the designer's 2026-07-25 playtest (remarks 1, 2, 4): fights and CC aren't 
 - **C — Ultimate impact — the "wow" — done.** `ultimate_cast` carries position/radius/targets hit; the viewer lands it with weight, distinct per effect family (aoe shockwave, single-target beam, execute, heal/shield bloom, self-steroid aura) and clearly bigger than the basic-ability beat.
 - **D — Structure HP — done.** Tower and nexus HP in the snapshot; the viewer draws it, so a siege reads as sustained pressure and a dive under a chipped tower reads as a race instead of a sudden pop.
 - **E — Placeholder combat sprites — done.** Per-role procedural silhouette + facing, so a fight reads as characters rather than dots; the data-driven `sprite` path per character still overrides it with no code change (CLAUDE.md).
-- **F — Report + sign-off — in progress.** `REPORTS/M5.5.md` written; batch re-measure done (200 sims reproduce M5-D's baseline exactly, and a 30-seed fingerprint matches HEAD — everything added to `sim/` is report-only). **Remaining: the designer's 1x playtest**, which is the milestone gate. Then move this section's narrative into `CHANGELOG.md` and resume M5-E.
+- **F — Report + sign-off — done.** `REPORTS/M5.5.md` written; 200 sims reproduce M5-D's baseline
+  exactly and a 30-seed fingerprint matches the pre-M5.5 commit, so everything added to `sim/`
+  is report-only.
+- **G — Playtest corrections (2026-07-25 notes) — done, awaiting the designer's second 1x
+  playtest (the gate).** Root cause of three of the four notes was one thing: **playback at 1x
+  runs 4x sim-time**, and every visual lifetime was written in sim ticks, so an ult impact was on
+  screen 0.65 s and an attack beat 0.12 s. Lifetimes are now sized in real seconds at 1x and
+  stretch with the speed button (capped at 4x). Plus:
+  - The amber "fighting" halo meant `in_combat`, which the sim sets on standoffs too — only **30%
+    of in-combat player-frames are real exchanges**. It now means *trading blows* (recent swing +
+    still committed), in hot red so it stops competing with the amber CC mark; backing off draws
+    retreat chevrons.
+  - **Damage is visible**: playback diffs snapshot HP into floating numbers and a hit-flash
+    ("the life does not move" — it moved 2 px a swing on a 22 px bar).
+  - **Structures read**: turrets drain like a battery, rubble when destroyed, an orange pulse on
+    anything losing HP this second, a permanent side-panel readout of turrets standing + nexus HP
+    for both sides, and feed lines for every turret, "nexus exposed", and nexus 75/50/25/10%.
+  - **Ultimates land**: white-hot flash on the caster, name on its pill for 2 s, one feed line
+    each with its body count.
+  - `--selftest` extended to assert all of the above (and to print the closing feed lines, so
+    "can this ending be narrated?" is checked headlessly every run).
+  - **Designer answer recorded**: drawn separation is accepted; sim-side body volume moves to
+    M5-E/F as a tunable lever.
+  - **Finding for M5-G, not fixed here**: the sim ends games by a slow minion grind — over 12
+    seeds the losing nexus bleeds for 6 min on average (13 min worst case), often with no champion
+    near it, and turrets stall at 1–9 HP of 3400 for minutes. That is balance, so it belongs to
+    M5-G, not to a readability milestone.
 
 Guardrails: no external art deps (placeholder / procedural only), the viewer reads only the tick + event stream and never mutates the sim, 1x ≈ 8-min pacing preserved, plus the standing guardrails below.
 
@@ -55,6 +81,7 @@ From the designer's M4.5 playtest (2026-07-23): bots stay lane-bound and passive
 - **M5-E — Proactive roams + tempo trades** (items 2 & 5). Macro-gated support/laner roam that fires only on connectable plays, with a tempo payoff (kill/recall → tower/plate pressure) and the cross-map trade reading on screen.
 - **M5-F — Coordinated multi-man moves + gank telegraph** (items 1 & 3). `TeamBrain` dispatches 2–3 to converge (target, committed set, window), macro-gated; the gank is telegraphed on approach and the target sets up. Enable M5-D's punish-over-extension collapse here.
 - **M5-G — Balance pass + batch sign-off + report.** Re-measure the win-split (target ~43/57, last 36.5%) and gold-lead conversion (target ~65%, last 66.3%); extend metrics (connect rate, tempo trades, multi-man plays); assertions; `REPORTS/M5.md`; designer 1x playtest gate.
+  Two items inherited from M5.5: **a decisive endgame** (measured 2026-07-25: the losing nexus bleeds for ~6 min under minion chip alone, worst case 13; turrets stall at ~0 HP for minutes) and **sim-side body volume as a tunable** (measured: −6 pts macro win, blue-side 49.5→43.5%, conversion 66.3→71.1%, but gank connect 16→22% and first-tower-bot 10→27%).
 
 Standing guardrails: pure-GDScript `sim/`, determinism, `tools/check.sh`, headless batch, data-driven (new tunables → `data/balance.json`). GDD §6.1 has the macro model.
 
