@@ -76,6 +76,8 @@ var _last_ward_t := -999999
 var _last_gank_t := -999999
 var _gank_lane := ""
 var _gank_cut := Vector2.ZERO     # sandwich cut-off point (M5-E); ZERO = walk at the lane
+var _tempo_lane := ""             # lane to press after a play landed (M5-E)
+var _tempo_until := 0
 var _speed_per_tick: float
 var _map: SimMap                 # static geometry only — no cycle back to us
 
@@ -132,15 +134,26 @@ func update(t: int, m: SimMatch) -> void:
 			if _move_toward(m.lane_stand_pos(lane, team, lane_stance)):
 				state = State.FARMING
 		State.FARMING:
-			# A mid that shoved its wave and heard a gank call rotates to it —
+			# A laner that shoved its wave and heard a gank call rotates to it —
 			# the roam the designer wanted instead of pushing back and forth.
 			var roam: String = m.brains[team].gank_call_lane(t, idx)
+			var press := tempo_pos(t, m)
 			if roam != "" and roam != lane:
 				_move_toward(m.lane_stand_pos(roam, team, "trade"))
+			elif press != Vector2.ZERO:
+				# A play landed on that lane and it is briefly free: spend the
+				# window on it rather than walking home to farm.
+				_move_toward(press)
 			else:
 				_move_toward(m.lane_stand_pos(lane, team, lane_stance))
 			_maybe_recall(t, m)
 		State.TO_CAMP, State.WAITING_CAMP:
+			# A jungler whose gank just landed presses the lane it opened instead
+			# of walking straight back to a camp — the tempo half of the play.
+			var press := tempo_pos(t, m)
+			if press != Vector2.ZERO:
+				_move_toward(press)
+				return
 			if role == "jungle" and m.try_gank(self, t):
 				return
 			if _check_buy(t, m):
@@ -302,6 +315,22 @@ func start_gank(t: int, target_lane: String, cut := Vector2.ZERO) -> void:
 	_gank_lane = target_lane
 	_gank_cut = cut
 	_last_gank_t = t
+
+
+## Put on the lane a landed play just opened, until `until` (M5-E tempo payoff).
+## Not a state: the agent keeps farming/clearing rules, it just farms *there*, so
+## nothing here can fight the combat engine or the jungle route for control.
+func set_tempo(lane_name: String, until: int) -> void:
+	_tempo_lane = lane_name
+	_tempo_until = until
+
+
+## Where this agent should press, or ZERO once the window has run out.
+func tempo_pos(t: int, m: SimMatch) -> Vector2:
+	if _tempo_lane == "" or t >= _tempo_until:
+		_tempo_lane = ""
+		return Vector2.ZERO
+	return m.lane_stand_pos(_tempo_lane, team, "push")
 
 
 func gank_over() -> void:

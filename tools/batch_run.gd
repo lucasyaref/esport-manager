@@ -64,6 +64,10 @@ func _initialize() -> void:
 	var sandwich_calls := 0
 	var sandwich_reactors := 0
 	var sandwich_hits := 0
+	# Tempo (M5-E): a kill opens the victim's lane; did the team spend that window
+	# on the tower, or take the gold and wander off?
+	var tempo_calls := 0
+	var tempo_towers := 0
 	# Connect rate (M5-C): a gank/roam call "connects" when the calling team lands
 	# a kill within the window after posting it — the measure of whether CC-that-
 	# catches actually turns plays into kills instead of whiffing.
@@ -72,6 +76,9 @@ func _initialize() -> void:
 	# walks to lane and the fight resolves, so the window spans the gank's life
 	# (commit_timeout is 25 s) plus a little for the fight itself.
 	const CONNECT_WINDOW := 28 * SimMatch.TICKS_PER_SECOND
+	# The tempo window the sim posts (macro.tempo_window_s); a tower that falls
+	# inside it is the play converting.
+	const TEMPO_WINDOW := 45 * SimMatch.TICKS_PER_SECOND
 	var level_mid: Array[float] = []   # avg level at the ~30-min snapshot
 	# --- macro metrics (M5; extended per phase as the plays land) ---
 	var first_tower_min: Array[float] = []             # when the match's first tower falls
@@ -135,6 +142,7 @@ func _initialize() -> void:
 		var first_tower_t := -1
 		var swaps_this := 0
 		var open_calls: Array = []   # {team, until, hit} for the connect-rate metric
+		var open_tempo: Array = []   # {team, lane, until} for the tempo-conversion metric
 		for ev: Dictionary in result.events:
 			match ev.type:
 				"kill":
@@ -171,6 +179,10 @@ func _initialize() -> void:
 					open_calls.append({
 						"team": team_of.get(ev.data.by, ev.data.team),
 						"until": ev.t + CONNECT_WINDOW, "hit": false, "sandwich": is_sandwich})
+				"tempo_call":
+					tempo_calls += 1
+					open_tempo.append({"team": ev.data.team, "lane": ev.data.lane,
+						"until": ev.t + TEMPO_WINDOW})
 				"lane_swap":
 					swaps_this += 1
 				"objective_taken":
@@ -180,6 +192,11 @@ func _initialize() -> void:
 						barons += 1
 				"tower_destroyed":
 					towers += 1
+					for tp: Dictionary in open_tempo:
+						if tp.lane == ev.data.lane and tp.team != ev.data.team \
+								and ev.t <= int(tp.until):
+							tempo_towers += 1
+							break
 					if first_tower_t < 0:
 						first_tower_t = int(ev.t)
 						first_tower_lane[ev.data.lane] += 1
@@ -259,6 +276,8 @@ func _initialize() -> void:
 	print("| Sandwich share of calls | %.0f%% |" % (100.0 * sandwich_calls / maxi(gank_calls, 1)))
 	print("| Sandwich followers avg | %.2f |" % (float(sandwich_reactors) / maxi(sandwich_calls, 1)))
 	print("| Sandwich connect rate | %.0f%% |" % (100.0 * sandwich_hits / maxi(sandwich_calls, 1)))
+	print("| Tempo windows per match | %.2f |" % (float(tempo_calls) / sims))
+	print("| Tempo windows that took the tower | %.0f%% |" % (100.0 * tempo_towers / maxi(tempo_calls, 1)))
 	print("| Avg level @30min | %.1f |" % _avg(level_mid))
 	print("")
 	print("| Kill region | Share |")

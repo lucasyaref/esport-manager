@@ -122,7 +122,13 @@
     "swap_base": 0.35,
     "swap_lift": 0.35,
     "mirror_base": 0.6,
-    "mirror_lift": 0.3
+    "mirror_lift": 0.3,
+    "tempo_window_s": 45,
+    "tempo_base": 0.5,
+    "tempo_lift": 0.4,
+    "tempo_radius": 30.0,
+    "tempo_tower_reach": 0.12,
+    "tempo_max_men": 2
   },
   "wards": {
     "support_ward_interval_s": 40,

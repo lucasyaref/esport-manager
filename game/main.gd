@@ -345,6 +345,12 @@ func _apply_event(ev: Dictionary) -> void:
 			feed.append("[color=#%s]%s[/color] %s %s%s" % [
 				_teamhex(d.team), _team_name(d.team), play, d.lane, tail])
 			_trim_feed()
+		"tempo_call":
+			# The play converting: a kill opened that lane and they are spending the
+			# window on it instead of walking home.
+			feed.append("[color=#%s]%s[/color] press %s (%d)" % [
+				_teamhex(d.team), _team_name(d.team), d.lane, int(d.men.size())])
+			_trim_feed()
 		"ward_placed":
 			wards.append({"pos": _vec(d.pos), "team": _team(d.player), "expires": t + ward_ttl})
 		"nexus_destroyed":

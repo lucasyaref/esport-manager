@@ -14,15 +14,17 @@ Full rationale, diagnostics and batch numbers behind completed work live in `CHA
 | M3 — Sim core: skirmishes, ganks, objectives, fights, win | done |
 | M4 — Viewer v1 | done |
 | M4.5 — Sim depth: space, health, agency | done |
-| **M5 — Macro play: cross-map coordination** | **in-progress — A–D done, E in progress, F–G to-do** |
+| **M5 — Macro play: cross-map coordination** | **in-progress — A–E done, F–G to-do** |
 | M5.5 — Viewer v2: combat readability & juice | done (playtest gate passed 2026-07-26; A–H in CHANGELOG.md) |
 | M6 — Draft screen | to-do |
 | M7 — PoC polish pass | to-do |
 | M8 — Highlights & the close-up view | scoped, to-do (phase A pulled forward next to M5-G) |
 
-## Now — M5: macro play, phase E (the sandwich)
+## Now — M5: macro play, phase F (multi-man plays + gank telegraph)
 
-M5.5 (viewer v2) is **done**: the designer's 2026-07-26 playtest passed it ("much better for readability"), the last note was answered in phase H, and the narrative moved to `CHANGELOG.md`. M5 resumes at phase E, whose spine is the designer's named play — the **sandwich** (item 6 below).
+M5.5 (viewer v2) is **done** (2026-07-26 playtest passed; narrative in `CHANGELOG.md`). **M5-E is done** — the designer's named play, the **sandwich**, ships along with the tempo payoff; report in `REPORTS/M5-E.md`, 200-sim numbers: macro team 33.0% → **36.0%**, side balance 49.0%, conversion 66.5%, sandwiches 6.1/match connecting at 20% against 17% overall.
+
+M5-F is next, and E handed it a measured argument: **widening roams on a dice roll fails** (built, −3 pts macro win, no follower gain, reverted — the second time, after M5-C). Roams need the *committed* multi-man play — target, committed set, window — so the players who give up lane priority arrive together and the play is worth it.
 
 Carried out of M5.5 into M5: **sim-side body volume as a tunable lever** (measured: −6 pts macro win, blue-side 49.5→43.5%, conversion 66.3→71.1%, but gank connect 16→22% and first-tower-is-bot 10→27%) and, for M5-G, **a decisive endgame** (phase H's doorstep change is the first half of it).
 
@@ -40,17 +42,17 @@ From the designer's M4.5 playtest (2026-07-23): bots stay lane-bound and passive
 
 **Remaining designer items** (item 4, lane swap, shipped in M5-B/D):
 - **Item 1 — Gank coordination that reads as communication.** Followers avg only 1.07 today. Telegraph the gank earlier (post on approach/path, not at arrival) and have the target laner set up for it (freeze/shove to match the incoming jungler). → M5-F.
-- **Item 2 — Proactive roams / opportunity detection.** A player with lane priority leaves lane when the team brain sees an opening (enemy overextended nearby, a local numbers edge) — a choice with priority as its cost, not random wandering. → M5-E.
+- **Item 2 — Proactive roams / opportunity detection.** A player with lane priority leaves lane when the team brain sees an opening (enemy overextended nearby, a local numbers edge) — a choice with priority as its cost, not random wandering. → **moved to M5-F.** Built as a wider follower-eligibility rule in M5-E2 and **reverted on the numbers** (200 sims: macro team 36.0% → 33.0%, blue-side → 40.0%, follower count *unchanged*) — the same failure as the M5-C roam revert. Leaving lane costs priority now and pays only if the play converts, so the missing piece is the **committed multi-man play** (target, committed set, window), not a wider roll.
 - **Item 6 — The sandwich (designer, 2026-07-26), the concrete shape of items 2 + 3.** "Red mid is pushing blue's T2, the blue jungler is on blue buff or in the river, blue mid is defending T2 — this is a *perfect position* for sandwiching red mid; it should call for a gank." Designed in GDD §6.1; the scoping call is that it is **one detector plus a cut-off destination**, not a new subsystem:
   1. **Detector (board state, evaluated on the team brain's tick):** an enemy laner whose position is deeper than a threshold into our half *and* separated from its own nearest standing tower; our laner in that lane alive and behind our own tower; a free third body (jungler/support, not mid-camp, not mid-objective) whose ETA to the cut-off point beats the target's ETA home; no enemy body closer to the target than ours. Score = depth × numbers edge, cost = lane priority surrendered; `macro_gate` decides whether the team sees and takes it.
   2. **Cut-off destination (the actual new mechanic):** the dispatched body is sent to a point *between the target and its home* — a lane param on the target's retreat side — instead of at the target. That is what makes a catch possible at equal move speed, and it is cheap: lane params already exist, no pathfinding (GDD scope guard holds).
   3. **The laner sets up:** it is told the play is coming (blackboard, on approach — the same telegraph item 1 wants), holds the target rather than backing off, and commits when the cut-off lands.
   4. **Payoff and honesty:** a landed sandwich converts to tempo (tower/plate pressure or a recall bought); a whiffed one costs priority and shows on screen as it should. New metrics: sandwiches called / connected / killed per match, followers per play, priority lost.
 - **Item 3 — Coordinated multi-man moves.** The team brain dispatches 2–3 players to converge on one lane/objective, with a target, a committed set, and a window; participation gated by `macro`. → M5-F.
-- **Item 5 — Support mobility.** The support is the prime roamer — a roam cadence gated by `macro` and lane state, firing when there's a play, not always. → M5-E.
+- **Item 5 — Support mobility.** The support is the prime roamer — a roam cadence gated by `macro` and lane state, firing when there's a play, not always. → **moved to M5-F** with item 2, for the same measured reason; the support should roam *as part of a committed play*, not on its own dice.
 
 **Phases:**
-- **M5-E — The sandwich, proactive roams + tempo trades** (items 6, 2 & 5). *E1 (the sandwich) is built — detector, cut-off destination, macro-gated call, feed line and batch metrics; report in `REPORTS/M5-E.md`.* Item 6's detector and cut-off destination come first — it is the designer's named play and the sub-mechanic (arrive between the target and its home) the rest depends on; then the macro-gated support/laner roam that fires only on connectable plays, with a tempo payoff (kill/recall → tower/plate pressure) and the cross-map trade reading on screen.
+- **M5-E — The sandwich + tempo trades (item 6) — done.** Board detector, cut-off destination (the ganker arrives *between* the target and its home), macro-gated call, a tempo window that converts a kill into tower pressure (0.65/match, 27% take the tower), feed lines and batch metrics. Items 2 & 5 (roams) were built here, measured and **moved to M5-F** — see above and `REPORTS/M5-E.md`. Item 6's detector and cut-off destination come first — it is the designer's named play and the sub-mechanic (arrive between the target and its home) the rest depends on; then the macro-gated support/laner roam that fires only on connectable plays, with a tempo payoff (kill/recall → tower/plate pressure) and the cross-map trade reading on screen.
 - **M5-F — Coordinated multi-man moves + gank telegraph** (items 1 & 3). `TeamBrain` dispatches 2–3 to converge (target, committed set, window), macro-gated; the gank is telegraphed on approach and the target sets up. Enable M5-D's punish-over-extension collapse here.
 - **M5-G — Balance pass + batch sign-off + report.** Re-measure the win-split (target ~43/57, last 36.5%) and gold-lead conversion (target ~65%, last 66.3%); extend metrics (connect rate, tempo trades, multi-man plays); assertions; `REPORTS/M5.md`; designer 1x playtest gate.
   Two items inherited from M5.5: **a decisive endgame** (measured 2026-07-25: the losing nexus bleeds for ~6 min under minion chip alone, worst case 13; turrets stall at ~0 HP for minutes) and **sim-side body volume as a tunable** (measured: −6 pts macro win, blue-side 49.5→43.5%, conversion 66.3→71.1%, but gank connect 16→22% and first-tower-bot 10→27%). M8's scoping added a third: **the teamfight does not exist** — over 60 matches, *no* fight reached six participants and 92% of kill-moments are a single death (`REPORTS/M8-scoping.md`), so M5-E/F must be measured on "does a big fight ever happen", and M8-A's scorer is the instrument that measures it.

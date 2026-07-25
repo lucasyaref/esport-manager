@@ -137,6 +137,10 @@ func post_gank(t: int, lane: String, by_idx: int, until: int, m: SimMatch,
 		if agent.role == "jungle":
 			continue
 		# Laners in the ganked lane collapse; a shoved-in mid may roam to it.
+		# Widening this to "any laner with lane priority, support favoured" was
+		# built and measured for M5-E2 and **reverted** — see REPORTS/M5-E.md: it
+		# cost the macro team 3 points without even raising the follower count.
+		# Roams need the committed multi-man play (M5-F), not a wider dice roll.
 		var eligible: bool = agent.lane == lane \
 			or (agent.role == "mid" and agent.lane_stance == "push")
 		if eligible and m.rng.chance((float(agent.attrs.macro) + react_bonus) / norm):
@@ -145,6 +149,52 @@ func post_gank(t: int, lane: String, by_idx: int, until: int, m: SimMatch,
 		"reactors": reactors, "kind": kind}
 	m.emit_event(t, "gank_call", {"team": team, "lane": lane, "kind": kind,
 		"by": m.agents[by_idx].id, "reactors": reactors.size()})
+
+
+## A kill converts into tempo, or it is worth nothing but the gold (GDD §6.1).
+## Killing the laner opens a window where that lane is free: the pros spend it on
+## the tower, not on walking back to a camp. So whoever is close enough is put on
+## the lane for `tempo_window_s`, and the macro gate decides whether the team sees
+## the window at all — a sharp roster turns a pick into a turret, a poor one takes
+## the gold and wanders off. Nothing here fights the combat engine: an agent on
+## tempo is still farming, it is just farming *that* lane.
+func post_tempo(t: int, lane: String, m: SimMatch) -> void:
+	if lane == "" or not m.lanes.has(lane):
+		return
+	var mc: Dictionary = _macro_cfg
+	# Only where there is something to spend the window ON. A lane whose front is
+	# nowhere near the enemy's tower, or where we have no wave to push with, pays
+	# nothing for the farm the trip costs — and the macro team, rolling this gate
+	# more often, would eat that cost most. That is exactly how M5-C's roams made
+	# the macro team *lose* (CHANGELOG), so the lesson is built into the trigger.
+	var enemy := "red" if team == "blue" else "blue"
+	var lane_state: LaneState = m.lanes[lane]
+	if lane_state.minions[team] + lane_state.cannons[team] <= 0:
+		return
+	var bound: float = m.objectives._bound_for(enemy, lane)
+	if absf(lane_state.front_t - bound) > float(mc.tempo_tower_reach):
+		return
+	if not m.rng.chance(macro_gate(float(mc.tempo_base), float(mc.tempo_lift))):
+		return
+	var until: int = t + int(float(mc.tempo_window_s) * SimMatch.TICKS_PER_SECOND)
+	var spot: Vector2 = m.lanes[lane].front_pos()
+	var taken := 0
+	var men: Array[String] = []
+	for agent in m.agents:
+		if taken >= int(mc.tempo_max_men):
+			break
+		if agent.team != team or not agent.alive or agent.lane == lane:
+			continue  # the lane's own laner is already there and already pushing
+		if agent.pos.distance_to(spot) > float(mc.tempo_radius):
+			continue
+		agent.set_tempo(lane, until)
+		men.append(agent.id)
+		taken += 1
+	if taken == 0:
+		return
+	_calls["tempo_" + lane] = {"lane": lane, "by": -1, "until": until, "reactors": [],
+		"kind": "tempo"}
+	m.emit_event(t, "tempo_call", {"team": team, "lane": lane, "men": men})
 
 
 ## Is `idx` a player who heard the active gank call on `lane`?

@@ -537,6 +537,10 @@ func _kill(t: int, killer: PlayerAgent, victim: PlayerAgent, source: String) -> 
 		"assists": assist_ids, "gold": roundi(bounty), "source": source,
 		"pos": [where.x, where.y],
 	})
+	# The lane that just lost its laner is open for as long as the respawn takes.
+	# Spending that window on the tower is what turns a pick into an advantage —
+	# without it a gank is worth its gold and nothing else (M5-E, tempo trades).
+	m.brains[credit_team].post_tempo(t, victim.lane, m)
 
 
 # --- abilities: basic + ultimate (§3 three-action model) ----------------------
