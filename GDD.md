@@ -166,6 +166,43 @@ headless batch runs stay cheap while the viewer draws real minion dots that walk
 - On-screen: HP bar + level per character, game clock, gold difference graph or bar, kill feed, team scores.
 - Playback: 1x (≈8 real minutes ✅) / 4x / 16x / skip-to-result.
 
+### 7.1 Combat readability ✅ (designer playtest 2026-07-25 → M5.5)
+The M4 viewer showed *movement*; the sim's combat depth (M4.5) and its CC (M5-C) were
+invisible, so the designer could not judge — or gate — the sim underneath. Since the 1x
+playtest is the real gate, the viewer has to show what the sim decided. Rules:
+
+- **The sim is still the only source of truth.** Playback reads live combat state off the
+  per-tick snapshot (who is engaged, backing off, stunned, slowed, recalling; who each
+  player is attacking; the tick of its last swing) instead of inferring it from the event
+  stream. Anything the viewer needs is *reported* by the sim, never re-decided in `game/`.
+- **Every swing has a beat.** An auto-attack is drawn — a projectile crossing to the target
+  for a ranged character, a slash for a melee one, a spark where it lands — so a fight reads
+  as blows being traded rather than two dots resting against each other.
+- **CC reads as a catch.** The victim carries a mark for exactly as long as the sim's lock
+  lasts (icy ring for a slow, amber ring with orbiting stars for a hard lock) and a dashed
+  tether ties it back to whoever cast it: "the jungler caught him", not "he stopped".
+- **Ultimates land with weight, by family.** One shape per effect family — shockwave at the
+  ability's real radius for AoE, a beam for single-target (piercing for a snipe, a cross for
+  an execute), a bloom for heal/shield, an aura for a self-buff — bigger and louder than the
+  same family fired from the basic-ability slot, so a level-6 ult never reads like a basic.
+- **Structures show health.** A turret displays a bar once it has been chipped (and flashes
+  when nearly dead); the nexus shows one when it starts taking hits. A siege is visible
+  pressure, not a sudden pop.
+- **Bodies never stack.** Steering has no collision, and team-mates routinely aim at the
+  same point (a rally spot, one lane stand position), so playback pushes overlapping bodies
+  apart for drawing — a *layout* pass that preserves the group's centre, keeps the sim's
+  numbers untouched, and leaves "the dot is where the fight is" true. Body separation *as a
+  sim mechanic* was measured and deliberately not adopted here (see CHANGELOG M5.5): it
+  moves win rates, so it is a balance decision, not a rendering one.
+- **Characters, not dots.** One procedural silhouette per role (broad hexagon top,
+  arrowhead jungler, star mid, pentagon carry, octagon-and-cross support), team-tinted,
+  turned toward its target or its path. A character's `sprite` data field still overrides
+  the placeholder with real art and no code change.
+- **Headless verification.** The viewer can play a whole match back with no display
+  (`--selftest`) and assert the frame stream is sane and that the visuals the sim's events
+  imply were actually drawn, so playback regressions surface in `tools/check.sh` rather than
+  in a designer playtest.
+
 ## 8. Later phases (recorded, not in PoC)
 - PoC+ : club creation, pro-league calendar (LCK/LEC-like round robin), match history/standings, other matches simulated headless.
 - Then: budget, mercato, coaching staff recommendations as a system, marketing, per-character sprites and kits, playoffs/international events.

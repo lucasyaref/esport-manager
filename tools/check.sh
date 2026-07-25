@@ -56,3 +56,9 @@ echo "--- data validation ---"
 
 echo "--- determinism check ---"
 "$GODOT" --headless --path "$PROJECT_ROOT" --script res://tools/determinism_check.gd
+
+# Plays a whole match back through the real viewer code with no display: catches
+# playback regressions (a moved snapshot column, an event that stopped firing,
+# a combat visual that never draws) without needing the designer to watch.
+echo "--- viewer playback selftest ---"
+"$GODOT" --headless --path "$PROJECT_ROOT" -- --seed=42 --selftest

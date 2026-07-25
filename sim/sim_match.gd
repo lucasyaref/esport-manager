@@ -14,6 +14,14 @@ const DEFAULT_DURATION_MIN := 45  # hard cap; matches normally end by nexus kill
 const BRAIN_INTERVAL := 20        # macro decisions every 2 s
 const INTENT_INTERVAL := 2        # combat perception/steering at 5 Hz
 
+## Per-player combat flags packed into snapshot column 10 (playback reads them
+## to draw who is engaged, backing off, locked or slowed — see _capture_snapshot).
+const FLAG_IN_COMBAT := 1
+const FLAG_DISENGAGING := 2
+const FLAG_STUNNED := 4
+const FLAG_SLOWED := 8
+const FLAG_RECALLING := 16
+
 var map: SimMap
 var balance: Dictionary
 var comp_rules: Dictionary
@@ -454,13 +462,30 @@ func _minion_gold(death: Dictionary) -> float:
 	return (float(minions.gold_melee) + float(minions.gold_caster)) / 2.0
 
 
+## Snapshot columns are positional and append-only: readers index them (the
+## viewer, batch assertions), so new state goes on the end, never in the middle.
+## Player row: 0 id, 1 x, 2 y, 3 level, 4 gold, 5 cs, 6 alive, 7 hp, 8 max_hp,
+## 9 target row, 10 combat flags (see FLAG_*), 11 tick of the last swing.
+## 9–11 are what the viewer needs to draw combat rather than movement (M5.5-B).
 func _capture_snapshot(t: int) -> Dictionary:
 	var players := []
 	for agent in agents:
+		var flags := 0
+		if agent.in_combat:
+			flags |= FLAG_IN_COMBAT
+		if agent.disengaging:
+			flags |= FLAG_DISENGAGING
+		if t < agent.stunned_until:
+			flags |= FLAG_STUNNED
+		if t < agent.slowed_until:
+			flags |= FLAG_SLOWED
+		if agent.state == PlayerAgent.State.RECALLING:
+			flags |= FLAG_RECALLING
 		players.append([
 			agent.id, agent.pos.x, agent.pos.y, agent.level,
 			agent.gold_total, agent.cs, 1 if agent.alive else 0,
 			agent.hp, agent.max_hp,
+			agent.target_idx, flags, agent.last_swing_at,
 		])
 	var lane_rows := []
 	for lane in SimMap.LANES:
@@ -468,7 +493,19 @@ func _capture_snapshot(t: int) -> Dictionary:
 		lane_rows.append([lane, l.front_t,
 			l.minions.blue + l.cannons.blue, l.minions.red + l.cannons.red,
 			l.squad_rows()])
-	return {"t": t, "players": players, "lanes": lane_rows}
+	# Only *chipped* structures ride along: a siege is a handful of rows, and a
+	# tower at full health needs no telling. Playback treats an absent tower as
+	# untouched, which is what lets it show a siege grinding a turret down instead
+	# of the turret popping out of nowhere (2026-07-25 playtest, remark 2).
+	var tower_rows := []
+	var full_hp := float(balance.towers.hp)
+	for team in SimMap.TEAMS:
+		for lane in SimMap.LANES:
+			for tower: Dictionary in objectives.towers[team][lane]:
+				if tower.hp < full_hp:
+					tower_rows.append([team, lane, tower.tier, tower.hp])
+	return {"t": t, "players": players, "lanes": lane_rows, "towers": tower_rows,
+		"nexus": [objectives.nexus_hp.blue, objectives.nexus_hp.red]}
 
 
 ## MD5 over byte-exact serialized events + snapshots. var_to_bytes keeps full

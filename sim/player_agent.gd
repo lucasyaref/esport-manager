@@ -40,6 +40,7 @@ var target_idx := -1             # who we are attacking (index into agents)
 var desired_pos := Vector2.ZERO  # where Combat wants us to stand this tick
 var speed_mult := 1.0            # gap-closer bonus while committing to a fight
 var attack_ready_at := 0
+var last_swing_at := -999999     # tick of the last auto-attack fired (viewer beat)
 var disengage_until := -1        # broke off a fight; won't re-commit until then
 var stunned_until := -1
 var slowed_until := -1           # movement slowed by CC (a basic ability that catches)
@@ -205,11 +206,17 @@ func ability_ready(slot_name: String, t: int) -> bool:
 	return alive and level >= unlock and t >= int(_ability_ready_at[slot_name])
 
 
-func cast_ability(slot_name: String, t: int, m: SimMatch) -> void:
+## `extra` rides along in the cast event — where it went off, how wide, and who
+## it caught (filled in by Combat, which is what knows the affected set). Playback
+## needs that to land an ultimate with weight instead of printing its name.
+func cast_ability(slot_name: String, t: int, m: SimMatch, extra: Dictionary = {}) -> void:
 	var slot: Dictionary = character[slot_name]
 	_ability_ready_at[slot_name] = t + int(float(slot.cooldown) * SimMatch.TICKS_PER_SECOND)
 	var type := "ultimate_cast" if slot_name == "ultimate" else "basic_cast"
-	m.emit_event(t, type, {"player": id, "name": slot.name, "effect": slot.effect})
+	var data := {"player": id, "name": slot.name, "effect": slot.effect,
+		"pos": [pos.x, pos.y]}
+	data.merge(extra)
+	m.emit_event(t, type, data)
 
 
 ## Kept for the callers that only care about the ultimate (split-push teleport).

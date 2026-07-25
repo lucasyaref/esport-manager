@@ -21,10 +21,11 @@ Out of scope for PoC (do not build yet): club creation, calendar, budget, mercat
 - **Determinism rule**: same input + seed ⇒ identical match. Never break this (no unseeded randf, no frame-dependent logic in sim/).
 
 ## Working methodology
-- Maintain `GDD.md` (design truth) and `BACKLOG.md` (milestones + status). Update them as you work; when the designer gives new direction, translate it into GDD/BACKLOG edits before coding.
+- Maintain `GDD.md` (design truth), `BACKLOG.md` (status + active work only), and `CHANGELOG.md` (full rationale/history for completed work). Update them as you work; when the designer gives new direction, translate it into GDD/BACKLOG edits before coding.
 - Work milestone by milestone from BACKLOG.md. Each milestone ends with:
   1. A runnable state (project opens and runs in Godot).
   2. A short report in `REPORTS/` — what changed, what to look at in-game, open design questions (only questions a designer must answer; decide technical matters yourself).
+  3. When a milestone (or phase) is marked done, move its detailed narrative from BACKLOG.md into CHANGELOG.md, leaving only a one-line status entry behind.
 - **Balancing is data-driven**: write headless batch runners (e.g. 500–1000 sims) reporting win rate by side/comp, game length distribution, kill counts. Bring the designer numbers, not guesses.
 - All game data (characters, players, teams) lives in data files (JSON or Godot resources), never hardcoded, so the designer can review/tune values by reading a file.
 - Commit with clear messages at each coherent step. Keep the project runnable at every commit.

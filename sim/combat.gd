@@ -154,6 +154,10 @@ func resolve_attacks(t: int) -> void:
 			continue
 		var period := float(SimMatch.TICKS_PER_SECOND) / float(agent.character.combat.attack_speed)
 		agent.attack_ready_at = t + maxi(1, int(period))
+		# Stamped for playback: the viewer turns each swing into a visible attack
+		# beat (projectile / hit tick), which is what makes a fight read as an
+		# exchange rather than two dots touching (M5.5-B). Sim-inert.
+		agent.last_swing_at = t
 		_deal_damage(t, agent, tgt, _attack_damage(agent, tgt, t))
 
 
@@ -579,8 +583,27 @@ func _try_ability(agent: PlayerAgent, slot_name: String, t: int, f: Dictionary) 
 		"self_steroid":
 			if enemies.is_empty():
 				return
-	agent.cast_ability(slot_name, t, m)
+	agent.cast_ability(slot_name, t, m, {
+		"radius": radius, "targets": _ability_targets(agent, effect, tgt, enemies, allies),
+	})
 	_apply_ability(t, agent, slot_name, effect, slot.params, tgt, enemies, allies, f)
+
+
+## Who an ability is about to touch, for the cast event. Mirrors the dispatch in
+## _apply_ability — playback uses it to aim the impact (a beam at its target, a
+## bloom on the healed, a shockwave over everyone caught in the circle).
+func _ability_targets(agent: PlayerAgent, effect: String, tgt: PlayerAgent,
+		enemies: Array, allies: Array) -> Array:
+	match effect:
+		"aoe_cc", "aoe_damage", "zone_denial":
+			return _ids(enemies)
+		"single_cc", "single_burst", "snipe", "execute":
+			return [tgt.id] if tgt != null else []
+		"team_heal", "team_shield":
+			return _ids(allies) + [agent.id]
+		"self_steroid":
+			return [agent.id]
+	return []
 
 
 func _apply_ability(t: int, agent: PlayerAgent, slot_name: String, effect: String,
@@ -602,9 +625,9 @@ func _apply_ability(t: int, agent: PlayerAgent, slot_name: String, effect: Strin
 			_deal_damage(t, agent, tgt, power * float(f.ult_execute_mult))
 		"aoe_cc":
 			for enemy: PlayerAgent in enemies:
-				_apply_cc(t, agent, enemy, params, power, stun, f)
+				_apply_cc(t, agent, enemy, params, power, stun, f, is_ult)
 		"single_cc":
-			_apply_cc(t, agent, tgt, params, power, stun * 2, f)
+			_apply_cc(t, agent, tgt, params, power, stun * 2, f, is_ult)
 		"team_heal", "team_shield":
 			for ally: PlayerAgent in allies + [agent]:
 				ally.hp = minf(ally.hp + power * float(f.ult_heal_mult), ally.max_hp)
@@ -618,14 +641,26 @@ func _apply_ability(t: int, agent: PlayerAgent, slot_name: String, effect: Strin
 ## for `lock_ticks`. Both chip a little damage. This is shared by the basic
 ## ability (early, the catch) and CC ultimates (the bigger, later payoff).
 func _apply_cc(t: int, agent: PlayerAgent, victim: PlayerAgent, params: Dictionary,
-		power: float, lock_ticks: int, f: Dictionary) -> void:
+		power: float, lock_ticks: int, f: Dictionary, is_ult: bool) -> void:
 	if victim == null:
 		return
-	if String(params.get("cc", "")) == "slow":
+	var kind := String(params.get("cc", ""))
+	var until := 0
+	if kind == "slow":
 		var dur := int(float(params.get("duration", f.stun_duration_s)) * SimMatch.TICKS_PER_SECOND)
-		victim.apply_slow(t, t + dur, float(params.get("slow_mult", 0.5)))
+		until = t + dur
+		victim.apply_slow(t, until, float(params.get("slow_mult", 0.5)))
 	else:
-		victim.stunned_until = maxi(victim.stunned_until, t + lock_ticks)
+		until = maxi(victim.stunned_until, t + lock_ticks)
+		victim.stunned_until = until
+	# The catch, told to the viewer: who locked whom, with what, until when. The
+	# designer could not see the control land (2026-07-25 playtest, remark 4) —
+	# the CC state itself also rides the snapshot, but this carries the *source*,
+	# which is what turns a lock into "the jungler caught him". Sim-inert.
+	m.emit_event(t, "cc_applied", {
+		"source": agent.id, "victim": victim.id, "cc": kind,
+		"until": until, "slot": "ultimate" if is_ult else "basic",
+	})
 	_deal_damage(t, agent, victim, power * float(f.ult_cc_damage_mult))
 
 
