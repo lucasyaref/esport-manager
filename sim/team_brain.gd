@@ -25,6 +25,7 @@ var formation := "standard"
 var _swap_rolled := false     # the one-time "do we open swapped?" roll happened
 var _mirror_rolled := false   # the one-time "enemy swapped, match it?" roll happened
 
+var _defend_deep := false   # the tower under threat is game-threatening (see _apply)
 var _macro_avg := 0.0
 var _macro_cfg: Dictionary = {}      # balance.macro: pivot / span / floor_frac / ...
 # The blackboard: calls a player posts for team-mates to read, keyed by name
@@ -233,10 +234,12 @@ func update(t: int, m: SimMatch) -> void:
 	#    siege or objective — you cannot trade a baron for your own nexus. This is
 	#    the "nobody protects the base" fix; a shallow (outer) threat stays the
 	#    lower-priority defend below.
+	_defend_deep = false
 	if home_lane != "" and _is_deep_threat(m, home_lane):
 		new_intent = "defend"
 		new_lane = home_lane
 		new_rally = m.map.pos_on_lane(home_lane, m.objectives._bound_for(team, home_lane))
+		_defend_deep = true
 
 	if new_intent == "farm" and m.objectives.objective_soon(t) \
 			and m.objectives.objective_pos() != Vector2.ZERO and _will_contest(t, m):
@@ -382,8 +385,19 @@ func _side_depth(pos: Vector2, m: SimMatch) -> float:
 
 
 func _apply(t: int, m: SimMatch) -> void:
+	# "At least one player, not necessarily all the team" (designer, 2026-07-26):
+	# a tower under pressure is answered by the bodies it is worth. A base or
+	# nexus threat is worth everyone; an outer tower is worth the nearest couple
+	# while the rest keep farming — sending five at every pinned wave is how a
+	# team ends up with no map and no farm.
+	var squad: Array[int] = []
+	if intent == "defend" and not _defend_deep:
+		squad = _defend_squad(m)
 	for agent in m.agents:
 		if agent.team != team or not agent.alive:
+			continue
+		if intent == "defend" and not _defend_deep and not agent.idx in squad:
+			agent.set_farming_intent()
 			continue
 		match intent:
 			"lane", "farm":
@@ -399,6 +413,29 @@ func _apply(t: int, m: SimMatch) -> void:
 						agent.set_farming_intent()
 				else:
 					agent.set_grouping()
+
+
+## The `defend_men` players closest to the threatened tower, by fixed agent order
+## so ties resolve identically every run. Deep threats never come through here —
+## those are worth the whole team.
+func _defend_squad(m: SimMatch) -> Array[int]:
+	var pool: Array[PlayerAgent] = []
+	for agent in m.agents:
+		if agent.team == team and agent.alive:
+			pool.append(agent)
+	var picked: Array[int] = []
+	var wanted: int = mini(int(m.balance.defense.defend_men), pool.size())
+	while picked.size() < wanted:
+		var best: PlayerAgent = null
+		for agent in pool:
+			if agent.idx in picked:
+				continue
+			if best == null or agent.pos.distance_to(rally) < best.pos.distance_to(rally):
+				best = agent
+		if best == null:
+			break
+		picked.append(best.idx)
+	return picked
 
 
 func _is_splitpusher(agent: PlayerAgent) -> bool:

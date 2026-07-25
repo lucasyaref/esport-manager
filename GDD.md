@@ -173,6 +173,44 @@ that appears.
     and the price is the lane priority given up by whoever leaves. Both sides of that are
     `macro`-gated, so a sharp roster takes the sandwich that is there and a poor one takes a
     bad one or misses it — the same board, a different team.
+- **The answer: the other half of a jungler's job (designer, 2026-07-26).** *"The blue jungler
+  passes behind the red mid while his own T1 is being attacked, and goes to a jungle camp
+  instead of helping. Does not look like a human-pro decision."* Every play the sim made until
+  now was one the jungler **chose** — a gank, a sandwich — rolled on a fifteen-second cadence.
+  A pro jungler spends as much of the game on plays the **map forces on him**: a team-mate in a
+  fight he is losing, an enemy standing on one of his own towers. So an *answer* is a separate
+  trigger with a separate, fast clock (a fight is over in ten seconds; a fifteen-second cadence
+  cannot see one), no phase restriction, and two shapes only — a team-mate fighting and not
+  ahead on numbers, or an enemy on a tower of ours — both inside the distance a jungler would
+  actually walk. It is `macro`-gated like every other call and posts to the blackboard, so the
+  lane collapses with him. What it must **not** become is a magnet: a 2v1 already going our
+  way needs no jungler, and the farm he gives up is the same cost that made blind roams lose
+  (M5-C, M5-E2).
+- **Defending is something bodies do (designer, 2026-07-26, remark 5).** *"Blue did not protect
+  the nexus and left it undefended even if minions are pushing. Nexus should be priority — push
+  the lane that is threatening, at least one player, not necessarily the whole team."* Three
+  parts. First, **presence on a lane is positional**: whoever stands at the front kills what is in
+  front of them, whether they are a laner farming, a defender who walked home or a squad grouped
+  for a fight. Reading it off "is this player assigned to this lane and farming" meant a team
+  standing on its own nexus contributed *nothing* to the wave grinding it down. Second, a wave
+  **pinned on your own tower line with no counter-wave left** can be killed by the players
+  standing on it — before, minions could only be killed by other minions' company, so a wave
+  walking at an exposed nexus was invulnerable. Third, **the answer is sized to the threat**: a
+  base or nexus in danger is worth the whole team; an outer tower is worth the nearest couple
+  while the rest keep farming. Sending five bodies at every pinned wave is how a team ends with
+  neither map nor farm.
+  - *How hard defenders clear is deliberately conservative*, and that is a balance fact rather
+    than a design one: a lane in this sim is pinned on somebody's tower most of the game, so a
+    big per-player clear rate is really "everybody pushes harder", and it swings the
+    macro/mechanics win split by 4–13 points **non-monotonically**. Measured settings and the
+    trade are in `REPORTS/M5-F1.md`; it is a designer call, not a knob to tune blind.
+- **Towers hold in the early game (plating, 2026-07-26, remark 6).** The real game armours turrets
+  with plates until 14:00, which is why a pro first tower falls around 10–12 minutes. Ours fell at
+  **5.6**, which ended the laning phase before it produced anything worth watching. So a tower
+  takes `towers.plating_reduction` less damage at minute zero, easing to none by
+  `towers.plating_until_s`. It is the cheapest lever on three things at once — first-tower timing,
+  match length, and total kills — and it is the only change in M5-F1 that *helped* the macro
+  roster, because a team that wins through scaling wants the game to last.
 
 **Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
 collision resolution — steering toward a desired point along the precomputed lane paths only.

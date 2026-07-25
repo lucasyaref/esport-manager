@@ -263,6 +263,20 @@ func _dive_worth_it(agent: PlayerAgent, tgt: PlayerAgent, allies: Array, enemies
 	return mine >= theirs * float(f.dive_margin)
 
 
+## How much punishment a player can absorb: stats at level, a defensive passive,
+## and — the part that matters for who gets picked on — **gold**. A support earns
+## a little over half what the carry does, so it is the squishiest body on the
+## map by the mid game; `threat` counts that gold as damage only, which is why
+## the support was simultaneously the least dangerous and (wrongly) no easier to
+## kill than a fed carry. Target selection reads this; `threat` deliberately does
+## not, because being hard to kill is not what makes someone dangerous.
+func _ehp(agent: PlayerAgent) -> float:
+	var hp := DataLoader.stat_at_level(agent.character, "hp", agent.level)
+	var armor := DataLoader.stat_at_level(agent.character, "armor", agent.level)
+	var items: float = 1.0 + agent.item_power / float(m.balance.combat.power_item_divisor)
+	return hp * (1.0 + armor / 100.0) * items / maxf(float(agent.passive_guard), 0.01)
+
+
 ## Power discounted by how much health is left to spend on the fight.
 func _live_power(agent: PlayerAgent, t: int) -> float:
 	return threat(agent, t) * agent.hp_fraction()
@@ -282,6 +296,20 @@ func _select_target(agent: PlayerAgent, allies: Array, enemies: Array, t: int,
 		var score: float = 1.0 / (1.0 + gap / float(f.reach_falloff))
 		score *= 1.0 + (1.0 - enemy.hp_fraction()) * float(f.low_hp_focus)  # finish the wounded
 		score *= threat(enemy, t) / float(f.threat_norm)                    # kill what kills you
+		# Killability, not only value. Threat is built out of damage and gold, so
+		# the enemy support — least damage, least gold — was nobody's target and
+		# finished games having died once ("support healer never being dead",
+		# 2026-07-26 remark 3). Pros kill what they can finish: a squishy in reach
+		# is a kill, a tank in reach is a fight you spend and do not win.
+		#
+		# GATED OFF (squishy_bias = 0). Measured at 2.0 and at 4.0 over 200 sims
+		# each: the support's share of all deaths moved 12.3% → 12.4% → 13.0%.
+		# Target selection is not why supports survive — they are simply not in
+		# the fights (43% of kills happen in mid lane, 12% in top). Left wired so
+		# M5-G only has to turn the dial if the real cause is found; the diagnosis
+		# is in REPORTS/M5-F1.md.
+		score *= pow(float(f.squishy_ehp_ref) / maxf(_ehp(enemy), 1.0),
+			float(f.squishy_bias))
 		if cmb.fight_role == "flank" and enemy.character.combat.fight_role == "backline":
 			score *= float(f.flank_backline_bias)
 		if ward != null and enemy.target_idx == ward.idx:

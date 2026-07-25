@@ -14,6 +14,14 @@ extends SceneTree
 const LENGTH_BUCKETS := [20, 25, 30, 35, 40, 45]
 const LANE_RADIUS := 6.0    # within this of a lane polyline counts as that lane
 const PIT_RADIUS := 8.0
+# Kill-rate timeline (M5-G, designer remark "not enough deaths"). Kills are
+# bucketed by the minute they happen in, and each bucket is divided by the
+# sim-minutes actually PLAYED in it across the batch — a raw kill count would
+# make late buckets look empty simply because most matches have already ended.
+# The result is combined-kills-per-minute (CKPM) over game time, the same shape
+# pro-play stats sites report (LCK/LEC 2025: ~28 kills over ~32-34 min ≈ 0.85).
+const BAND_MIN := 5
+const BAND_COUNT := 9       # 0-5, 5-10, ... 40-45
 
 
 func _initialize() -> void:
@@ -79,6 +87,19 @@ func _initialize() -> void:
 	# The tempo window the sim posts (macro.tempo_window_s); a tower that falls
 	# inside it is the play converting.
 	const TEMPO_WINDOW := 45 * SimMatch.TICKS_PER_SECOND
+	# Kill-rate over game time + who actually dies (designer remarks 2 and 3).
+	var band_kills: Array[float] = []
+	var band_minutes: Array[float] = []
+	for _b in BAND_COUNT:
+		band_kills.append(0.0)
+		band_minutes.append(0.0)
+	var role_deaths := {}
+	var total_minutes := 0.0
+	# Nexus defence (designer remark 5): every 2 s that a nexus is taking damage
+	# the sim reports who is home. Undefended = not one player at the doorstep.
+	var nexus_samples := 0
+	var nexus_undefended := 0
+	var nexus_defenders := 0
 	var level_mid: Array[float] = []   # avg level at the ~30-min snapshot
 	# --- macro metrics (M5; extended per phase as the plays land) ---
 	var first_tower_min: Array[float] = []             # when the match's first tower falls
@@ -133,6 +154,11 @@ func _initialize() -> void:
 					lead_won += 1
 		var minutes: float = result.ticks / (60.0 * SimMatch.TICKS_PER_SECOND)
 		lengths.append(minutes)
+		total_minutes += minutes
+		for b in BAND_COUNT:
+			band_minutes[b] += clampf(minutes - b * BAND_MIN, 0.0, float(BAND_MIN))
+		for row: Dictionary in result.summary:
+			role_deaths[row.role] = role_deaths.get(row.role, 0) + int(row.deaths)
 		for b in LENGTH_BUCKETS:
 			if minutes <= b:
 				length_hist[b] += 1
@@ -147,6 +173,8 @@ func _initialize() -> void:
 			match ev.type:
 				"kill":
 					kills += 1
+					band_kills[mini(int(ev.t / (60.0 * BAND_MIN * SimMatch.TICKS_PER_SECOND)),
+						BAND_COUNT - 1)] += 1.0
 					if fb < 0:
 						fb = ev.t / (60.0 * SimMatch.TICKS_PER_SECOND)
 					if ev.data.assists.is_empty() and ev.data.get("killer", "") != "":
@@ -183,6 +211,11 @@ func _initialize() -> void:
 					tempo_calls += 1
 					open_tempo.append({"team": ev.data.team, "lane": ev.data.lane,
 						"until": ev.t + TEMPO_WINDOW})
+				"nexus_pressure":
+					nexus_samples += 1
+					nexus_defenders += int(ev.data.defenders)
+					if int(ev.data.defenders) == 0:
+						nexus_undefended += 1
 				"lane_swap":
 					swaps_this += 1
 				"objective_taken":
@@ -279,6 +312,27 @@ func _initialize() -> void:
 	print("| Tempo windows per match | %.2f |" % (float(tempo_calls) / sims))
 	print("| Tempo windows that took the tower | %.0f%% |" % (100.0 * tempo_towers / maxi(tempo_calls, 1)))
 	print("| Avg level @30min | %.1f |" % _avg(level_mid))
+	print("")
+	print("| Kill rate over game time | Kills/min | Share of kills |")
+	print("|---|---|---|")
+	print("| _pro reference (LCK/LEC 2025)_ | _~0.85 overall_ | _—_ |")
+	for b in BAND_COUNT:
+		if band_minutes[b] < 1.0:
+			continue
+		print("| %d–%d min | %.2f | %.0f%% |" % [b * BAND_MIN, (b + 1) * BAND_MIN,
+			band_kills[b] / band_minutes[b], 100.0 * band_kills[b] / maxf(float(total_kills), 1.0)])
+	print("| **whole game** | **%.2f** | 100%% |" % (float(total_kills) / maxf(total_minutes, 1.0)))
+	print("")
+	print("| Deaths per match by role | Value |")
+	print("|---|---|")
+	for role in DataLoader.ROLES:
+		print("| %s | %.1f |" % [role, float(role_deaths.get(role, 0)) / sims])
+	print("")
+	print("| Nexus under attack (2 s samples) | Value |")
+	print("|---|---|")
+	print("| Samples per match | %.1f |" % (float(nexus_samples) / sims))
+	print("| Nobody home (0 defenders) | %.0f%% |" % (100.0 * nexus_undefended / maxi(nexus_samples, 1)))
+	print("| Defenders present avg | %.2f |" % (float(nexus_defenders) / maxi(nexus_samples, 1)))
 	print("")
 	print("| Kill region | Share |")
 	print("|---|---|")

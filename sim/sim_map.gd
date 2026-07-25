@@ -69,6 +69,21 @@ func in_bounds(p: Vector2) -> bool:
 		and p.y >= EDGE_MARGIN - 0.001 and p.y <= size - EDGE_MARGIN + 0.001
 
 
+## The lane a position sits on, by nearest sample of the three polylines. Plays
+## that are called on a *spot* rather than on a lane — answering a fight, a
+## collapse — still need a lane name for the call on the blackboard.
+func nearest_lane(p: Vector2) -> String:
+	var best: String = LANES[0]
+	var best_d := INF
+	for lane in LANES:
+		for k in 24:
+			var d := p.distance_to(pos_on_lane(lane, k / 23.0))
+			if d < best_d:
+				best_d = d
+				best = lane
+	return best
+
+
 ## Lane fronts can't push past the outer towers until sieging exists (M3).
 func clamp_front(t: float) -> float:
 	return clampf(t, float(towers.blue.outer), float(towers.red.outer))

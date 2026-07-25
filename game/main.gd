@@ -341,7 +341,10 @@ func _apply_event(ev: Dictionary) -> void:
 			# holds the target) or an opportunistic gank.
 			var followers: int = int(d.reactors)
 			var tail := " (%d follow)" % followers if followers > 0 else " (no follow-up)"
-			var play := "sandwich" if String(d.get("kind", "gank")) == "sandwich" else "gank"
+			# "answers" is the third kind: the jungler turning around for a fight
+			# or a tower of his own instead of choosing a play of his own (M5-F).
+			var play: String = {"sandwich": "sandwich", "answer": "answers"}.get(
+				String(d.get("kind", "gank")), "gank")
 			feed.append("[color=#%s]%s[/color] %s %s%s" % [
 				_teamhex(d.team), _team_name(d.team), play, d.lane, tail])
 			_trim_feed()

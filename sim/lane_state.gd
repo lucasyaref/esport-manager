@@ -154,8 +154,26 @@ func _fight(pressure: Dictionary, bounds: Dictionary) -> Array[Dictionary]:
 			_kill_acc[team] = 0.0
 			continue
 		var opp := "red" if team == "blue" else "blue"
+		# A wave pinned on the defender's own tower line, with no counter-wave left
+		# to fight — the siege you walk home to break. Before, players contributed
+		# nothing here (pressure was only read when two waves had collided), so a
+		# wave grinding an undefended nexus was literally invulnerable to the five
+		# players standing on it: the 2026-07-26 remark-5 bug, together with the
+		# lane-assignment presence test fixed in SimMatch._tick_lane.
+		var at_wall: bool = (squad.t >= float(bounds.hi) - 0.001) if team == "blue" \
+			else (squad.t <= float(bounds.lo) + 0.001)
 		if engaged:
 			_kill_acc[team] += rate * float(army[opp]) + float(pressure[opp])
+		elif at_wall:
+			# Deliberately the *same* per-player weight as a contested lane, not a
+			# bigger one. Making defenders visibly sweep the wave needs a much
+			# larger `presence_pressure`, and that is not a free fidelity win: a
+			# lane in this sim sits pinned on somebody's tower most of the game, so
+			# raising it is really "everybody pushes harder", and it moves the
+			# macro/mechanics win split by 4 to 13 points depending on the value —
+			# non-monotonically, so it is not a balance dial either. Measured
+			# settings and the trade are in REPORTS/M5-F1.md; it is a designer call.
+			_kill_acc[team] += float(pressure[opp])
 		# A squad pinned against an enemy tower is shredded by it. This is the
 		# counterforce that keeps armies bounded: without it any surplus
 		# compounds forever, because kill rate scales with army size.

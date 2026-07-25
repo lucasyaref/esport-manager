@@ -214,6 +214,20 @@ func _tower_target(t: int, defender: String, lane: String, tower_pos: Vector2) -
 	return nearest
 
 
+## Turret plating, abstracted. In the real game a tower is armoured by plates
+## until 14:00, which is why a pro first tower falls around 11–14 min; our 200-sim
+## baseline had it at 5.6, and an early game where towers fall to the first shove
+## has nothing left to play for (2026-07-26 remarks 2 and 6). So a tower takes
+## `plating_reduction` less damage at minute zero, easing to none by
+## `plating_until_s`. Both data values; set the reduction to 0 to switch it off.
+func _plating_mult(t: int) -> float:
+	var bal: Dictionary = m.balance.towers
+	var until: float = float(bal.plating_until_s) * SimMatch.TICKS_PER_SECOND
+	if until <= 0.0:
+		return 1.0
+	return 1.0 - float(bal.plating_reduction) * clampf((until - t) / until, 0.0, 1.0)
+
+
 func _bound_for(team: String, lane: String) -> float:
 	var standing: Array = towers[team][lane]
 	if standing.is_empty():
@@ -260,10 +274,20 @@ func _update_siege(t: int, lane: String, defender: String) -> void:
 				* (1.0 + agent.item_power / float(m.balance.combat.power_item_divisor))
 	if baron_active(attacker):
 		dps *= float(m.balance.objectives.baron_siege_mult)
+	dps *= _plating_mult(t)
 
 	var standing: Array = towers[defender][lane]
 	if standing.is_empty():
 		nexus_hp[defender] -= dps / SimMatch.TICKS_PER_SECOND
+		# The nexus is being hit: say so, with who is home. The designer's remark
+		# ("blue left the nexus undefended while minions pushed", 2026-07-26) is a
+		# claim about defender counts, so the sim states them and the batch run
+		# measures them instead of anyone having to watch for it. Sim-inert.
+		if t % (2 * SimMatch.TICKS_PER_SECOND) == 0:
+			m.emit_event(t, "nexus_pressure", {
+				"team": defender, "lane": lane, "hp": roundi(nexus_hp[defender]),
+				"defenders": defenders_here.size(), "attackers": attackers_here.size(),
+				"army": army})
 		if nexus_hp[defender] <= 0.0:
 			winner = attacker
 			m.emit_event(t, "nexus_destroyed", {"team": defender, "winner": attacker})

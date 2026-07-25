@@ -12,6 +12,7 @@
     "speed": 2.5,
     "combat_kill_rate": 0.004,
     "presence_pressure": 0.0015,
+    "presence_radius": 8.0,
     "tower_kill_rate": 0.05
   },
   "economy": {
@@ -112,7 +113,15 @@
     "sandwich_help_radius": 16.0,
     "sandwich_base": 0.55,
     "sandwich_lift": 0.35,
-    "sandwich_react_bonus": 25.0
+    "sandwich_react_bonus": 25.0,
+    "answer_interval_s": 2,
+    "answer_min_interval_s": 150,
+    "answer_min_hp": 0.45,
+    "answer_ally_hp": 0.5,
+    "answer_radius": 18.0,
+    "answer_base": 0.6,
+    "answer_lift": 0.0,
+    "answer_react_bonus": 15.0
   },
   "macro": {
     "pivot": 70.0,
@@ -140,6 +149,8 @@
     "player_base_dps": 26,
     "gold_per_player": 125,
     "first_tower_bonus_per_player": 30,
+    "plating_until_s": 840,
+    "plating_reduction": 0.55,
     "nexus_hp": 6000,
     "open_lane_front": 0.015,
     "range": 6.0,
@@ -215,10 +226,13 @@
     "dive_hp": 0.6,
     "dive_target_hp": 0.3,
     "dive_margin": 2.2,
-    "focus_penalty": 0.7
+    "focus_penalty": 0.7,
+    "squishy_bias": 0.0,
+    "squishy_ehp_ref": 2000.0
   },
   "defense": {
     "deep_threat_bound": 0.2,
+    "defend_men": 3,
     "punish_deep": 0.3,
     "punish_isolation_radius": 18.0,
     "punish_collapse_radius": 28.0,

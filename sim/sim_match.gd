@@ -269,9 +269,14 @@ func gank_arrived(jungler: PlayerAgent, lane_name: String, t: int) -> void:
 
 ## Laning-phase gank attempt: pick an overextended lane, roll, go.
 func try_gank(jungler: PlayerAgent, t: int) -> bool:
+	var g: Dictionary = balance.ganks
+	# The answer comes first and on its own, faster clock — see _try_answer. It is
+	# not a laning-phase play: a tower of ours under pressure is worth turning
+	# around for at any point in the game.
+	if _try_answer(jungler, t, g):
+		return true
 	if phase_of(t) not in ["early", "mid"]:
 		return false
-	var g: Dictionary = balance.ganks
 	var check_ticks := int(float(g.check_interval_s) * TICKS_PER_SECOND)
 	if t % check_ticks != 0:
 		return false
@@ -330,6 +335,86 @@ func try_gank(jungler: PlayerAgent, t: int) -> bool:
 	# of the gank reading as coordinated (or not) is on the blackboard.
 	brains[jungler.team].post_gank(t, lane, jungler.idx,
 		t + gank_timeout_ticks(), self)
+	return true
+
+
+## The answer (designer direction 2026-07-26, remark 1). The designer watched a
+## jungler walk past a fight at his own mid tower and carry on to a jungle camp:
+## "does not look like human-pro decision". The gap is that every play this sim
+## made was one the jungler *chose* — a gank, a sandwich — and choices were rolled
+## on a fifteen-second cadence. An answer is the other half of a jungler's job:
+## the map forces it on him, and it has to be immediate, because a fight is over
+## in ten seconds.
+##
+## Two shapes count, both inside `answer_radius` (how far a jungler will actually
+## walk for it), nearest first:
+##   1. a team-mate in a fight they are not winning on numbers — the counter-gank;
+##   2. an enemy standing on a tower of ours, fight or no fight — the siege you
+##      turn around for before it becomes a fight you lost.
+## The roll is macro-gated (a sharp roster answers more of them), and it posts a
+## call so the lane collapses with the jungler instead of watching him arrive.
+func _try_answer(jungler: PlayerAgent, t: int, g: Dictionary) -> bool:
+	if t % int(float(g.answer_interval_s) * TICKS_PER_SECOND) != 0:
+		return false
+	if t - jungler.last_gank_tick() < int(float(g.answer_min_interval_s) * TICKS_PER_SECOND):
+		return false
+	if jungler.hp_fraction() < float(g.answer_min_hp):
+		return false
+	var enemy := "red" if jungler.team == "blue" else "blue"
+	var best := Vector2.ZERO
+	var best_d: float = float(g.answer_radius)
+	for mate in agents:
+		if mate.team != jungler.team or mate.idx == jungler.idx or not mate.alive \
+				or not mate.in_combat:
+			continue
+		var d := jungler.pos.distance_to(mate.pos)
+		if d >= best_d:
+			continue
+		# An even trade in lane is not an answer. Running at every one of those is
+		# how a jungler ends the game with no camps cleared and no play made — the
+		# farm cost that sank blind roams twice (M5-C, M5-E2). What earns the trip
+		# is being *behind*: outnumbered, or the man there is nearly dead.
+		var n := _numbers_at(mate.pos, jungler.team)
+		if int(n.theirs) == 0:
+			continue
+		if int(n.ours) > int(n.theirs) and mate.hp_fraction() >= float(g.answer_ally_hp):
+			continue
+		best_d = d
+		best = mate.pos
+	for foe in agents:
+		if foe.team != enemy or not foe.alive:
+			continue
+		var d := jungler.pos.distance_to(foe.pos)
+		# under_enemy_tower(enemy, pos) == "standing under a tower of OURS".
+		if d >= best_d or not objectives.under_enemy_tower(enemy, foe.pos):
+			continue
+		# And the tower has to actually be under siege — their wave pinned on it —
+		# not merely have an enemy laner standing near it. Without that test the
+		# jungler answered every laner who walked up to a turret, which is most of
+		# the game: 35 calls a match in the first cut.
+		if not _tower_besieged(foe.pos, jungler.team):
+			continue
+		# On our own tower the bar is lower, and deliberately so: the designer's
+		# scene is a lone enemy mid hitting our T1 with our mid there — an even 1v1
+		# anywhere else, but at our own turret it is a free 2v1 and the play a pro
+		# jungler makes. Only skip it when we already outnumber them there.
+		var n := _numbers_at(foe.pos, jungler.team)
+		if int(n.ours) > int(n.theirs):
+			continue
+		best_d = d
+		best = foe.pos
+	if best == Vector2.ZERO:
+		return false
+	var brain: TeamBrain = brains[jungler.team]
+	if not rng.chance(brain.macro_gate(float(g.answer_base), float(g.answer_lift))):
+		return false
+	var lane: String = map.nearest_lane(best)
+	# Walk AT the spot, not past it (no cut-off): the target is already committed
+	# to something, so taking its escape route away is not what is needed — being
+	# there is.
+	jungler.start_gank(t, lane, best)
+	brain.post_gank(t, lane, jungler.idx, t + gank_timeout_ticks(), self,
+		"answer", float(g.answer_react_bonus))
 	return true
 
 
@@ -414,6 +499,40 @@ func _cut_off_pos(lane: String, our_team: String, foe_team: String, offset: floa
 			return p
 		tt -= toward * 0.02
 	return map.pos_on_lane(lane, clampf(tt, 0.0, 1.0))
+
+
+## Is a tower of `our_team` near `pos` actually under siege — their wave pinned on
+## our tower line, which is the difference between "a tower is being taken" and
+## "an enemy laner is standing near a turret".
+func _tower_besieged(pos: Vector2, our_team: String) -> bool:
+	var enemy := "red" if our_team == "blue" else "blue"
+	for lane in SimMap.LANES:
+		var bound: float = objectives._bound_for(our_team, lane)
+		var lane_state: LaneState = lanes[lane]
+		if absf(lane_state.front_t - bound) >= 0.005:
+			continue
+		if lane_state.minions[enemy] + lane_state.cannons[enemy] <= 0:
+			continue
+		if map.pos_on_lane(lane, bound).distance_to(pos) <= float(balance.towers.range) * 2.0:
+			return true
+	return false
+
+
+## Local head-count around `pos` from `our_team`'s point of view, within a fight's
+## grouping radius: {ours, theirs}. The one thing every "do we need bodies here?"
+## question reduces to.
+func _numbers_at(pos: Vector2, our_team: String) -> Dictionary:
+	var radius: float = float(balance.fight.fight_group_radius)
+	var ours := 0
+	var theirs := 0
+	for agent in agents:
+		if not agent.alive or agent.pos.distance_to(pos) > radius:
+			continue
+		if agent.team == our_team:
+			ours += 1
+		else:
+			theirs += 1
+	return {"ours": ours, "theirs": theirs}
 
 
 ## Is one of `of`'s own team-mates close enough to answer a play on it?
@@ -519,10 +638,21 @@ func _tick_lane(t: int, lane_name: String) -> void:
 	# A laner shoving the wave (push/trade stance) pushes the front harder than
 	# one holding back — so stance physically moves the lane, and an overextended
 	# pusher is the one a jungler can punish.
+	#
+	# Presence is POSITIONAL, not a lane assignment (2026-07-26 remark 5): anyone
+	# standing at the front kills what is in front of them. Reading it off
+	# `is_farming_lane` meant a team defending its own nexus contributed nothing —
+	# five players stood at the doorstep while the wave ground the nexus down,
+	# because only a FARMING laner of that lane could ever kill a minion. Now the
+	# defenders clear the wave and push the front back out, which is what makes
+	# "go home and defend" an actual answer to a push.
+	var front_pos := lane.front_pos()
+	var reach := float(balance.minions.presence_radius)
 	var pressure := {"blue": 0.0, "red": 0.0}
-	for team in SimMap.TEAMS:
-		for agent: PlayerAgent in present[team]:
-			pressure[team] += float(balance.minions.presence_pressure) * laning.pressure_mult(agent)
+	for agent in agents:
+		if agent.alive and agent.pos.distance_to(front_pos) <= reach:
+			pressure[agent.team] += float(balance.minions.presence_pressure) \
+				* laning.pressure_mult(agent)
 	var deaths := lane.tick(t, pressure, objectives.lane_bounds(lane_name))
 	for death in deaths:
 		var killer_side: String = "red" if death.team == "blue" else "blue"
