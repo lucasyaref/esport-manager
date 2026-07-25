@@ -256,6 +256,47 @@ broken; five keyframes a second reads as sliding. And the content has to be ther
 60 matches, no fight has ever reached six participants, so the *plays* (§6.1's multi-man layer) are
 the prerequisite, not the camera. See `REPORTS/M8-scoping.md`.
 
+### 7.3 Reference target ✅ — *Teamfight Manager 2* (designer, 2026-07-25)
+The designer named a concrete long-term target for what a watched match should look and feel
+like: **Teamfight Manager 2** (Team Nigo). Not to be copied — to be aimed at. Recorded here so
+the bar does not drift; two screenshots were supplied (see `docs/reference/` — the observations
+below are the durable part).
+
+**What it does, and what we take from it:**
+
+- **One renderer, a continuous zoom — not two views.** The same pixel-art map is watched close
+  (a lane and its corridors filling the screen, sprites at readable size with name, level and HP
+  bar) or pulled all the way out (the whole map, both bases, every turret). There are explicit
+  zoom-in / zoom-out controls and an **"Auto Camera"** toggle. This corrects §7.2's framing:
+  *overview* and *highlight* are **camera states of one view**, and the highlight director is an
+  auto-camera decision plus a speed change, not a separate scene.
+- **A minimap exists because the camera leaves home.** Once zoomed in you lose the map, so the
+  pulled-out view carries a minimap with player dots, a viewport rectangle and objective timers.
+  A minimap is therefore a *requirement* of zooming, not a decoration.
+- **The map is real terrain.** Rock walls, brush, water, jungle blocks with corridors between
+  them, camps sitting in their own pockets. At close zoom this is most of what you look at, and
+  it is what makes a gank read as an ambush. Our map is lane polylines and points — this is the
+  clearest statement yet that terrain is a prerequisite for the close view (§7.2, M8-D).
+- **Sprites are small and cheap.** Characters are tiny pixel sprites — recognisable, animated,
+  not detailed. The bar to clear for the close-up view is *far* lower than "real character art".
+- **Persistent per-team panels** — five portraits a side, level and HP bar, each bound to a
+  camera hotkey (F1–F10) so you can jump the camera to a player.
+- **A scoreboard that reads like a broadcast** — per player: items in slots, KDA, CS, gold, with
+  the gold lead marked per role. Top bar: team names, dragon/baron/turret counts, team gold,
+  the kill score, the clock. (Items in slots are a system we do not have — we abstract item
+  power. Recorded, not adopted.)
+- **Big moments are announced.** A kill draws a full-width banner with both portraits —
+  "Pure has slain Twisten!" — over the map. Our kill feed is a side list; the banner is the
+  cheap juice item that makes a kill feel like an event.
+- **Full transport, not just play/pause.** Skip-to-start, rewind, pause, fast-forward,
+  skip-to-end, plus speeds 0.5 / 1 / 1.5 / 2 / 3. The viewer is treated as a *replay* you can
+  move around in. (Our numbers differ — our 1x is already 4× sim-time, see §7 — but the model
+  of "scrub and re-watch" is the one to aim at, and it makes "replay that highlight" natural.)
+
+**Where we deliberately differ:** their sim is theirs; ours is the pro-play sim described in §6.1
+and everything visible must still come from it (Pillar 3). And their game has no draft-time
+management depth of the kind in §5 — the club/roster fantasy is ours to push further.
+
 ## 8. Later phases (recorded, not in PoC)
 - PoC+ : club creation, pro-league calendar (LCK/LEC-like round robin), match history/standings, other matches simulated headless.
 - Then: budget, mercato, coaching staff recommendations as a system, marketing, per-character sprites and kits, playoffs/international events.

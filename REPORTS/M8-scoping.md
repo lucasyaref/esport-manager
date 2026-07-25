@@ -101,6 +101,28 @@ is a design decision rather than a code change:
 - **Docs**: GDD §7 (playback speeds) and the new §7.2; `--selftest` and `tools/check.sh` gain
   highlight assertions.
 
+## Addendum — the reference target you sent (*Teamfight Manager 2*)
+
+Logged in GDD §7.3, with `docs/reference/` waiting for the screenshots themselves. Three things
+in it change this plan rather than just confirming it:
+
+1. **It is one view with a continuous zoom and an "Auto Camera" toggle, not two views.** That is
+   a better architecture than the one I scoped and I've adopted it: a highlight is the camera
+   director choosing a focus and the speed dropping. Overview and close-up become the same code
+   path, which also means manual zoom is free at any moment, not only during a highlight.
+2. **Zooming in costs you the map, so a minimap is mandatory** — theirs carries player dots, a
+   viewport rectangle and objective timers. Moved into M8-B as a requirement.
+3. **The art bar is much lower than I assumed.** Their characters are *tiny* pixel sprites with
+   a name, a level and an HP bar — recognisable and animated, not detailed. That makes designer
+   question 3 below much easier: a small pixel sprite set is well within placeholder territory.
+
+Also worth stealing, cheaply: the full-width **kill banner** with both portraits (we have a side
+feed), and their **full transport** — skip-to-start / rewind / skip-to-end alongside the speeds,
+which treats the match as a replay you can move around in and makes "watch that again" natural.
+
+One thing recorded but *not* adopted: their scoreboard shows items in slots. We abstract item
+power, and changing that is a sim decision, not a viewer one.
+
 ## Questions for you
 
 1. **Ordering.** My plan puts the draft screen (M6) and the PoC close (M7, tag `poc-1`) *before*
@@ -113,10 +135,12 @@ is a design decision rather than a code change:
 3. **Art.** CLAUDE.md's standing guardrail is placeholder-only, no external art dependencies. A
    close-up view is where that starts to hurt. Three options: **(a)** richer *procedural*
    characters — animated limbs, squash/stretch, wind-up telegraphs, still zero art dependency;
-   **(b)** a free/CC0 top-down character set as the shared placeholder; **(c)** real per-character
-   art, post-PoC. I recommend (a) for the milestone and keeping the `sprite` data field so (b)/(c)
-   drop in with no code change — but if you already know real art is coming, say so and I will
-   shape the actor code around a sprite-sheet contract instead of shapes.
+   **(b)** a free/CC0 top-down **pixel** character set as the shared placeholder; **(c)** real
+   per-character art, post-PoC. Your reference target shifts my recommendation to **(b)**: their
+   characters are tiny pixel sprites, so the bar is a 16–32 px animated body per role, not
+   illustrated champions — reachable with an asset pack now and replaceable per character later
+   through the existing `sprite` data field. Say the word and I will shape the actor code around a
+   sprite-sheet contract from the start rather than around procedural shapes.
 4. **What counts as a highlight.** My starting scoring model (GDD §7.2) weights: deaths in the
    window, participants, gold swing, objective/tower stakes, whether it changes the game's
    direction, plus rarity bonuses (first blood, a solo kill against the odds, a steal, a base
