@@ -151,6 +151,28 @@ that appears.
     target is at catch range. With that, ganks and skirmishes connect; the wider **multi-man
     pincer** (converging from two sides so the target cannot simply run home) is the M5-E layer
     on top, which is what lets a high-macro roster convert the catch into kills more often.
+- **The sandwich is the gank the designer wants to see (designer, 2026-07-26).** Stated as a
+  board position: *red mid is pushing blue's T2; the blue jungler is on blue buff or in the
+  river; blue mid is defending behind T2.* That is a **perfect position** — and a team with
+  macro must recognise it and call the jungler in. Three things make it the shape to build:
+  - **The trigger is a position, not a timer.** An enemy laner deep in our half, our laner
+    alive behind our own tower, a third body of ours within reach, and no enemy help nearer
+    than ours. A gank is *called by the board state*, so the same board always produces the
+    call and it reads as reading the map (macro), not as a dice roll on a cooldown.
+  - **The jungler cuts the retreat, it does not chase the target.** It arrives *between the
+    target and the target's home* — deeper into our half than the target is — so the target is
+    caught between the laner and the jungler. This is what makes the play connect with equal
+    move speeds: the escape route is the thing being taken away, not the gap being closed. CC
+    still lands at catch range (above); the sandwich is what makes CC unnecessary for a
+    catch when the geometry already has one.
+  - **The laner is a participant, not a spectator.** The defending laner is told the play is
+    coming and sets up for it — holds the target in lane instead of backing off, and commits
+    when the jungler arrives. A gank the laner ignores is the 1.07-follower whiff M5-E exists
+    to fix.
+  - **Depth of the push is the cost.** The reward is scaled by how overextended the target is,
+    and the price is the lane priority given up by whoever leaves. Both sides of that are
+    `macro`-gated, so a sharp roster takes the sandwich that is there and a poor one takes a
+    bad one or misses it — the same board, a different team.
 
 **Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
 collision resolution — steering toward a desired point along the precomputed lane paths only.
@@ -203,6 +225,11 @@ playtest is the real gate, the viewer has to show what the sim decided. Rules:
   on screen, and the feed calls every turret, an exposed nexus and each nexus threshold — a
   match must never end without the viewer knowing why. (The sim currently ends games by a slow
   minion grind; making that *decisive* is a balance job, making it *legible* is this one.)
+- **Whatever kills a structure is shown killing it.** In this sim the *wave* takes turrets and
+  then the nexus, so a besieging squad is drawn swinging at what it is chipping. And an open
+  lane's wave now walks all the way to the nexus instead of stopping an eighth of the map short
+  of it — a structure must never lose health with nothing visibly attacking it (designer,
+  2026-07-25 and 2026-07-26: "no enemy hitting nexus, too far from it").
 - **Bodies never stack.** Steering has no collision, and team-mates routinely aim at the
   same point (a rally spot, one lane stand position), so playback pushes overlapping bodies
   apart for drawing — a *layout* pass that preserves the group's centre, keeps the sim's

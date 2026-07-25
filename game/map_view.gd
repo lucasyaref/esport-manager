@@ -266,10 +266,26 @@ func _draw_siege_pulse(c: Vector2, r: float, heat: float) -> void:
 ## Minion waves. Drawn under the champions so they read as background pressure:
 ## which lane is pushed, and by whom, at a glance.
 func _draw_minions() -> void:
-	for mn: Dictionary in frame.get("minions", []):
+	var ms := float(Time.get_ticks_msec())
+	var dots: Array = frame.get("minions", [])
+	for i in dots.size():
+		var mn: Dictionary = dots[i]
 		var c := _w2s(mn.pos)
 		var col: Color = TEAM[mn.team].fill
 		draw_circle(c, MINION_R, Color(col.r, col.g, col.b, 0.75))
+		if not mn.has("hit"):
+			continue
+		# This wave is chipping a structure right now, and in this sim the wave is
+		# what takes a turret — and then the nexus. Left as walking dots, that read
+		# as "the nexus fell on its own" (2026-07-26 designer note). Each minion
+		# pokes at the structure on its own beat, so a clump reads as a crew at work.
+		var dir := _w2s(mn.hit) - c
+		if dir.length() < 0.001:
+			continue
+		dir = dir.normalized()
+		var beat := 0.5 + 0.5 * sin(ms / 70.0 + float(i) * 1.7)
+		draw_line(c + dir * MINION_R, c + dir * (MINION_R + 2.0 + 4.0 * beat),
+			Color(1.0, 0.72, 0.38, 0.30 + 0.55 * beat), 1.6, true)
 
 
 func _draw_wards() -> void:

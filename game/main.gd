@@ -64,6 +64,7 @@ const MINION_DOTS_MAX := 8          # cap so a big army stays a clump, not a sna
 const MINION_FRONT_GAP := 0.006     # first rank sits just behind the contact point
 const MINION_SPACING := 0.010       # lane param between ranks
 const MINION_RANK_OFFSET := 0.9     # world units either side of the lane centre
+const SIEGE_REACH := 9.0            # how close a squad must be to the structure it chips
 
 # --- match data (rebuilt per sim run) ----------------------------------------
 var data := {}
@@ -90,6 +91,7 @@ var baron_dur := 0
 var ward_ttl := 0
 var tower_max_hp := 1.0
 var nexus_max_hp := 1.0
+var struct_at := {}                 # siege key -> {pos, team}: where each structure stands
 
 # --- playback state -----------------------------------------------------------
 var sim_ready := false
@@ -203,6 +205,7 @@ func _run_sim(s: int) -> void:
 	last_tick = res.ticks - 1
 
 	smap = SimMap.new(data.map)
+	_build_structures()
 	_build_meta()
 	_build_hits()
 	_build_marks()
@@ -546,17 +549,20 @@ func _render() -> void:
 	# Writes the hit-flash back onto the bodies, so it runs before the frame is
 	# handed over.
 	var pops := _hit_pops(pt, champs)
+	# Minion dots need it too: a besieging wave is drawn swinging at the structure
+	# it is chipping, not walking past it.
+	var siege := _siege_now(pt)
 
 	last_frame = {
 		"champs": champs,
 		"beats": _render_beats(pt, s0, champs),
 		"tethers": _render_tethers(pt, champs),
 		"pops": pops,
-		"minions": _minion_dots(s0),
+		"minions": _minion_dots(s0, siege),
 		"towers_down": towers_down,
 		"tower_hp": _structure_hp(s0),
 		"nexus_hp": _nexus_frac(s0),
-		"siege": _siege_now(pt),
+		"siege": siege,
 		"effects": _render_effects(pt),
 		"wards": _render_wards(pt),
 		"dragon_total": dragon_total, "dragon_up": dragon_up, "baron_up": baron_up,
@@ -571,8 +577,9 @@ func _render() -> void:
 ## lane (LaneState). A squad is one point carrying a count — individual minions
 ## are never simulated, which is what keeps 1000-sim batches cheap — so the
 ## dots are spread here at render time, backward from the squad's position
-## toward its own base, two ranks wide.
-func _minion_dots(s: Dictionary) -> Array:
+## toward its own base, two ranks wide. A squad that is chipping a structure
+## right now carries the structure's position, so it can be drawn swinging at it.
+func _minion_dots(s: Dictionary, siege: Dictionary) -> Array:
 	var out: Array = []
 	for row: Array in s.get("lanes", []):
 		var lane: String = row[0]
@@ -580,6 +587,7 @@ func _minion_dots(s: Dictionary) -> Array:
 			var side: String = "blue" if int(q[0]) == 0 else "red"
 			var lead := float(q[1])
 			var dir := -1.0 if side == "blue" else 1.0
+			var target: Variant = _siege_target(side, siege, smap.pos_on_lane(lane, lead))
 			for i in mini(int(q[2]), MINION_DOTS_MAX):
 				var lt := clampf(lead + dir * (MINION_FRONT_GAP + i * MINION_SPACING), 0.0, 1.0)
 				var p := smap.pos_on_lane(lane, lt)
@@ -587,8 +595,34 @@ func _minion_dots(s: Dictionary) -> Array:
 				var perp := Vector2.ZERO
 				if p.distance_to(ahead) > 0.001:
 					perp = (ahead - p).orthogonal().normalized() * MINION_RANK_OFFSET
-				out.append({"pos": p + (perp if i % 2 == 0 else -perp), "team": side})
+				var dot := {"pos": p + (perp if i % 2 == 0 else -perp), "team": side}
+				if target != null:
+					dot["hit"] = target
+				out.append(dot)
 	return out
+
+
+## The structure this squad is grinding down, or null. The sim's siege rule is
+## "the lane front is pinned at the defender's bound and the attacker has minions
+## there" (`Objectives._update_siege`) — so it is the *wave* that takes a turret,
+## and once a lane's turrets are gone, the nexus. Playback used to draw those
+## minions walking, which is why a nexus could fall with nothing visibly hitting
+## it (2026-07-25 playtest remark 4, confirmed by the designer 2026-07-26: "in
+## reality minions are hitting nexus"). Matching is by proximity to a structure
+## that is actually losing HP this instant, so nothing is drawn that the sim is
+## not doing.
+func _siege_target(attacker: String, siege: Dictionary, lead: Vector2) -> Variant:
+	var best: Variant = null
+	var best_d := SIEGE_REACH
+	for key: String in siege:
+		var st: Dictionary = struct_at.get(key, {})
+		if st.is_empty() or st.team == attacker:
+			continue
+		var d: float = lead.distance_to(st.pos)
+		if d < best_d:
+			best_d = d
+			best = st.pos
+	return best
 
 
 ## Headless QA (`--headless -- --selftest`): plays the whole match back with no
@@ -608,6 +642,8 @@ func _run_selftest() -> void:
 	var in_combat_frames := 0
 	var exchange_frames := 0
 	var nexus_shown := 0
+	var siege_minions := 0
+	var nexus_besieged := 0
 	var kinds := {}
 	var problems: Array[String] = []
 	var frames := 0
@@ -624,6 +660,11 @@ func _run_selftest() -> void:
 		tower_bars = maxi(tower_bars, last_frame.tower_hp.size())
 		pops += last_frame.pops.size()
 		siege_pulses += last_frame.siege.size()
+		for mn: Dictionary in last_frame.minions:
+			if mn.has("hit"):
+				siege_minions += 1
+				if mn.hit == smap.bases.blue or mn.hit == smap.bases.red:
+					nexus_besieged += 1
 		for ch: Dictionary in last_frame.champs:
 			if not ch.alive:
 				continue
@@ -670,6 +711,12 @@ func _run_selftest() -> void:
 			+ " case is not being separated")
 	if winner != "" and siege_pulses == 0:
 		problems.append("a nexus fell with no structure ever drawn taking damage")
+	# Structures are chipped by the wave, so a chip with no minion swinging at it is
+	# the "the nexus died on its own" bug (2026-07-26 designer note).
+	if siege_pulses > 0 and siege_minions == 0:
+		problems.append("structures were chipped but no besieging minions were drawn")
+	if winner != "" and nexus_besieged == 0:
+		problems.append("a nexus fell with no minions drawn hitting it")
 	if winner != "" and marks.is_empty():
 		problems.append("a nexus fell with no nexus-health line in the feed")
 
@@ -678,6 +725,8 @@ func _run_selftest() -> void:
 		beats, tethers, tower_bars])
 	print("  damage numbers: %d | hit-flashes: %d | siege pulses: %d" % [
 		pops, flinches, siege_pulses])
+	print("  besieging minion-dots: %d, of which swinging at a nexus: %d" % [
+		siege_minions, nexus_besieged])
 	print("  player-frames in combat: %d, of which trading blows: %d (%.0f%%)" % [
 		in_combat_frames, exchange_frames,
 		100.0 * float(exchange_frames) / float(maxi(in_combat_frames, 1))])
@@ -875,6 +924,20 @@ func _build_marks() -> void:
 
 ## Raw HP of everything the sim reports as damaged, structures and both nexuses,
 ## under the keys the viewer draws them with.
+## Where every structure stands, keyed the way the siege list keys it. Built once
+## per sim run so the besieging-wave lookup is a dictionary hit per frame.
+func _build_structures() -> void:
+	struct_at.clear()
+	for team: String in SimMap.TEAMS:
+		for lane: String in SimMap.LANES:
+			for tier: String in ["outer", "inner", "base"]:
+				struct_at["%s_%s_%s" % [team, lane, tier]] = {
+					"pos": smap.pos_on_lane(lane, float(smap.towers[team][tier])),
+					"team": team,
+				}
+		struct_at["nexus_%s" % team] = {"pos": smap.bases[team], "team": team}
+
+
 func _structure_raw(s: Dictionary) -> Dictionary:
 	var out := {}
 	for row: Array in s.get("towers", []):

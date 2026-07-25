@@ -217,8 +217,14 @@ func _tower_target(t: int, defender: String, lane: String, tower_pos: Vector2) -
 func _bound_for(team: String, lane: String) -> float:
 	var standing: Array = towers[team][lane]
 	if standing.is_empty():
-		# Lane open to the nexus: front can push to just outside the base.
-		return 0.06 if team == "blue" else 0.94
+		# Lane open to the nexus: the wave walks all the way to the base and grinds
+		# it down from there. It used to stop at 0.06/0.94 — 11 to 14 world units
+		# short of the nexus, an eighth of the map — so a nexus visibly fell with
+		# the enemy wave nowhere near it ("no enemy hitting nexus, too far from
+		# it", 2026-07-25 playtest; confirmed 2026-07-26). Data-tunable because it
+		# is also how fast a won lane converts into a win.
+		var doorstep: float = float(m.balance.towers.open_lane_front)
+		return doorstep if team == "blue" else 1.0 - doorstep
 	return float(m.map.towers[team][standing[0].tier])
 
 

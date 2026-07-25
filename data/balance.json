@@ -128,6 +128,7 @@
     "gold_per_player": 125,
     "first_tower_bonus_per_player": 30,
     "nexus_hp": 6000,
+    "open_lane_front": 0.015,
     "range": 6.0,
     "player_dps": 85,
     "aggro_window_s": 2,
