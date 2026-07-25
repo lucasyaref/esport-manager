@@ -336,11 +336,14 @@ func _apply_event(ev: Dictionary) -> void:
 					_team_name(String(d.team)), d.lane])
 			_trim_feed()
 		"gank_call":
-			# Macro on screen: how many team-mates read the jungler's call.
+			# Macro on screen: how many team-mates read the call, and whether this was
+			# a board-read *sandwich* (the jungler cutting the retreat while the laner
+			# holds the target) or an opportunistic gank.
 			var followers: int = int(d.reactors)
 			var tail := " (%d follow)" % followers if followers > 0 else " (no follow-up)"
-			feed.append("[color=#%s]%s[/color] gank %s%s" % [
-				_teamhex(d.team), _team_name(d.team), d.lane, tail])
+			var play := "sandwich" if String(d.get("kind", "gank")) == "sandwich" else "gank"
+			feed.append("[color=#%s]%s[/color] %s %s%s" % [
+				_teamhex(d.team), _team_name(d.team), play, d.lane, tail])
 			_trim_feed()
 		"ward_placed":
 			wards.append({"pos": _vec(d.pos), "team": _team(d.player), "expires": t + ward_ttl})

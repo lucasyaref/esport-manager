@@ -105,7 +105,14 @@
     "react_macro_norm": 95.0,
     "connect_low_hp": 0.55,
     "connect_overext": 0.5,
-    "bot_focus_weight": 0.0
+    "bot_focus_weight": 0.0,
+    "sandwich_depth": 0.12,
+    "sandwich_cut_offset": 0.07,
+    "sandwich_eta_margin": 0.8,
+    "sandwich_help_radius": 16.0,
+    "sandwich_base": 0.55,
+    "sandwich_lift": 0.35,
+    "sandwich_react_bonus": 25.0
   },
   "macro": {
     "pivot": 70.0,

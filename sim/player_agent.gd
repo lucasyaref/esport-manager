@@ -75,6 +75,7 @@ var _camp_index := -1
 var _last_ward_t := -999999
 var _last_gank_t := -999999
 var _gank_lane := ""
+var _gank_cut := Vector2.ZERO     # sandwich cut-off point (M5-E); ZERO = walk at the lane
 var _speed_per_tick: float
 var _map: SimMap                 # static geometry only — no cycle back to us
 
@@ -151,8 +152,10 @@ func update(t: int, m: SimMatch) -> void:
 		State.GANKING:
 			# Walk to the lane and let proximity do the rest — the fight, if
 			# there is one, is resolved by the combat engine like any other.
-			var gank_target: Vector2 = m.lane_stand_pos(
-				_gank_lane, "red" if team == "blue" else "blue")
+			# A sandwich walks to its cut-off point instead: behind the victim,
+			# on the road home, so the victim is between us and our laner.
+			var gank_target: Vector2 = _gank_cut if _gank_cut != Vector2.ZERO \
+				else m.lane_stand_pos(_gank_lane, "red" if team == "blue" else "blue")
 			if _move_toward(gank_target) or t - _last_gank_t > m.gank_timeout_ticks():
 				m.gank_arrived(self, _gank_lane, t)
 		State.GROUPING:
@@ -290,14 +293,20 @@ func set_farming_intent() -> void:
 		state = State.TO_CAMP if role == "jungle" else State.TO_LANE
 
 
-func start_gank(t: int, target_lane: String) -> void:
+## `cut` (M5-E) is the sandwich's destination: a point *past* the victim, between it
+## and its own base, instead of the victim's own stand position. Walking at a target
+## with equal move speeds just pushes it home; arriving behind it takes the retreat
+## away. ZERO keeps the old behaviour (walk to the lane and let proximity do it).
+func start_gank(t: int, target_lane: String, cut := Vector2.ZERO) -> void:
 	state = State.GANKING
 	_gank_lane = target_lane
+	_gank_cut = cut
 	_last_gank_t = t
 
 
 func gank_over() -> void:
 	state = State.TO_CAMP
+	_gank_cut = Vector2.ZERO
 	# Drop the pre-gank camp target: after ganking (e.g. top) the jungler is now
 	# far from the camp it was walking to (e.g. bot-side), so re-pick the nearest
 	# camp from where it stands instead of yo-yoing all the way back (2026-07-25

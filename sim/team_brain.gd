@@ -123,7 +123,12 @@ func _rotation_target(enemy: String, m: SimMatch) -> String:
 ## think about following up. Who actually reacts is rolled here, once, from each
 ## eligible laner's macro — a sharp player reads the play and collapses, a poor
 ## one keeps farming and the gank goes 1v1. This is macro made visible (Pillar 1).
-func post_gank(t: int, lane: String, by_idx: int, until: int, m: SimMatch) -> void:
+## `kind` names the play ("gank", or "sandwich" for M5-E's board-read pincer) and
+## `react_bonus` lifts the follow-up roll for plays that are *announced as a set-up*
+## rather than a jungler turning up: the designer's point is that in a sandwich the
+## laner is a participant, not a spectator, so it is easier to read and answer.
+func post_gank(t: int, lane: String, by_idx: int, until: int, m: SimMatch,
+		kind := "gank", react_bonus := 0.0) -> void:
 	var reactors: Array[int] = []
 	var norm: float = float(m.balance.ganks.react_macro_norm)
 	for agent in m.agents:
@@ -134,10 +139,11 @@ func post_gank(t: int, lane: String, by_idx: int, until: int, m: SimMatch) -> vo
 		# Laners in the ganked lane collapse; a shoved-in mid may roam to it.
 		var eligible: bool = agent.lane == lane \
 			or (agent.role == "mid" and agent.lane_stance == "push")
-		if eligible and m.rng.chance(float(agent.attrs.macro) / norm):
+		if eligible and m.rng.chance((float(agent.attrs.macro) + react_bonus) / norm):
 			reactors.append(agent.idx)
-	_calls["gank_" + lane] = {"lane": lane, "by": by_idx, "until": until, "reactors": reactors}
-	m.emit_event(t, "gank_call", {"team": team, "lane": lane,
+	_calls["gank_" + lane] = {"lane": lane, "by": by_idx, "until": until,
+		"reactors": reactors, "kind": kind}
+	m.emit_event(t, "gank_call", {"team": team, "lane": lane, "kind": kind,
 		"by": m.agents[by_idx].id, "reactors": reactors.size()})
 
 

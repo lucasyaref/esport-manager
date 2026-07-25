@@ -58,6 +58,12 @@ func _initialize() -> void:
 	var fight_dur: Array[float] = []
 	var gank_calls := 0
 	var gank_reactors := 0
+	# The sandwich (M5-E, designer item 6): calls made off a board read rather than
+	# an opportunistic roll, and how often they convert. Kept apart from the plain
+	# gank numbers so the designer can see whether the *named play* is happening.
+	var sandwich_calls := 0
+	var sandwich_reactors := 0
+	var sandwich_hits := 0
 	# Connect rate (M5-C): a gank/roam call "connects" when the calling team lands
 	# a kill within the window after posting it — the measure of whether CC-that-
 	# catches actually turns plays into kills instead of whiffing.
@@ -156,11 +162,15 @@ func _initialize() -> void:
 					fight_count += 1
 					fight_dur.append(float(ev.data.duration_s))
 				"gank_call":
+					var is_sandwich: bool = String(ev.data.get("kind", "gank")) == "sandwich"
 					gank_calls += 1
 					gank_reactors += int(ev.data.reactors)
+					if is_sandwich:
+						sandwich_calls += 1
+						sandwich_reactors += int(ev.data.reactors)
 					open_calls.append({
 						"team": team_of.get(ev.data.by, ev.data.team),
-						"until": ev.t + CONNECT_WINDOW, "hit": false})
+						"until": ev.t + CONNECT_WINDOW, "hit": false, "sandwich": is_sandwich})
 				"lane_swap":
 					swaps_this += 1
 				"objective_taken":
@@ -177,6 +187,8 @@ func _initialize() -> void:
 		for c: Dictionary in open_calls:
 			if c.hit:
 				connect_hits += 1
+				if bool(c.get("sandwich", false)):
+					sandwich_hits += 1
 		if fb >= 0:
 			first_bloods.append(fb)
 		if first_tower_t >= 0:
@@ -243,6 +255,10 @@ func _initialize() -> void:
 	print("| Gank calls per match | %.1f |" % (float(gank_calls) / sims))
 	print("| Gank followers avg | %.2f |" % (float(gank_reactors) / maxi(gank_calls, 1)))
 	print("| Gank connect rate | %.0f%% |" % (100.0 * connect_hits / maxi(gank_calls, 1)))
+	print("| Sandwich calls per match | %.2f |" % (float(sandwich_calls) / sims))
+	print("| Sandwich share of calls | %.0f%% |" % (100.0 * sandwich_calls / maxi(gank_calls, 1)))
+	print("| Sandwich followers avg | %.2f |" % (float(sandwich_reactors) / maxi(sandwich_calls, 1)))
+	print("| Sandwich connect rate | %.0f%% |" % (100.0 * sandwich_hits / maxi(sandwich_calls, 1)))
 	print("| Avg level @30min | %.1f |" % _avg(level_mid))
 	print("")
 	print("| Kill region | Share |")

@@ -269,13 +269,22 @@ func gank_arrived(jungler: PlayerAgent, lane_name: String, t: int) -> void:
 
 ## Laning-phase gank attempt: pick an overextended lane, roll, go.
 func try_gank(jungler: PlayerAgent, t: int) -> bool:
-	if phase_of(t) != "early":
+	if phase_of(t) not in ["early", "mid"]:
 		return false
 	var g: Dictionary = balance.ganks
 	var check_ticks := int(float(g.check_interval_s) * TICKS_PER_SECOND)
 	if t % check_ticks != 0:
 		return false
 	if t - jungler.last_gank_tick() < int(float(g.min_interval_s) * TICKS_PER_SECOND):
+		return false
+	# The board comes before the dice (M5-E, item 6). A real sandwich — an enemy
+	# laner deep in our half, cut off from its own towers, our laner there, nobody
+	# of theirs close enough to help — is a call a team with macro *makes*, not one
+	# it happens to roll. Only if the board has nothing does the old opportunistic
+	# roll get a turn, and that one stays laning-only.
+	if _try_sandwich(jungler, t, g):
+		return true
+	if phase_of(t) != "early":
 		return false
 	var chance: float = float(g.base_chance_early_tag) if "early" in jungler.character.tags \
 		else float(g.base_chance_other)
@@ -328,6 +337,94 @@ func try_gank(jungler: PlayerAgent, t: int) -> bool:
 ## hand to lock the target — the jungler itself, or a CC laner already in that
 ## lane who sets up the play — or when the target is catchable unaided: low enough
 ## to collapse on, or shoved so far up the lane it cannot get home. No RNG here.
+## The sandwich (designer direction 2026-07-26; GDD §6.1). Reads the board for the
+## shape the designer named — "red mid is pushing blue's T2, the blue jungler is on
+## blue buff or in the river, blue mid is defending T2: a perfect position for
+## sandwiching red mid, it should call for a gank". Four positional conditions:
+##
+##   1. the victim is one of their laners, pushed more than `sandwich_depth` past
+##      the midline onto our half — measured against the midline, because standing
+##      a tower length from home is just ordinary laning;
+##   2. our laner is alive and farming that lane — the near jaw of the pincer;
+##   3. our jungler can reach the **cut-off point** (past the victim, on the way to
+##      the victim's home) before the victim could walk that far. Taking the escape
+##      route away is what makes a catch possible when everyone moves at the same
+##      speed — the reason plain "walk at the target" ganks whiffed (M5-C);
+##   4. nobody of theirs is within `sandwich_help_radius` to answer it.
+##
+## The call is macro-gated, so the same board produces the call more often from a
+## sharp roster than from a poor one, and never never for either (the blend model).
+func _try_sandwich(jungler: PlayerAgent, t: int, g: Dictionary) -> bool:
+	var enemy := "red" if jungler.team == "blue" else "blue"
+	var best_lane := ""
+	var best_cut := Vector2.ZERO
+	var best_depth: float = float(g.sandwich_depth)
+	for lane in SimMap.LANES:
+		var ally_there := false
+		for ally in agents:
+			if ally.team == jungler.team and ally.is_farming_lane(lane):
+				ally_there = true
+				break
+		if not ally_there:
+			continue
+		for foe in agents:
+			if foe.team != enemy or not foe.is_farming_lane(lane):
+				continue
+			# Overextension is measured against the *midline*, not against their
+			# tower: standing a tower's length from home is ordinary laning, so a
+			# distance-from-safety test alone calls a sandwich on every wave.
+			var foe_t: float = lanes[lane].farm_t(enemy)
+			var depth: float = (0.5 - foe_t) if enemy == "red" else (foe_t - 0.5)
+			if depth <= best_depth:
+				continue
+			if _has_ally_near(foe, float(g.sandwich_help_radius)):
+				continue
+			# The walk home they would actually have to survive — the clock our
+			# jungler has to beat to the cut-off point.
+			var home := map.pos_on_lane(lane, objectives._bound_for(enemy, lane))
+			var gap := foe.pos.distance_to(home)
+			var cut := _cut_off_pos(lane, jungler.team, enemy, float(g.sandwich_cut_offset))
+			if jungler.pos.distance_to(cut) > gap * float(g.sandwich_eta_margin):
+				continue
+			best_depth = depth
+			best_lane = lane
+			best_cut = cut
+	if best_lane == "":
+		return false
+	var brain: TeamBrain = brains[jungler.team]
+	if not rng.chance(brain.macro_gate(float(g.sandwich_base), float(g.sandwich_lift))):
+		return false
+	jungler.start_gank(t, best_lane, best_cut)
+	brain.post_gank(t, best_lane, jungler.idx, t + gank_timeout_ticks(), self,
+		"sandwich", float(g.sandwich_react_bonus))
+	return true
+
+
+## Where the dispatched body stands so the target cannot simply walk home: on the
+## lane, `offset` past the target's stand position *toward the target's own base*.
+## Pulled back toward the target if that point sits under a standing enemy tower —
+## the same rule `lane_stand_pos` uses, because arriving inside tower range is how
+## a ganker dies for the play.
+func _cut_off_pos(lane: String, our_team: String, foe_team: String, offset: float) -> Vector2:
+	var toward := 1.0 if foe_team == "red" else -1.0   # + = toward red's base
+	var tt: float = lanes[lane].farm_t(foe_team) + toward * offset
+	for _i in 5:
+		var p := map.pos_on_lane(lane, clampf(tt, 0.0, 1.0))
+		if not objectives.under_enemy_tower(our_team, p):
+			return p
+		tt -= toward * 0.02
+	return map.pos_on_lane(lane, clampf(tt, 0.0, 1.0))
+
+
+## Is one of `of`'s own team-mates close enough to answer a play on it?
+func _has_ally_near(of: PlayerAgent, radius: float) -> bool:
+	for mate in agents:
+		if mate.team == of.team and mate.idx != of.idx and mate.alive \
+				and mate.pos.distance_to(of.pos) < radius:
+			return true
+	return false
+
+
 func _gank_connectable(jungler: PlayerAgent, lane: String, victims: Array,
 		overext: float, g: Dictionary) -> bool:
 	if jungler.has_cc():
