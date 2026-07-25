@@ -18,6 +18,7 @@ Full rationale, diagnostics and batch numbers behind completed work live in `CHA
 | **M5.5 — Viewer v2: combat readability & juice** | **in-progress — A–G done, designer playtest is the gate** |
 | M6 — Draft screen | to-do |
 | M7 — PoC polish pass | to-do |
+| M8 — Highlights & the close-up view | scoped, to-do (phase A pulled forward next to M5-G) |
 
 ## Now — M5.5: viewer v2 (combat readability & juice)
 
@@ -81,7 +82,9 @@ From the designer's M4.5 playtest (2026-07-23): bots stay lane-bound and passive
 - **M5-E — Proactive roams + tempo trades** (items 2 & 5). Macro-gated support/laner roam that fires only on connectable plays, with a tempo payoff (kill/recall → tower/plate pressure) and the cross-map trade reading on screen.
 - **M5-F — Coordinated multi-man moves + gank telegraph** (items 1 & 3). `TeamBrain` dispatches 2–3 to converge (target, committed set, window), macro-gated; the gank is telegraphed on approach and the target sets up. Enable M5-D's punish-over-extension collapse here.
 - **M5-G — Balance pass + batch sign-off + report.** Re-measure the win-split (target ~43/57, last 36.5%) and gold-lead conversion (target ~65%, last 66.3%); extend metrics (connect rate, tempo trades, multi-man plays); assertions; `REPORTS/M5.md`; designer 1x playtest gate.
-  Two items inherited from M5.5: **a decisive endgame** (measured 2026-07-25: the losing nexus bleeds for ~6 min under minion chip alone, worst case 13; turrets stall at ~0 HP for minutes) and **sim-side body volume as a tunable** (measured: −6 pts macro win, blue-side 49.5→43.5%, conversion 66.3→71.1%, but gank connect 16→22% and first-tower-bot 10→27%).
+  Two items inherited from M5.5: **a decisive endgame** (measured 2026-07-25: the losing nexus bleeds for ~6 min under minion chip alone, worst case 13; turrets stall at ~0 HP for minutes) and **sim-side body volume as a tunable** (measured: −6 pts macro win, blue-side 49.5→43.5%, conversion 66.3→71.1%, but gank connect 16→22% and first-tower-bot 10→27%). M8's scoping added a third: **the teamfight does not exist** — over 60 matches, *no* fight reached six participants and 92% of kill-moments are a single death (`REPORTS/M8-scoping.md`), so M5-E/F must be measured on "does a big fight ever happen", and M8-A's scorer is the instrument that measures it.
+
+**New M5-G metric, from M8-A:** moments-per-match and their shape (deaths, participants, spread over the game clock). "Does this match contain 5–10 things worth watching?" is a balance question before it is a viewer question.
 
 Standing guardrails: pure-GDScript `sim/`, determinism, `tools/check.sh`, headless batch, data-driven (new tunables → `data/balance.json`). GDD §6.1 has the macro model.
 
@@ -91,9 +94,41 @@ Pick-only draft UI (order per GDD §5), AI opponent drafting, coach recommendati
 ### M7 — PoC polish pass — to-do
 Pacing/readability tuning from designer playtest feedback, event feed wording, minimal sound hooks (optional), bug pass. Tag `poc-1`.
 
+### M8 — Highlights & the close-up view — scoped, to-do
+
+Designer direction, 2026-07-25: a **second view**. The overview stays what it is (accelerated, whole map, silhouettes); 5–10 times a match the viewer drops into a **highlight** — zoomed on the action, characters as real sprites with animations and spell effects, played at **real speed** for ~30 s max. Ganks that turn into kills, teamfights, big fights. Actions are scored, the top 5–10 are selected, and anything under an absolute threshold is dropped even if it made the top 10. Full scoping, measurements and open questions: `REPORTS/M8-scoping.md`. Design model: GDD §7.2.
+
+**Why here in the plan** (and the one phase that moves earlier):
+- The **selection layer is cheap and useful now** — it is pure analysis of the sim's own event stream, headless-testable, and it doubles as a balance metric. **M8-A ships alongside M5-G**, not after M7.
+- The **view layer is expensive, art-dependent, and premature until the sim earns it.** Measured over 60 matches: 92% of kill-moments are a single death and **no fight reached six participants**. Built today, the reel would be eight 2v1 ganks. **M5-E/F are a hard prerequisite** — the missing piece is the plays, not the camera.
+- Ordering assumes the PoC exists to prove the loop *to the designer*. If it exists to **show someone else**, the zoomed fight beats the draft screen as a demo and M8 should jump ahead of M6 — question 1 in the scoping report.
+
+**Phases:**
+- **M8-A — Highlight scoring (headless, no view).** New pure module `sim/highlights.gd` (or `tools/` — it reads sim output, it does not run inside the sim): cluster events into candidate moments, score them, select with spacing + diversity + an absolute floor. Tunables in `data/highlights.json`. Batch report over 200+ sims: moments per match, kinds, scores, spread over the clock. **Deterministic — same seed ⇒ same reel.** Gate: the designer reads a text reel of one real match ("07:42 — jungle gank bot, 2 kills") and says those are the moments they'd want to watch. No art, no camera, no risk.
+- **M8-B — The camera.** `MapView`'s world→screen transform becomes a camera (centre, zoom, smoothing, follow-a-point); overview is the camera fitted to the world, so nothing changes visually on day one. Zoom-aware sizing for everything currently clamped in pixels.
+- **M8-C — Real speed + the mode switch.** A sub-1x playback speed (today's 1x is already **4× sim-time**; real speed is 0.25× of it), visual lifetimes rescaled below the current 4× cap, snapshot cadence raised to one per tick for viewer runs. Playback enters a highlight automatically: pre-roll (the approach), the action, a short aftermath, then back to overview. On-screen framing (what this highlight is, who it's about), a skip control, and manual entry/exit. Both pacing modes from the same machinery: **full match** (highlights add ~3.5 min on top) and **highlights-only** (jump between moments, ~4–5 min a match).
+- **M8-D — Close-up actors.** Characters read as characters at 4× zoom: animation states (idle / run / attack / cast / hurt / die / recall), wind-up telegraphs, facing **reported by the sim** rather than inferred by the viewer. Default is richer *procedural* bodies (no art dependency); the `sprite` data field still overrides with real art and no code change (CLAUDE.md). **Blocked on designer question 3** (procedural vs. real sprite sheets) — the answer changes the actor contract, not the schedule.
+- **M8-E — Spell effects at close range.** Per effect family, at the ability's real radius and real cast time: telegraph → cast → impact → aftermath. The overview's M5.5-C shapes stay as the far-view version of the same event.
+- **M8-F — Pacing, modes & sign-off.** Measure the real minutes a watched match costs in each mode, tune the selection floor against the designer's answer, `REPORTS/M8.md`, playtest gate.
+
+**Prerequisite decisions this milestone forces** (both already on the books, both promoted by it):
+- **Sim-side body volume** (parked at M5-E/F). Playback currently fakes separation by drawing bodies up to 1.9 world units off their sim positions. Invisible at overview scale; at 4× zoom a character is drawn away from the point its own attack beat comes from. The close-up view is the argument for taking the real lever.
+- **Jungle walls / terrain / chokepoints** (parking lot, deferred since M4.5-C). A gank at a distance is dots converging; a gank *close up* is a story about a corridor, and characters walking through walls that don't exist will read as broken. Decision point before **M8-D** — at minimum a cosmetic terrain layer that steering respects.
+
+**Already-shipped work that M8 modifies** (none of it a rewrite):
+- `game/map_view.gd` — `_scale()` / `_w2s()` replaced by the camera (M8-B); `CHAMP_R_MIN/MAX`, `TOWER_R`, `PIT_R`, `PAD` and font sizes are clamped for the fit-the-world assumption and must become zoom-aware.
+- `game/main.gd` — `SPEEDS` gains a sub-1 entry; `BASE_TPS_1X` stays the 1x anchor; the visual-stretch helper (`min(SPEEDS[i], 4)`, ~line 711) must open downward or every M5.5 effect lingers 4× too long in the close-up. All the `*_TTL` / `*_TICKS` constants were tuned against the 4×-sim-time assumption and need re-checking at real speed.
+- `SNAP := 2` (5 keyframes per sim-second) → 1 for viewer runs; measure the memory cost.
+- **Snapshot contract** — the close-up needs things the viewer currently infers: facing (`_resolve_facing`), cast start/wind-up, hit vs. miss. Per Pillar 3 the sim reports them; a small snapshot extension exactly like M5.5-B's.
+- `fight_end` — carries context/winner/pos/duration/kills today; M8-A wants the gold swing and the participant list on it so scoring doesn't re-derive them.
+- `--selftest` + `tools/check.sh` — assert the reel is non-empty, spaced, within budget, and that entering/leaving a highlight doesn't drop frames.
+- GDD §7 (playback speeds) and §7.2 (new).
+
+Guardrails: the sim stays the source of truth (selection reads its output, never re-decides it), determinism holds for the reel as well as the match, no external art deps unless the designer lifts that in question 3, `data/highlights.json` for every tunable.
+
 ## Parking lot (PoC+, do not start)
 Club creation · league calendar + standings + headless league sims · match history · budget/mercato · coaching staff system · marketing · per-character sprites.
 
 **Wanted by the designer, deliberately deferred** (revisit after M4.5 lands, before M7):
-- **Jungle walls, terrain and chokepoints** — "need wall around the jungle, complexify the map". `SimMap` is lane polylines plus point positions today; there is no notion of walkable space, so there are no corridors and no escapes. Deferred by scope call in M4.5-C, which does boundary clamping only.
+- **Jungle walls, terrain and chokepoints** — "need wall around the jungle, complexify the map". `SimMap` is lane polylines plus point positions today; there is no notion of walkable space, so there are no corridors and no escapes. Deferred by scope call in M4.5-C, which does boundary clamping only. **Promoted 2026-07-25**: the close-up view makes missing walls visible, so this is now a decision point before **M8-D**, not an open-ended nice-to-have.
 - **Basic ability kits** (slow / dash / stun / shield on short cooldowns). *Being brought forward in M5* via the three-action model (2026-07-24) — the basic-ability slot is the vehicle for early CC. M5 ships CC (slow/stun) on a few characters; the wider kit variety (dash/shield/etc. across the roster) stays deferred to post-PoC.

@@ -164,7 +164,10 @@ headless batch runs stay cheap while the viewer draws real minion dots that walk
 - Top-down 2D map, sprite per character (shared placeholder sprite: team tint + role marker; per-character sprites later via data field).
 - Animations per character: Move, Attack, Spell/Ultimate, Hurt, Die, Recall.
 - On-screen: HP bar + level per character, game clock, gold difference graph or bar, kill feed, team scores.
-- Playback: 1x (≈8 real minutes ✅) / 4x / 16x / skip-to-result.
+- Playback: 1x (≈8 real minutes ✅) / 4x / 16x / skip-to-result. Note that **1x is already 4×
+  sim-time** (40 sim-ticks per real second against the sim's 10 ticks per sim-second) — that is
+  what buys the 8-minute match. True real speed is a *quarter* of 1x, and only the highlight view
+  (§7.2) uses it.
 
 ### 7.1 Combat readability ✅ (designer playtest 2026-07-25 → M5.5)
 The M4 viewer showed *movement*; the sim's combat depth (M4.5) and its CC (M5-C) were
@@ -214,6 +217,44 @@ playtest is the real gate, the viewer has to show what the sim decided. Rules:
   (`--selftest`) and assert the frame stream is sane and that the visuals the sim's events
   imply were actually drawn, so playback regressions surface in `tools/check.sh` rather than
   in a designer playtest.
+
+### 7.2 The highlight view (designer direction 2026-07-25 — scoped as M8, not yet built)
+Two views of the same match, from the same tick stream.
+
+- **Overview** — what exists today. The whole map, accelerated, silhouettes, the story at a
+  glance. This is where a match is *followed*.
+- **Highlight** — 5 to 10 times a match, playback drops into the action: camera zoomed on the
+  fight, characters drawn as animated sprites with real spell effects, running at **real speed**
+  for ~30 seconds at most. This is where a match is *watched*. Ganks that turn into kills,
+  skirmishes at an objective, teamfights, the moment the game turned.
+
+**Selection is scored, and it is part of the sim's output, not the viewer's taste.** Candidate
+moments are clustered from the event stream (kills close in time and space, objective takes,
+tower falls with champions present, a base defense), scored, and the best few selected:
+
+- **Score** = stakes × execution. Deaths in the window, participants involved, gold swing, the
+  objective or structure at stake, and whether the game's direction changed. Rarity bonuses for
+  the things that make a story: first blood, a solo kill against a lead, a steal, a hold at the
+  nexus, an outnumbered win.
+- **An absolute floor.** A moment under the threshold is not shown even if it is top-10 — a quiet
+  game gets a short reel, not a padded one. ✅ (designer rule)
+- **Spread and variety.** A minimum gap between highlights and a penalty for repeating the same
+  kind in the same lane, so the reel isn't six identical bot ganks — and, since ~3/4 of the
+  action lands after 14 minutes, at least a slot or two reserved for the laning phase.
+- **Deterministic.** Same input + seed ⇒ same match ⇒ **same reel**. The rule from CLAUDE.md
+  extends to highlight selection.
+
+**A highlight is a time window plus a camera focus** — nothing more. That single definition gives
+both pacing modes for free: *full match* (watch it all, drop into each highlight as it comes,
+~12 real minutes) and *highlights-only* (jump moment to moment, ~4–5 minutes) — the second is what
+a manager watching a 38-game season actually wants, and it is the same code.
+
+**What the close-up demands that the overview never did.** Zoom is a magnifying glass on the sim:
+things invisible at map scale become the whole picture. Bodies drawn away from their sim positions
+for legibility (§7.1) stop being harmless; walking through jungle walls that do not exist reads as
+broken; five keyframes a second reads as sliding. And the content has to be there — measured over
+60 matches, no fight has ever reached six participants, so the *plays* (§6.1's multi-man layer) are
+the prerequisite, not the camera. See `REPORTS/M8-scoping.md`.
 
 ## 8. Later phases (recorded, not in PoC)
 - PoC+ : club creation, pro-league calendar (LCK/LEC-like round robin), match history/standings, other matches simulated headless.
