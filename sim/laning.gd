@@ -85,6 +85,16 @@ func _assign_stances(t: int, present: Dictionary, front: float, lb: Dictionary) 
 			# A player who heard the jungler's gank call collapses on the lane —
 			# steps up to add the body that turns a 1v1 into a kill. This is the
 			# "allied botlane reacts to the gank" the FSM never did.
+			#
+			# M5-F2 tried the designer's two-stage model here (hold the target while
+			# the play is inbound, commit when it lands) and **measured it as a 7.5
+			# point loss** to the macro roster, with the gank connect rate falling
+			# 22% -> 17%. Why, in this sim's physics: engaging early is what pins the
+			# victim. A laner that merely holds leaves the victim free to disengage
+			# the moment the third body appears, so the gank arrives at a target that
+			# is already leaving. It is the same reason the *answer* walks at its spot
+			# rather than cutting it off (see SimMatch._try_answer) — being there,
+			# early, is the mechanic. See REPORTS/M5-F2.md.
 			if brain.gank_reactor(t, agent.lane, agent.idx):
 				agent.lane_stance = "allin"
 			else:

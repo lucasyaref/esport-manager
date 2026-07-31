@@ -237,7 +237,14 @@
     "punish_isolation_radius": 18.0,
     "punish_collapse_radius": 28.0,
     "punish_min_collapsers": 2,
-    "punish_base": 0.0,
-    "punish_lift": 0.0
+    "punish_base": 0.35,
+    "punish_lift": 0.3,
+    "play_interval_s": 3,
+    "play_window_s": 12,
+    "play_radius": 26.0,
+    "play_min_men": 2,
+    "play_max_men": 3,
+    "play_join_base": 0.55,
+    "play_join_lift": 0.35
   }
 }

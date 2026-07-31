@@ -78,6 +78,8 @@ var _gank_lane := ""
 var _gank_cut := Vector2.ZERO     # sandwich cut-off point (M5-E); ZERO = walk at the lane
 var _tempo_lane := ""             # lane to press after a play landed (M5-E)
 var _tempo_until := 0
+var _play_pos := Vector2.ZERO     # committed multi-man play destination (M5-F2)
+var _play_until := 0
 var _speed_per_tick: float
 var _map: SimMap                 # static geometry only — no cycle back to us
 
@@ -129,6 +131,15 @@ func update(t: int, m: SimMatch) -> void:
 		return
 	if role == "support":
 		_maybe_ward(t, m)
+	# A committed play (M5-F2) overrides where this body walks, for the states where
+	# walking is all it is doing. It deliberately does NOT interrupt a recall, a camp
+	# clear or a gank already in flight — the team brain never dispatches those
+	# players, and honouring it here too keeps the two ends of the rule in one shape.
+	var play := play_pos(t)
+	if play != Vector2.ZERO and state in [State.TO_LANE, State.FARMING, State.TO_CAMP,
+			State.WAITING_CAMP, State.GROUPING, State.HOLDING]:
+		_move_toward(play)
+		return
 	match state:
 		State.TO_LANE:
 			if _move_toward(m.lane_stand_pos(lane, team, lane_stance)):
@@ -323,6 +334,22 @@ func start_gank(t: int, target_lane: String, cut := Vector2.ZERO) -> void:
 func set_tempo(lane_name: String, until: int) -> void:
 	_tempo_lane = lane_name
 	_tempo_until = until
+
+
+## Committed to a multi-man play until `until` (M5-F2). Like set_tempo this is a
+## destination, not a state: the agent keeps its FSM state, so combat still takes
+## over the moment a fight starts and a camp clear in progress still finishes.
+func set_play(p: Vector2, until: int) -> void:
+	_play_pos = p
+	_play_until = until
+
+
+## Where the play wants this body, or ZERO once the window has shut.
+func play_pos(t: int) -> Vector2:
+	if _play_pos == Vector2.ZERO or t >= _play_until:
+		_play_pos = Vector2.ZERO
+		return Vector2.ZERO
+	return _play_pos
 
 
 ## Where this agent should press, or ZERO once the window has run out.

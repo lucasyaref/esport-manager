@@ -76,6 +76,13 @@ func _initialize() -> void:
 	# on the tower, or take the gold and wander off?
 	var tempo_calls := 0
 	var tempo_towers := 0
+	# The committed multi-man play (M5-F2, item 3). The question the designer asked
+	# is whether 2-3 players ever converge on one thing: these count how often a
+	# play is called, how many bodies actually agreed to come, and how often the
+	# window produced a kill. A play that never converts is priority given away.
+	var play_calls := 0
+	var play_men := 0
+	var play_hits := 0
 	# Connect rate (M5-C): a gank/roam call "connects" when the calling team lands
 	# a kill within the window after posting it — the measure of whether CC-that-
 	# catches actually turns plays into kills instead of whiffing.
@@ -87,6 +94,9 @@ func _initialize() -> void:
 	# The tempo window the sim posts (macro.tempo_window_s); a tower that falls
 	# inside it is the play converting.
 	const TEMPO_WINDOW := 45 * SimMatch.TICKS_PER_SECOND
+	# The play's own window (defense.play_window_s) plus a little for the fight it
+	# is meant to start.
+	const PLAY_WINDOW := 16 * SimMatch.TICKS_PER_SECOND
 	# Kill-rate over game time + who actually dies (designer remarks 2 and 3).
 	var band_kills: Array[float] = []
 	var band_minutes: Array[float] = []
@@ -169,6 +179,7 @@ func _initialize() -> void:
 		var swaps_this := 0
 		var open_calls: Array = []   # {team, until, hit} for the connect-rate metric
 		var open_tempo: Array = []   # {team, lane, until} for the tempo-conversion metric
+		var open_plays: Array = []   # {team, until, hit} for the multi-man play metric
 		for ev: Dictionary in result.events:
 			match ev.type:
 				"kill":
@@ -194,6 +205,10 @@ func _initialize() -> void:
 							if not c.hit and c.team == kteam and ev.t <= int(c.until):
 								c.hit = true
 								break
+						for p: Dictionary in open_plays:
+							if not p.hit and p.team == kteam and ev.t <= int(p.until):
+								p.hit = true
+								break
 				"fight_end":
 					fight_count += 1
 					fight_dur.append(float(ev.data.duration_s))
@@ -207,6 +222,11 @@ func _initialize() -> void:
 					open_calls.append({
 						"team": team_of.get(ev.data.by, ev.data.team),
 						"until": ev.t + CONNECT_WINDOW, "hit": false, "sandwich": is_sandwich})
+				"play_call":
+					play_calls += 1
+					play_men += int(ev.data.men.size())
+					open_plays.append({"team": ev.data.team,
+						"until": ev.t + PLAY_WINDOW, "hit": false})
 				"tempo_call":
 					tempo_calls += 1
 					open_tempo.append({"team": ev.data.team, "lane": ev.data.lane,
@@ -239,6 +259,9 @@ func _initialize() -> void:
 				connect_hits += 1
 				if bool(c.get("sandwich", false)):
 					sandwich_hits += 1
+		for p: Dictionary in open_plays:
+			if p.hit:
+				play_hits += 1
 		if fb >= 0:
 			first_bloods.append(fb)
 		if first_tower_t >= 0:
@@ -309,6 +332,9 @@ func _initialize() -> void:
 	print("| Sandwich share of calls | %.0f%% |" % (100.0 * sandwich_calls / maxi(gank_calls, 1)))
 	print("| Sandwich followers avg | %.2f |" % (float(sandwich_reactors) / maxi(sandwich_calls, 1)))
 	print("| Sandwich connect rate | %.0f%% |" % (100.0 * sandwich_hits / maxi(sandwich_calls, 1)))
+	print("| Multi-man plays per match | %.2f |" % (float(play_calls) / sims))
+	print("| Multi-man play men avg | %.2f |" % (float(play_men) / maxi(play_calls, 1)))
+	print("| Multi-man play connect rate | %.0f%% |" % (100.0 * play_hits / maxi(play_calls, 1)))
 	print("| Tempo windows per match | %.2f |" % (float(tempo_calls) / sims))
 	print("| Tempo windows that took the tower | %.0f%% |" % (100.0 * tempo_towers / maxi(tempo_calls, 1)))
 	print("| Avg level @30min | %.1f |" % _avg(level_mid))

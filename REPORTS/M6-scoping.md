@@ -1,4 +1,4 @@
-# M8 scoping — highlights & the close-up view
+# M6 scoping — highlights & the close-up view
 
 Status: **scoping only, nothing built.** Your direction of 2026-07-25 (a second, zoomed,
 real-speed view for 5–10 "highlight" moments per game) turned into a milestone plan in
@@ -74,7 +74,7 @@ calendar, (c) becomes the mode people actually live in.
 
 ## What already-shipped work this touches
 
-Listed in `BACKLOG.md` under M8; the short version is that none of it is a rewrite, and one item
+Listed in `BACKLOG.md` under M6; the short version is that none of it is a rewrite, and one item
 is a design decision rather than a code change:
 
 - **The camera does not exist.** `MapView._scale()` / `_w2s()` assume the whole world fills the
@@ -97,7 +97,7 @@ is a design decision rather than a code change:
   walls, corridors or escapes. A gank watched from a distance is dots converging; a gank watched
   *close up* is a story about a corridor, and characters strolling through jungle "walls" that
   don't exist will read as broken. Your parked "jungle walls, terrain and chokepoints" item is
-  promoted from nice-to-have to a **decision point before M8-D**.
+  promoted from nice-to-have to a **decision point before M6-D**.
 - **Docs**: GDD §7 (playback speeds) and the new §7.2; `--selftest` and `tools/check.sh` gain
   highlight assertions.
 
@@ -111,7 +111,7 @@ in it change this plan rather than just confirming it:
    director choosing a focus and the speed dropping. Overview and close-up become the same code
    path, which also means manual zoom is free at any moment, not only during a highlight.
 2. **Zooming in costs you the map, so a minimap is mandatory** — theirs carries player dots, a
-   viewport rectangle and objective timers. Moved into M8-B as a requirement.
+   viewport rectangle and objective timers. Moved into M6-B as a requirement.
 3. **The art bar is much lower than I assumed.** Their characters are *tiny* pixel sprites with
    a name, a level and an HP bar — recognisable and animated, not detailed. That makes designer
    question 3 below much easier: a small pixel sprite set is well within placeholder territory.

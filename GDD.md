@@ -166,13 +166,43 @@ that appears.
     still lands at catch range (above); the sandwich is what makes CC unnecessary for a
     catch when the geometry already has one.
   - **The laner is a participant, not a spectator.** The defending laner is told the play is
-    coming and sets up for it — holds the target in lane instead of backing off, and commits
-    when the jungler arrives. A gank the laner ignores is the 1.07-follower whiff M5-E exists
-    to fix.
+    coming — the call posts when the jungler commits, not when it arrives — and collapses on it.
+    A gank the laner ignores is the 1.07-follower whiff M5-E exists to fix. *(The "holds the
+    target, commits on arrival" half of this was built in M5-F2 and measured as a 7.5-point loss;
+    see "What a laner does about an inbound gank" below. The laner engages immediately.)*
   - **Depth of the push is the cost.** The reward is scaled by how overextended the target is,
     and the price is the lane priority given up by whoever leaves. Both sides of that are
     `macro`-gated, so a sharp roster takes the sandwich that is there and a poor one takes a
     bad one or misses it — the same board, a different team.
+- **The committed play: how a team collapses on a pick (M5-F2, designer item 3).** A team that
+  spots an enemy caught over-extended and alone does not *all* turn around for it, and it does not
+  ignore it either. It sends **a committed set**: a target, the two or three bodies that agreed to
+  come, and a window. Everyone else keeps farming, sieging or holding their lane. Three properties
+  make it work where the earlier team-wide version failed:
+  - **Joining is rolled per player, against that player's own `macro`.** The sharp roster arrives
+    three-handed and converts; the poor one sends nobody and the play is never called. This is the
+    same `macro_gate` shape as every other call, applied to an individual rather than the team.
+  - **A play with too few bodies is not called at all** (`play_min_men`). One player walking at an
+    over-extended enemy is the 1v1 whiff that sank both earlier roam attempts (M5-C, M5-E2) — and it
+    costs the farm either way. The commitment threshold is what makes leaving lane pay.
+  - **The set is committed for the window.** The team's own intent does not get to walk those
+    players somewhere else mid-collapse, and the play does not interrupt a recall, a camp clear or a
+    gank already in flight. Two ends of one rule.
+  This is also where **support mobility** (item 5) and **proactive roaming** (item 2) live: the
+  support roams when it is part of a committed play, never on its own dice. Measured at **+4 points**
+  of macro win rate — the largest single gain in M5, and notable for *raising* fight volume while
+  still favouring the macro roster, because a coordinated collapse is a fight the numbers edge
+  already won (`REPORTS/M5-F2.md`).
+- **What a laner does about an inbound gank: it engages, it does not wait (M5-F2).** The intuitive
+  model — and the one written here after the 2026-07-26 direction — was that the laner *holds* the
+  target while the play is inbound and commits when the ganker lands. Built and measured, it cost
+  **7.5 points** of macro win rate and dropped the gank connect rate from 22% to 17%. The reason is
+  physics, not tuning: in this sim engaging early is what **pins** the victim. A laner that merely
+  holds leaves the victim free to disengage the moment a third body appears, so the gank arrives at
+  a target already leaving. So a reactor all-ins as soon as it hears the call, and the "set-up" half
+  of item 1 is **retired** — the telegraph itself (the call posts when the jungler commits, not when
+  it arrives) is what the laner needs, and that already existed. Same lesson as the answer walking
+  *at* its spot rather than cutting it off: being there, early, is the mechanic.
 - **The answer: the other half of a jungler's job (designer, 2026-07-26).** *"The blue jungler
   passes behind the red mid while his own T1 is being attacked, and goes to a jungle camp
   instead of helping. Does not look like a human-pro decision."* Every play the sim made until
@@ -283,7 +313,7 @@ playtest is the real gate, the viewer has to show what the sim decided. Rules:
   imply were actually drawn, so playback regressions surface in `tools/check.sh` rather than
   in a designer playtest.
 
-### 7.2 The highlight view (designer direction 2026-07-25 — scoped as M8, not yet built)
+### 7.2 The highlight view (designer direction 2026-07-25 — scoped as M6, not yet built)
 Two views of the same match, from the same tick stream.
 
 - **Overview** — what exists today. The whole map, accelerated, silhouettes, the story at a
@@ -319,7 +349,7 @@ things invisible at map scale become the whole picture. Bodies drawn away from t
 for legibility (§7.1) stop being harmless; walking through jungle walls that do not exist reads as
 broken; five keyframes a second reads as sliding. And the content has to be there — measured over
 60 matches, no fight has ever reached six participants, so the *plays* (§6.1's multi-man layer) are
-the prerequisite, not the camera. See `REPORTS/M8-scoping.md`.
+the prerequisite, not the camera. See `REPORTS/M6-scoping.md`.
 
 ### 7.3 Reference target ✅ — *Teamfight Manager 2* (designer, 2026-07-25)
 The designer named a concrete long-term target for what a watched match should look and feel
@@ -341,7 +371,7 @@ below are the durable part).
 - **The map is real terrain.** Rock walls, brush, water, jungle blocks with corridors between
   them, camps sitting in their own pockets. At close zoom this is most of what you look at, and
   it is what makes a gank read as an ambush. Our map is lane polylines and points — this is the
-  clearest statement yet that terrain is a prerequisite for the close view (§7.2, M8-D).
+  clearest statement yet that terrain is a prerequisite for the close view (§7.2, M6-D).
 - **Sprites are small and cheap.** Characters are tiny pixel sprites — recognisable, animated,
   not detailed. The bar to clear for the close-up view is *far* lower than "real character art".
 - **Persistent per-team panels** — five portraits a side, level and HP bar, each bound to a

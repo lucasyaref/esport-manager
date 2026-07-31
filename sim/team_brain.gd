@@ -26,6 +26,9 @@ var _swap_rolled := false     # the one-time "do we open swapped?" roll happened
 var _mirror_rolled := false   # the one-time "enemy swapped, match it?" roll happened
 
 var _defend_deep := false   # the tower under threat is game-threatening (see _apply)
+# The committed multi-man play (M5-F2, item 3): a target, a committed SET of
+# bodies, and a window. Empty when no play is running. See _consider_play.
+var _play: Dictionary = {}
 var _macro_avg := 0.0
 var _macro_cfg: Dictionary = {}      # balance.macro: pivot / span / floor_frac / ...
 # The blackboard: calls a player posts for team-mates to read, keyed by name
@@ -220,6 +223,10 @@ func update(t: int, m: SimMatch) -> void:
 	# Objective-triggered now: fires whenever bot T1 has fallen (usually mid game),
 	# so it runs every tick and self-limits, not just during laning.
 	_consider_lane_swap(t, m)
+	# The committed play runs BESIDE the team's intent, not as one of its values:
+	# it takes two or three bodies off whatever they were doing while the rest of
+	# the team carries on. That separation is the whole M5-F2 fix (see below).
+	_consider_play(t, m)
 	if m.phase_of(t) == "early":
 		intent = "lane"
 		return
@@ -247,18 +254,6 @@ func update(t: int, m: SimMatch) -> void:
 		if intent == "group_objective" or m.rng.chance(_macro_avg / float(_macro_cfg.rotate_divisor)):
 			new_intent = "group_objective"
 			new_rally = m.objectives.objective_pos()
-
-	# 2. Punish an over-extended, isolated enemy caught on our side of the map
-	#    (2026-07-25 remark 6). GATED OFF in M5-D (defense.punish_base/lift = 0):
-	#    measured, a blunt team-wide collapse drags the macro team (it rolls the
-	#    gate more, over-commits, and gets caught). M5-F enables and tunes it as a
-	#    committed multi-man pick (subset + window), the right vehicle. Wired now so
-	#    M5-F only turns the dial. Base defense (step 1) is remark 6's shipped half.
-	if new_intent == "farm":
-		var punish := _punish_target(t, m)
-		if punish != Vector2.ZERO:
-			new_intent = "collapse"
-			new_rally = punish
 
 	if new_intent == "farm":
 		var siege_lane := _pushed_lane(m, enemy)
@@ -334,9 +329,10 @@ func _is_deep_threat(m: SimMatch, lane: String) -> bool:
 
 ## An enemy caught over-extended and ALONE on our half of the map, where enough
 ## of ours can reach to make it a pick — the position to collapse on (remark 6).
-## ZERO when there is nothing worth punishing. One macro-gated roll, latched via
-## the `collapse` intent so it does not re-roll every tick: a sharp roster spots
-## and converts the pick, a weak one lets it walk.
+## ZERO when there is nothing worth punishing. One macro-gated roll: a sharp roster
+## spots and converts the pick, a weak one lets it walk. The re-roll is limited by
+## the caller — `_consider_play` runs on its own cadence and holds a running play —
+## so this is a pure read of the board.
 func _punish_target(_t: int, m: SimMatch) -> Vector2:
 	var enemy := "red" if team == "blue" else "blue"
 	var d: Dictionary = m.balance.defense
@@ -362,9 +358,79 @@ func _punish_target(_t: int, m: SimMatch) -> Vector2:
 			best = foe.pos
 	if best == Vector2.ZERO:
 		return Vector2.ZERO
-	if intent == "collapse" or m.rng.chance(macro_gate(float(d.punish_base), float(d.punish_lift))):
+	if m.rng.chance(macro_gate(float(d.punish_base), float(d.punish_lift))):
 		return best
 	return Vector2.ZERO
+
+
+## The committed multi-man play (M5-F2, designer item 3; GDD §6.1). The pick this
+## dispatches on has existed since M5-D — an enemy caught over-extended and alone —
+## but the way it was *answered* was `intent = "collapse"`, a team-wide yank that
+## pulled all five off their lanes. Measured, that lost the macro team points: it
+## rolls the gate more often, so it over-commits more often, and five bodies chasing
+## one is five bodies not farming. It has been gated to zero since.
+##
+## The fix is not a better detector, it is a **committed set**. A play is three
+## things — a target, the bodies that agreed to come, and a window — and everyone
+## else keeps doing what they were doing. Joining is rolled per player against that
+## player's own `macro`, so the sharp roster arrives three-handed and the poor one
+## does not arrive at all: the play either has the bodies to be worth it or is not
+## called (`play_min_men`). That is the same lesson as the two reverted roam
+## attempts (M5-C, M5-E2) — leaving lane costs priority and only pays if the play
+## converts — expressed as a commitment rather than as a wider dice roll.
+func _consider_play(t: int, m: SimMatch) -> void:
+	var d: Dictionary = m.balance.defense
+	if not _play.is_empty():
+		if t <= int(_play.until):
+			return          # a play is running; one at a time
+		_play = {}
+	if t % int(float(d.play_interval_s) * SimMatch.TICKS_PER_SECOND) != 0:
+		return
+	var target := _punish_target(t, m)
+	if target == Vector2.ZERO:
+		return
+	# Nearest first, so the bodies that give up the least farm are asked first;
+	# ties resolve by fixed agent order, so the roll sequence is identical every run.
+	var pool: Array[PlayerAgent] = []
+	for agent in m.agents:
+		if agent.team != team or not agent.alive or agent.in_combat:
+			continue
+		if agent.state in [PlayerAgent.State.GANKING, PlayerAgent.State.RECALLING,
+				PlayerAgent.State.CLEARING, PlayerAgent.State.DEAD]:
+			continue  # already committed to something; a play does not interrupt it
+		if agent.pos.distance_to(target) <= float(d.play_radius):
+			pool.append(agent)
+	var men: Array[int] = []
+	var asked: Array[int] = []
+	while men.size() < int(d.play_max_men):
+		var best: PlayerAgent = null
+		for agent in pool:
+			if agent.idx in asked:
+				continue
+			if best == null or agent.pos.distance_to(target) < best.pos.distance_to(target):
+				best = agent
+		if best == null:
+			break
+		asked.append(best.idx)
+		if m.rng.chance(macro_gate_of(float(best.attrs.macro),
+				float(d.play_join_base), float(d.play_join_lift))):
+			men.append(best.idx)
+	# Two bodies or it is not a play — one man walking at an over-extended enemy is
+	# the 1v1 whiff, and it costs the farm either way.
+	if men.size() < int(d.play_min_men):
+		return
+	var until: int = t + int(float(d.play_window_s) * SimMatch.TICKS_PER_SECOND)
+	var ids: Array[String] = []
+	for idx in men:
+		m.agents[idx].set_play(target, until)
+		ids.append(m.agents[idx].id)
+	_play = {"pos": target, "until": until, "men": men}
+	m.emit_event(t, "play_call", {"team": team, "kind": "collapse", "men": ids,
+		"pos": [target.x, target.y]})
+
+
+func _in_play(idx: int) -> bool:
+	return not _play.is_empty() and idx in _play.men
 
 
 func _has_ally_near(m: SimMatch, side: String, of: PlayerAgent, radius: float) -> bool:
@@ -396,13 +462,17 @@ func _apply(t: int, m: SimMatch) -> void:
 	for agent in m.agents:
 		if agent.team != team or not agent.alive:
 			continue
+		# A body that committed to the play is the play's until the window shuts —
+		# the team's intent does not get to walk it somewhere else mid-collapse.
+		if _in_play(agent.idx):
+			continue
 		if intent == "defend" and not _defend_deep and not agent.idx in squad:
 			agent.set_farming_intent()
 			continue
 		match intent:
 			"lane", "farm":
 				agent.set_farming_intent()
-			"group_objective", "siege", "defend", "collapse":
+			"group_objective", "siege", "defend":
 				# The split-pusher (global TP ult) keeps pressuring a side lane
 				# instead of grouping — unless the base is threatened, or the
 				# teleport is up, in which case it pays to be in two places.
