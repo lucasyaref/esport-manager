@@ -229,11 +229,15 @@ that appears.
   base or nexus in danger is worth the whole team; an outer tower is worth the nearest couple
   while the rest keep farming. Sending five bodies at every pinned wave is how a team ends with
   neither map nor farm.
-  - *How hard defenders clear is deliberately conservative*, and that is a balance fact rather
-    than a design one: a lane in this sim is pinned on somebody's tower most of the game, so a
-    big per-player clear rate is really "everybody pushes harder", and it swings the
-    macro/mechanics win split by 4–13 points **non-monotonically**. Measured settings and the
-    trade are in `REPORTS/M5-F1.md`; it is a designer call, not a knob to tune blind.
+  - *How hard defenders clear* was one number shared with ordinary laning, which made it look
+    like a trade it is not. Raising it swung the macro/mechanics win split by 4–13 points
+    **non-monotonically** (`REPORTS/M5-F1.md` §4) — but that cost came from the *contested* half:
+    a lane in this sim is pinned on somebody's tower most of the game, so raising the shared
+    number is really "everybody pushes harder". **Siege clearing is now its own weight**
+    (`minions.defend_pressure_mult`, 1.0 = the M5-F1 behaviour), and measured on its own over 400
+    sims it is well-behaved: ×6 costs ~3 points of macro win rate and leaves the snowball flat
+    (66%, against 71–73% for the shared raise) while taking kills to pro's 28 and length to
+    30.25 min. Which value ships is a designer call about fidelity, not a balance knob.
 - **Towers hold in the early game (plating, 2026-07-26, remark 6).** The real game armours turrets
   with plates until 14:00, which is why a pro first tower falls around 10–12 minutes. Ours fell at
   **5.6**, which ended the laning phase before it produced anything worth watching. So a tower

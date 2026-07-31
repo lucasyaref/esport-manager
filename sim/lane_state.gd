@@ -165,15 +165,17 @@ func _fight(pressure: Dictionary, bounds: Dictionary) -> Array[Dictionary]:
 		if engaged:
 			_kill_acc[team] += rate * float(army[opp]) + float(pressure[opp])
 		elif at_wall:
-			# Deliberately the *same* per-player weight as a contested lane, not a
-			# bigger one. Making defenders visibly sweep the wave needs a much
-			# larger `presence_pressure`, and that is not a free fidelity win: a
-			# lane in this sim sits pinned on somebody's tower most of the game, so
-			# raising it is really "everybody pushes harder", and it moves the
-			# macro/mechanics win split by 4 to 13 points depending on the value —
-			# non-monotonically, so it is not a balance dial either. Measured
-			# settings and the trade are in REPORTS/M5-F1.md; it is a designer call.
-			_kill_acc[team] += float(pressure[opp])
+			# The siege case, and the only one where raising the per-player weight
+			# means "defenders sweep the wave off their own tower" rather than
+			# "everybody pushes harder" — a contested lane goes through the
+			# `engaged` branch above and is untouched by this multiplier.
+			#
+			# M5-F1 raised `presence_pressure` itself, which hits both branches, and
+			# the win split moved 4 to 13 points non-monotonically because lane
+			# equilibria are threshold-y. This dial is the narrow version of that
+			# question: 1.0 is M5-F1's shipped behaviour exactly. Measured settings
+			# and the fidelity-vs-balance trade are in REPORTS/M5-F1.md §4.
+			_kill_acc[team] += float(pressure[opp]) * float(_bal.defend_pressure_mult)
 		# A squad pinned against an enemy tower is shredded by it. This is the
 		# counterforce that keeps armies bounded: without it any surplus
 		# compounds forever, because kill rate scales with army size.

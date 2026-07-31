@@ -36,6 +36,30 @@ merely holds gives the target a free disengage the moment the third body arrives
 match. Report: `REPORTS/M5-F2.md`, which asks whether the *readability* of a visible set-up is worth
 that cost (designer call).
 
+**Designer answers, 2026-07-31** (on `REPORTS/M5-F2.md` §5): the **gank set-up stays as shipped** (the
+laner all-ins on the call; the readable two-stage version is not bought back), and **play frequency
+stays as is** for now (7–8 plays/match, `defense.play_interval_s` untouched) pending a 1x playtest.
+
+**The defence trade (M5-F1 §8 q1) is now measured, and it was not the trade it looked like.** How hard
+defenders clear was *one* number shared with contested laning, so raising it for fidelity also made
+every lane push harder — which is where M5-F1's 4–13-point non-monotone swing came from.
+`minions.defend_pressure_mult` now scales the siege branch only (`LaneState._fight`, 1.0 = today's
+behaviour exactly; the 1.0 control reproduced 38.5% to the decimal). 200 sims per arm on both canonical
+seed sets:
+
+| `defend_pressure_mult` | macro win (5000 / 7000) | conversion | kills | length | first tower |
+|---|---|---|---|---|---|
+| **1.0 (shipped)** | 38.5% / 36.0% — **37.25%** | 65.5% | 27.0 | 29.5 | 7.6 |
+| 3.0 | 34.0% / 33.0% — 33.5% | 67.0% | 27.3 | 29.9 | 7.65 |
+| 6.0 | 36.0% / 32.0% — 34.0% | 66.0% | **28.1** | **30.25** | 7.75 |
+
+Unlike the shared number this one is **well-behaved** (×3 and ×6 land in the same place) and the
+**snowball stays flat** — 66% against the shared raise's 71–73%, which was the disqualifying cost. The
+price is ~3 points of macro win rate, consistent in direction across all four arms but inside noise at
+n=400 (SE ≈ 2.4). What it does *not* buy is the nexus visual specifically: the nexus-under-attack probe
+barely moved (28.4 → 27.7 samples/match), so it slows sieges generally rather than making a defended
+nexus dramatic. **Awaiting the designer's call**; the dial ships at 1.0 meanwhile.
+
 Earlier M5 phases (A–E, F1) and their numbers are in `CHANGELOG.md`; the one-line status is that the
 sandwich, the tempo payoff, the jungler's *answer*, positional lane defence and turret plating all
 shipped, and two roam-widening attempts were measured and rejected on the way.
@@ -74,6 +98,7 @@ From the designer's M4.5 playtest (2026-07-23): bots stay lane-bound and passive
   - **Defending is bodies** (remark 5). Lane presence is now positional rather than a lane assignment, so defenders clear the wave and push the front back; and the defend dispatch is sized to the threat — everyone for a base/nexus, `defense.defend_men` for an outer tower.
   - **The kill audit** (remarks 2 and 6) — batch metrics extended with a kills-per-minute timeline, deaths by role and a nexus-defence probe, then compared with LCK/LEC 2025. **Turret plating** (`towers.plating_*`) came out of it: the first tower fell at 5.6 min against pro's ~10–12, which is what made the early game feel empty. It is the one change in the phase that *helped* the macro roster (+3 pts).
   - **Support survivability** (remark 3): gold buying durability in target selection (`fight.squishy_bias`) was built, measured at 2.0 and 4.0, moved the support's share of deaths by under a point, and is **gated off**. Diagnosis: the support isn't losing fights, it isn't in them (43% of kills happen in mid lane, 12% in top). → M5-G, with numbers.
+  - **The defence trade (§8 q1) — re-measured 2026-07-31 and reframed.** The cost was an artefact of one number serving both contested laning and siege clearing; split into `minions.defend_pressure_mult`, the siege half is well-behaved and leaves the snowball flat. Table and the open designer call are in **Now**, above.
 - **M5-F2 — Coordinated multi-man moves + gank telegraph (items 1 & 3) — done.** `TeamBrain._consider_play` dispatches 2–3 to converge on a pick (target, committed set, window), joining rolled per player against that player's own `macro`, and a play with fewer than `play_min_men` bodies is never called. M5-D's punish-over-extension collapse is enabled by it (`defense.punish_base`/`punish_lift` off zero for the first time). **+4 pts of macro win rate** — and notable for *raising* fight volume while still favouring the macro roster, which breaks the rule M5-F1 established, because a coordinated collapse is a fight whose numbers edge was decided before it started. Items 2 & 5 (roams, support mobility) are settled by it. The gank **telegraph already existed** (the call posts when the jungler commits, not on arrival); the **set-up half was reverted on the numbers** — see `REPORTS/M5-F2.md` §2 and GDD §6.1.
 - **M5-G — Balance pass + batch sign-off + report.** Re-measure the win-split (target ~43/57, **last 38.5%** — most of the M5 gap closed by M5-F2, ~5 pts left) and gold-lead conversion (target ~65%, last 66.5% and now consistent across seed sets); extend metrics (connect rate, tempo trades, multi-man plays); assertions; `REPORTS/M5.md`; designer 1x playtest gate.
   Two items inherited from M5.5: **a decisive endgame** (measured 2026-07-25: the losing nexus bleeds for ~6 min under minion chip alone, worst case 13; turrets stall at ~0 HP for minutes) and **sim-side body volume as a tunable** (measured: −6 pts macro win, blue-side 49.5→43.5%, conversion 66.3→71.1%, but gank connect 16→22% and first-tower-bot 10→27%). M8's scoping added a third: **the teamfight does not exist** — over 60 matches, *no* fight reached six participants and 92% of kill-moments are a single death (`REPORTS/M6-scoping.md`), so M5-E/F must be measured on "does a big fight ever happen", and M6-A's scorer is the instrument that measures it.

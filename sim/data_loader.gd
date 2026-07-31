@@ -294,7 +294,7 @@ static func _validate_balance(balance: Dictionary, errors: Array[String]) -> voi
 		"minions": ["first_wave_s", "wave_interval_s", "melee_per_wave", "caster_per_wave",
 			"cannon_every_n_waves", "gold_melee", "gold_caster", "gold_cannon",
 			"xp_per_minion", "speed", "combat_kill_rate", "presence_pressure",
-			"presence_radius", "tower_kill_rate"],
+			"presence_radius", "tower_kill_rate", "defend_pressure_mult"],
 		"economy": ["starting_gold", "passive_gold_per_s", "support_income_per_s",
 			"buy_threshold_base", "buy_threshold_per_level", "recall_channel_s"],
 		"xp": ["level_up_base", "level_up_step", "duo_share"],
