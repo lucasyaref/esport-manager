@@ -343,6 +343,18 @@ tower falls with champions present, a base defense), scored, and the best few se
 - **Deterministic.** Same input + seed ⇒ same match ⇒ **same reel**. The rule from CLAUDE.md
   extends to highlight selection.
 
+**The scorer is built and shipped ✅ (M6-A, 2026-08-01)** — `sim/highlights.gd`, tuned from
+`data/highlights.json`, printed for one match by `tools/reel.gd` and measured in batch. Kills,
+fights, objectives and structures all become *anchors* with a time span and a position; anchors
+overlapping in both are one moment, which is why a gank, the tower it buys and the dragon that
+follows read as one thing rather than three. Score is kills + multikills + ace + bodies at the
+peak + gold swing + objective/structure value, all multiplied by game clock (`late_bonus`: a play
+at minute 30 decides the game, one at minute 4 does not). Selection applies the absolute floor,
+the spacing, a per-kind cap and a hard count; the nexus is exempt from all four, because a match
+always ends on its nexus. The rarity bonuses and the reserved laning slot above are **not built** —
+the measured reel spread is 2%/31%/67% early/mid/late, so reserving an early slot would be
+reserving it for nothing until the early game has something in it.
+
 **A highlight is a time window plus a camera focus** — nothing more. That single definition gives
 both pacing modes for free: *full match* (watch it all, drop into each highlight as it comes,
 ~12 real minutes) and *highlights-only* (jump moment to moment, ~4–5 minutes) — the second is what
@@ -351,9 +363,16 @@ a manager watching a 38-game season actually wants, and it is the same code.
 **What the close-up demands that the overview never did.** Zoom is a magnifying glass on the sim:
 things invisible at map scale become the whole picture. Bodies drawn away from their sim positions
 for legibility (§7.1) stop being harmless; walking through jungle walls that do not exist reads as
-broken; five keyframes a second reads as sliding. And the content has to be there — measured over
-60 matches, no fight has ever reached six participants, so the *plays* (§6.1's multi-man layer) are
-the prerequisite, not the camera. See `REPORTS/M6-scoping.md`.
+broken; five keyframes a second reads as sliding. And the content has to be there — see
+`REPORTS/M6-scoping.md`.
+
+That last prerequisite is now measured rather than asserted. The scoping report's "no fight has
+ever reached six participants" pre-dated M5-E/F and is **no longer true**: the average match's
+biggest fight is 5.7 bodies and 3% of all fights reach six. What *is* true is that fights are
+overwhelmingly small — **65% of them are two bodies** — and the reason is not macro. Teams do
+converge: at the average fight 3.9 bodies are standing within reach of an enemy and only 2.6 are
+swinging. **69% of that gap is the disengage lock** (§6.1), not a failure to rotate. The
+prerequisite for the close-up view is therefore a *commitment* fix, not more plays.
 
 ### 7.3 Reference target ✅ — *Teamfight Manager 2* (designer, 2026-07-25)
 The designer named a concrete long-term target for what a watched match should look and feel

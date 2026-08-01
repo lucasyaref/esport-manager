@@ -42,6 +42,10 @@ var speed_mult := 1.0            # gap-closer bonus while committing to a fight
 var attack_ready_at := 0
 var last_swing_at := -999999     # tick of the last auto-attack fired (viewer beat)
 var disengage_until := -1        # broke off a fight; won't re-commit until then
+# Why this agent is not fighting, when an enemy is in sight. Diagnostic only —
+# nothing in the sim reads it — but "how big do fights get" is an M5-G balance
+# question and guessing at the reason is how you tune the wrong number.
+var decline_reason := ""         # "" | low_hp | locked | numbers | chase | tower
 var stunned_until := -1
 var slowed_until := -1           # movement slowed by CC (a basic ability that catches)
 var slow_mult := 1.0             # speed multiplier while slowed (< 1.0)

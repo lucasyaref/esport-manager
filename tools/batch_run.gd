@@ -132,6 +132,14 @@ func _initialize() -> void:
 	# Bodies present at the fight's peak, both sides — the honest "how big do
 	# fights get" distribution. 6 counts as "6 or more".
 	var fight_peak_hist := {2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
+	# Bodies standing at the fight vs bodies actually swinging. The ratio splits
+	# "the team never came" from "the team came and didn't fight" — two different
+	# fixes, and only the measurement says which one we have.
+	var fight_present := 0
+	var fight_engaged := 0
+	# ...and when they came and didn't fight, why. Guessing at this is how you
+	# end up tuning the wrong number.
+	var decline_hist := {}
 	# Assertions: things the designer had to spot by eye. Any hit is a hard fail.
 	var oob := 0
 	var squad_oob := 0
@@ -232,6 +240,11 @@ func _initialize() -> void:
 					var peak: int = int(ev.data.peak.blue) + int(ev.data.peak.red)
 					match_peak = maxi(match_peak, peak)
 					fight_peak_hist[clampi(peak, 2, 6)] += 1
+					fight_present += int(ev.data.present.blue) + int(ev.data.present.red)
+					fight_engaged += peak
+					for why: String in ev.data.declines:
+						decline_hist[why] = int(decline_hist.get(why, 0)) \
+							+ int(ev.data.declines[why])
 				"gank_call":
 					var is_sandwich: bool = String(ev.data.get("kind", "gank")) == "sandwich"
 					gank_calls += 1
@@ -359,6 +372,16 @@ func _initialize() -> void:
 	print("| Fights per match | %.1f |" % (float(fight_count) / sims))
 	print("| Fight duration avg (s) | %.0f |" % _avg(fight_dur))
 	print("| Biggest fight of the match (bodies) | %.1f |" % _avg(biggest_fight))
+	print("| Bodies at the fight, fighting / standing there | %.2f / %.2f |" % [
+		float(fight_engaged) / maxi(fight_count, 1), float(fight_present) / maxi(fight_count, 1)])
+	var declines_total := 0
+	for why: String in decline_hist:
+		declines_total += int(decline_hist[why])
+	var decline_names: Array = decline_hist.keys()
+	decline_names.sort()
+	for why: String in decline_names:
+		print("| ...standing there because: %s | %.0f%% |" % [
+			why, 100.0 * decline_hist[why] / maxi(declines_total, 1)])
 	var fights_total := maxi(fight_count, 1)
 	for size in [2, 3, 4, 5, 6]:
 		print("| Fights at %s bodies | %.0f%% |" % [

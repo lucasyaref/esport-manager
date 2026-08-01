@@ -75,9 +75,11 @@ func update_intent(t: int) -> void:
 		# Hysteresis: a player who has just broken off a fight stays broken off
 		# for a few seconds. Without it, agents re-evaluate every tick, bounce
 		# straight back into range, and one engagement reads as twenty.
+		agent.decline_reason = ""
 		var commit := _wants_to_fight(agent, allies, enemies, t)
 		if commit and _chase_exhausted(agent, t, f):
 			commit = false
+			agent.decline_reason = "chase"
 		var tgt: PlayerAgent = null
 		var stand := agent.pos
 		if commit and t >= agent.disengage_until:
@@ -88,9 +90,22 @@ func update_intent(t: int) -> void:
 			if m.objectives.under_enemy_tower(agent.team, stand) \
 					and not _dive_worth_it(agent, tgt, allies, enemies, t, f):
 				commit = false
+				agent.decline_reason = "tower"
 		if t < agent.disengage_until:
 			commit = false
-		elif not commit:
+			agent.decline_reason = "locked"
+		elif not commit and agent.in_combat and not agent.disengaging:
+			# The lock is hysteresis for *breaking off*: someone who was fighting
+			# and pulled out stays out for a few seconds instead of bouncing back
+			# in every tick. It must not apply to a body that has not engaged yet.
+			#
+			# It used to fire on every decline, which locked out the arriving
+			# reinforcement: a third man walking into a 1v1 sees the two enemies
+			# before his own ally is inside his awareness radius, reads the local
+			# numbers as 1v2, declines — and is then barred from the fight for
+			# twelve seconds, which is twice as long as the average fight lasts.
+			# That is most of why 1.4 bodies per fight stood in range of an enemy
+			# without swinging (M5-G).
 			agent.disengage_until = t + int(
 				float(f.disengage_lock_s) * SimMatch.TICKS_PER_SECOND)
 		if not commit:
@@ -218,6 +233,7 @@ func _wants_to_fight(agent: PlayerAgent, allies: Array, enemies: Array, t: int) 
 	var laning: bool = m.phase_of(t) == "early" and agent.state in [
 		PlayerAgent.State.FARMING, PlayerAgent.State.TO_LANE]
 	if agent.hp_fraction() <= float(f.lane_disengage_hp if laning else f.disengage_hp):
+		agent.decline_reason = "low_hp"
 		return false
 	var mine := _live_power(agent, t)
 	for ally: PlayerAgent in allies:
@@ -225,7 +241,10 @@ func _wants_to_fight(agent: PlayerAgent, allies: Array, enemies: Array, t: int) 
 	var theirs := 0.0
 	for enemy: PlayerAgent in enemies:
 		theirs += _live_power(enemy, t)
-	return mine >= theirs * float(f.lane_commit_margin if laning else f.commit_margin)
+	if mine >= theirs * float(f.lane_commit_margin if laning else f.commit_margin):
+		return true
+	agent.decline_reason = "numbers"
+	return false
 
 
 ## When to stop chasing. Everyone moves at the same speed, so a runner is never
@@ -739,6 +758,8 @@ func _update_fights(t: int) -> void:
 				# add up to five without four bodies ever standing together. The
 				# honest "did a big fight happen" number is the peak (M6-A).
 				"peak": {"blue": sides.blue.size(), "red": sides.red.size()},
+				"present": {"blue": 0, "red": 0},
+				"declines": {}, "decline_samples": 0,
 				"gold0": _team_gold(),
 			}
 			m.emit_event(t, "fight_start", {
@@ -748,8 +769,30 @@ func _update_fights(t: int) -> void:
 		var rec: Dictionary = _fights[fight_id]
 		rec.last_seen = t
 		rec.pos = centre
+		# `peak` counts bodies actually swinging; `present` counts every living
+		# body standing there. The gap between them separates two very different
+		# problems — "the team never came" from "the team came and didn't fight"
+		# — which is the question M5-G has to answer about fight size.
+		# "Present" is deliberately strict: at the fight AND with an enemy inside
+		# its own awareness radius, i.e. a body that could be swinging and is not.
+		# Merely standing 12 units away with nothing in sight is not a choice.
+		var here := {"blue": 0, "red": 0}
+		for agent in m.agents:
+			if not agent.alive or agent.pos.distance_to(centre) > float(f.fight_group_radius):
+				continue
+			for other in m.agents:
+				if other.alive and other.team != agent.team \
+						and other.pos.distance_to(agent.pos) <= float(f.awareness_radius):
+					here[agent.team] += 1
+					if not agent.in_combat or agent.disengaging:
+						var why: String = agent.decline_reason if agent.decline_reason != "" \
+							else "other"
+						rec.declines[why] = int(rec.declines.get(why, 0)) + 1
+						rec.decline_samples += 1
+					break
 		for side: String in rec.peak:
 			rec.peak[side] = maxi(int(rec.peak[side]), sides[side].size())
+			rec.present[side] = maxi(int(rec.present[side]), here[side])
 		for agent: PlayerAgent in cluster:
 			if not agent.idx in rec.members:
 				rec.members.append(agent.idx)
@@ -775,7 +818,7 @@ func _update_fights(t: int) -> void:
 			# M6-A scores fights without re-deriving them from the raw stream:
 			# who was in it, how big it ever got at once, and what it was worth.
 			"blue": members.blue, "red": members.red,
-			"peak": rec.peak,
+			"peak": rec.peak, "present": rec.present, "declines": rec.declines,
 			"gold": {
 				"blue": roundi(gold_now.blue - float(rec.gold0.blue)),
 				"red": roundi(gold_now.red - float(rec.gold0.red)),
