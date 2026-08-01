@@ -75,6 +75,24 @@ that appears.
   `fight_start` / `fight_end` events. A team also **spreads its targets**: an enemy already
   being focused by allies is worth less to the next player, so five players never converge
   on one runner.
+  - **Breaking off is hysteresis, not a ban.** A player who *was fighting* and pulled out stays
+    out for `fight.disengage_lock_s` instead of bouncing back in every tick. It must never apply
+    to a body that has not engaged yet: a third man walking into a 1v1 sees the enemies before
+    his own ally enters his awareness radius, reads 1v2, declines — and used to be barred from
+    the fight for twice as long as the average fight lasts (M5-G).
+  - **Staying in a won fight** is available as `fight.hold_when_winning_edge` — a body below the
+    disengage threshold holds anyway if it has that many more local bodies than the enemy,
+    because a real player at 40% in a 4v1 does not walk home. **Shipped off (99).** Measured, it
+    buys multi-kill moments and costs kill fidelity and macro win rate; it is a drama-versus-
+    fidelity call for the designer, not a technical one (`REPORTS/M5.md` §3.4, §5 q2).
+  - ⚠️ **Fights are short and small, and no number fixes it.** Real contact lasts one to three
+    seconds; the reported 6 s fight duration is mostly the end-grace tail. 65% of all fights are
+    two bodies, and that share held at 63–66% across sixteen measured arms — damage scale,
+    disengage lock, respawn timers, the hold rule, all of it. Bodies arrive, exchange, break off,
+    and the next exchange scores as a *new* fight. Making a real 5v5 happen is a change to **how
+    long a committed body stays committed**, which is a change to this model rather than to a
+    value in it. It is the largest remaining gap to a pro game and the prerequisite M6's close-up
+    view is waiting on.
 - **A chase has to end.** Players give up when the target has been out of reach too long,
   when the chase has dragged them too far from where they committed, or when continuing
   means diving a tower they cannot afford. Without a give-up rule and with equal move speed,

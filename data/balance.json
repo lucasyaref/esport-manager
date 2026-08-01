@@ -79,7 +79,7 @@
     "mechanics_power_divisor": 950,
     "ehp_norm": 1000,
     "respawn_base_s": 8,
-    "respawn_per_level_s": 1.4,
+    "respawn_per_level_s": 2.2,
     "ult_impact": {
       "aoe_cc": 0.3,
       "single_cc": 0.15,
@@ -185,6 +185,7 @@
     "lane_commit_margin": 1.95,
     "disengage_hp": 0.45,
     "lane_disengage_hp": 0.55,
+    "hold_when_winning_edge": 99,
     "disengage_lock_s": 12,
     "reach_falloff": 4.0,
     "stand_inset": 0.25,

@@ -233,8 +233,16 @@ func _wants_to_fight(agent: PlayerAgent, allies: Array, enemies: Array, t: int) 
 	var laning: bool = m.phase_of(t) == "early" and agent.state in [
 		PlayerAgent.State.FARMING, PlayerAgent.State.TO_LANE]
 	if agent.hp_fraction() <= float(f.lane_disengage_hp if laning else f.disengage_hp):
-		agent.decline_reason = "low_hp"
-		return false
+		# ...unless the fight is already won. A real player at 40% in a 4v1 does
+		# not walk home, and walking home is exactly what made the sim's fights
+		# collapse from five bodies to two within seconds of first contact
+		# (M5-G: low HP is 19% of the reasons a body stands at a fight and does
+		# not swing). Never during laning — a laner backing off at 50% is the
+		# whole of lane trading.
+		var edge: int = int(f.hold_when_winning_edge)
+		if laning or allies.size() + 1 - enemies.size() < edge:
+			agent.decline_reason = "low_hp"
+			return false
 	var mine := _live_power(agent, t)
 	for ally: PlayerAgent in allies:
 		mine += _live_power(ally, t)
