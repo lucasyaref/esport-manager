@@ -116,6 +116,22 @@ func _initialize() -> void:
 	var first_tower_lane := {"top": 0, "mid": 0, "bot": 0}
 	var swap_events := 0                               # total lane swaps (both teams)
 	var both_swapped := 0                              # matches where both teams swapped (mirror)
+	# --- watchability (M6-A's scorer, used here as a balance instrument) ---
+	# "Does this match contain 5-10 things worth watching?" is a balance question
+	# before it is a viewer question (BACKLOG, M5-G). The reel is a pure read of
+	# the sim's own event stream, so measuring it in batch costs nothing — and it
+	# is the instrument for M8's finding that the teamfight does not exist.
+	var hl_cfg := Highlights.load_config()
+	var moments_total: Array[float] = []
+	var reel_sizes: Array[float] = []
+	var reel_scores: Array[float] = []
+	var reel_kinds := {}
+	var reel_thirds := [0, 0, 0]          # where the reel falls over the game clock
+	var multi_death_moments := 0          # moments where one side lost 2+ bodies
+	var biggest_fight: Array[float] = []  # bodies in the match's largest fight
+	# Bodies present at the fight's peak, both sides — the honest "how big do
+	# fights get" distribution. 6 counts as "6 or more".
+	var fight_peak_hist := {2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
 	# Assertions: things the designer had to spot by eye. Any hit is a hard fail.
 	var oob := 0
 	var squad_oob := 0
@@ -174,6 +190,7 @@ func _initialize() -> void:
 				length_hist[b] += 1
 				break
 		var kills := 0
+		var match_peak := 0
 		var fb := -1.0
 		var first_tower_t := -1
 		var swaps_this := 0
@@ -212,6 +229,9 @@ func _initialize() -> void:
 				"fight_end":
 					fight_count += 1
 					fight_dur.append(float(ev.data.duration_s))
+					var peak: int = int(ev.data.peak.blue) + int(ev.data.peak.red)
+					match_peak = maxi(match_peak, peak)
+					fight_peak_hist[clampi(peak, 2, 6)] += 1
 				"gank_call":
 					var is_sandwich: bool = String(ev.data.get("kind", "gank")) == "sandwich"
 					gank_calls += 1
@@ -254,6 +274,19 @@ func _initialize() -> void:
 						first_tower_t = int(ev.t)
 						first_tower_lane[ev.data.lane] += 1
 		kill_totals.append(kills)
+		biggest_fight.append(match_peak)
+		# The reel, scored the same way the viewer will score it (M6-A).
+		var moms := Highlights.moments(result.events, result.ticks, hl_cfg)
+		var reel := Highlights.select(moms, hl_cfg)
+		moments_total.append(moms.size())
+		reel_sizes.append(reel.size())
+		for mom: Dictionary in moms:
+			if maxi(int(mom.deaths.blue), int(mom.deaths.red)) >= 2:
+				multi_death_moments += 1
+		for mom: Dictionary in reel:
+			reel_scores.append(float(mom.score))
+			reel_kinds[mom.kind] = int(reel_kinds.get(mom.kind, 0)) + 1
+			reel_thirds[mini(2, int(3.0 * float(mom.start) / maxf(1.0, result.ticks)))] += 1
 		for c: Dictionary in open_calls:
 			if c.hit:
 				connect_hits += 1
@@ -325,6 +358,11 @@ func _initialize() -> void:
 	print("| Tower kills | %.1f%% |" % (100.0 * tower_kills / maxi(total_kills, 1)))
 	print("| Fights per match | %.1f |" % (float(fight_count) / sims))
 	print("| Fight duration avg (s) | %.0f |" % _avg(fight_dur))
+	print("| Biggest fight of the match (bodies) | %.1f |" % _avg(biggest_fight))
+	var fights_total := maxi(fight_count, 1)
+	for size in [2, 3, 4, 5, 6]:
+		print("| Fights at %s bodies | %.0f%% |" % [
+			"6+" if size == 6 else str(size), 100.0 * fight_peak_hist[size] / fights_total])
 	print("| Gank calls per match | %.1f |" % (float(gank_calls) / sims))
 	print("| Gank followers avg | %.2f |" % (float(gank_reactors) / maxi(gank_calls, 1)))
 	print("| Gank connect rate | %.0f%% |" % (100.0 * connect_hits / maxi(gank_calls, 1)))
@@ -338,6 +376,21 @@ func _initialize() -> void:
 	print("| Tempo windows per match | %.2f |" % (float(tempo_calls) / sims))
 	print("| Tempo windows that took the tower | %.0f%% |" % (100.0 * tempo_towers / maxi(tempo_calls, 1)))
 	print("| Avg level @30min | %.1f |" % _avg(level_mid))
+	# Watchability (M6-A). The reel is what a viewer would actually be shown, so
+	# "moments in the reel" is the designer-facing number and the candidate count
+	# is only there to show how much the floor is throwing away.
+	print("| Moments in the reel | %.1f |" % _avg(reel_sizes))
+	print("| Candidate moments | %.1f |" % _avg(moments_total))
+	print("| Reel score avg | %.0f |" % _avg(reel_scores))
+	print("| Moments where a side lost 2+ | %.2f |" % (float(multi_death_moments) / sims))
+	var reel_total := maxi(int(_avg(reel_sizes) * sims), 1)
+	var kind_names: Array = reel_kinds.keys()
+	kind_names.sort()
+	for kind: String in kind_names:
+		print("| Reel is %s | %.0f%% |" % [kind, 100.0 * reel_kinds[kind] / reel_total])
+	print("| Reel spread early/mid/late | %.0f%% / %.0f%% / %.0f%% |" % [
+		100.0 * reel_thirds[0] / reel_total, 100.0 * reel_thirds[1] / reel_total,
+		100.0 * reel_thirds[2] / reel_total])
 	print("")
 	print("| Kill rate over game time | Kills/min | Share of kills |")
 	print("|---|---|---|")
@@ -395,17 +448,7 @@ func _initialize() -> void:
 ## river/jungle between them. Lanes are polylines, so we sample each and take the
 ## nearest — cheap and good enough for a distribution.
 func _region(map: SimMap, pos: Vector2) -> String:
-	if pos.distance_to(map.pits.dragon) < PIT_RADIUS or pos.distance_to(map.pits.baron) < PIT_RADIUS:
-		return "pit"
-	var best_lane := ""
-	var best_d := INF
-	for lane in SimMap.LANES:
-		for k in 24:
-			var d := pos.distance_to(map.pos_on_lane(lane, k / 23.0))
-			if d < best_d:
-				best_d = d
-				best_lane = lane
-	return best_lane if best_d <= LANE_RADIUS else "river_jungle"
+	return map.region(pos, LANE_RADIUS, PIT_RADIUS)
 
 
 func _vec(p: Array) -> Vector2:

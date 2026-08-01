@@ -1,0 +1,53 @@
+{
+  "_doc": [
+    "M6-A highlight scoring. Read by sim/highlights.gd AFTER a match finishes —",
+    "nothing here can change how a match plays out, only which parts of it are",
+    "worth watching. Tuning this is safe.",
+    "",
+    "merge_window_s / merge_radius: two things this close in time AND space are",
+    "one moment. A gank, the tower it buys and the dragon that follows should",
+    "read as one thing, the way a viewer would see it.",
+    "",
+    "score.*: the weights. kill/multikill/ace/participant/gold_per_1000 are per",
+    "unit; the kind names (dragon, baron, tower_*, nexus, and the fight sizes)",
+    "are flat bonuses added once per component of that kind. late_bonus scales",
+    "the whole score by game clock: 0.6 means a moment at the last minute is",
+    "worth 1.6x the same moment at minute zero.",
+    "",
+    "select.*: the reel. floor is absolute — a boring match gets a SHORT reel,",
+    "it never gets padded. min_spacing_s stops five clips of one long brawl.",
+    "max_per_kind is variety. The nexus is exempt from all of it."
+  ],
+
+  "merge_window_s": 15.0,
+  "merge_radius": 18.0,
+
+  "score": {
+    "kill": 10.0,
+    "multikill": 8.0,
+    "ace": 25.0,
+    "ace_deaths": 4,
+    "participant": 3.0,
+    "gold_per_1000": 6.0,
+    "late_bonus": 0.6,
+
+    "pick": 0.0,
+    "skirmish": 0.0,
+    "fight": 0.0,
+    "teamfight": 0.0,
+
+    "dragon": 12.0,
+    "baron": 30.0,
+    "tower_outer": 4.0,
+    "tower_inner": 8.0,
+    "tower_base": 14.0,
+    "nexus": 200.0
+  },
+
+  "select": {
+    "max_moments": 10,
+    "floor": 30.0,
+    "min_spacing_s": 45.0,
+    "max_per_kind": 4
+  }
+}

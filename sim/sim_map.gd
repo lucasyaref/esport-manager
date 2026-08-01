@@ -84,6 +84,24 @@ func nearest_lane(p: Vector2) -> String:
 	return best
 
 
+## Coarse place-name for a position: one of the three lanes, an objective pit,
+## or the river/jungle between them. The reports and M6-A's reel text both name
+## places, and they must name them the same way.
+func region(p: Vector2, lane_radius := 6.0, pit_radius := 8.0) -> String:
+	for pit: String in pits:
+		if p.distance_to(pits[pit]) < pit_radius:
+			return "pit"
+	var best: String = LANES[0]
+	var best_d := INF
+	for lane in LANES:
+		for k in 24:
+			var d := p.distance_to(pos_on_lane(lane, k / 23.0))
+			if d < best_d:
+				best_d = d
+				best = lane
+	return best if best_d <= lane_radius else "river_jungle"
+
+
 ## Lane fronts can't push past the outer towers until sieging exists (M3).
 func clamp_front(t: float) -> float:
 	return clampf(t, float(towers.blue.outer), float(towers.red.outer))

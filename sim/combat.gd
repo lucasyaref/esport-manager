@@ -562,6 +562,7 @@ func _kill(t: int, killer: PlayerAgent, victim: PlayerAgent, source: String) -> 
 	_record_fight_death(victim, where)
 	m.emit_event(t, "kill", {
 		"killer": killer.id if killer != null else "", "victim": victim.id,
+		"victim_team": victim.team,   # M6-A scores a moment by which side lost bodies
 		"assists": assist_ids, "gold": roundi(bounty), "source": source,
 		"pos": [where.x, where.y],
 	})
@@ -733,6 +734,12 @@ func _update_fights(t: int) -> void:
 			_fights[fight_id] = {
 				"members": [], "started": t, "pos": centre, "context": context,
 				"deaths": {"blue": 0, "red": 0},
+				# `peak` is the largest the fight ever got *at once* per side; the
+				# member list only says who touched it, which over a 20 s scrap can
+				# add up to five without four bodies ever standing together. The
+				# honest "did a big fight happen" number is the peak (M6-A).
+				"peak": {"blue": sides.blue.size(), "red": sides.red.size()},
+				"gold0": _team_gold(),
 			}
 			m.emit_event(t, "fight_start", {
 				"context": context, "pos": [centre.x, centre.y],
@@ -741,6 +748,8 @@ func _update_fights(t: int) -> void:
 		var rec: Dictionary = _fights[fight_id]
 		rec.last_seen = t
 		rec.pos = centre
+		for side: String in rec.peak:
+			rec.peak[side] = maxi(int(rec.peak[side]), sides[side].size())
 		for agent: PlayerAgent in cluster:
 			if not agent.idx in rec.members:
 				rec.members.append(agent.idx)
@@ -754,11 +763,23 @@ func _update_fights(t: int) -> void:
 		var winner := ""
 		if deaths.blue != deaths.red:
 			winner = "blue" if deaths.blue < deaths.red else "red"
+		var members := {"blue": [], "red": []}
+		for idx: int in rec.members:
+			members[m.agents[idx].team].append(m.agents[idx].id)
+		var gold_now := _team_gold()
 		m.emit_event(t, "fight_end", {
 			"context": rec.context, "winner": winner,
 			"pos": [rec.pos.x, rec.pos.y],
 			"duration_s": roundi((t - int(rec.started)) / float(SimMatch.TICKS_PER_SECOND)),
 			"kills": deaths,
+			# M6-A scores fights without re-deriving them from the raw stream:
+			# who was in it, how big it ever got at once, and what it was worth.
+			"blue": members.blue, "red": members.red,
+			"peak": rec.peak,
+			"gold": {
+				"blue": roundi(gold_now.blue - float(rec.gold0.blue)),
+				"red": roundi(gold_now.red - float(rec.gold0.red)),
+			},
 		})
 		_fights.erase(fight_id)
 
@@ -796,6 +817,16 @@ func _find(parent: Array[int], i: int) -> int:
 	while parent[root] != root:
 		root = parent[root]
 	return root
+
+
+## Gold earned so far by each side, for the fight's gold swing. Team-wide rather
+## than participants-only on purpose: a fight the rest of the map pays for (the
+## split-pusher taking a tower while four die) is a fight worth watching.
+func _team_gold() -> Dictionary:
+	var out := {"blue": 0.0, "red": 0.0}
+	for agent: PlayerAgent in m.agents:
+		out[agent.team] += agent.gold_total
+	return out
 
 
 ## An existing fight this cluster continues, or -1 if it is a new one.

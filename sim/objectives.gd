@@ -156,12 +156,14 @@ func _take(t: int, name: String, obj: Dictionary, team: String) -> void:
 		obj.spawn_tick = t + int(float(bal.dragon_respawn_s) * SimMatch.TICKS_PER_SECOND)
 		m.award_team(t, team, float(bal.dragon_gold_per_player), float(bal.dragon_xp_per_player))
 		m.emit_event(t, "objective_taken", {
-			"objective": "dragon", "team": team, "stacks": obj.stacks[team]})
+			"objective": "dragon", "team": team, "stacks": obj.stacks[team],
+			"pos": [m.map.pits.dragon.x, m.map.pits.dragon.y]})
 	else:
 		obj.buff_until[team] = t + int(float(bal.baron_duration_s) * SimMatch.TICKS_PER_SECOND)
 		obj.spawn_tick = t + int(float(bal.baron_respawn_s) * SimMatch.TICKS_PER_SECOND)
 		m.award_team(t, team, float(bal.baron_gold_per_player), float(bal.baron_xp_per_player))
-		m.emit_event(t, "objective_taken", {"objective": "baron", "team": team})
+		m.emit_event(t, "objective_taken", {"objective": "baron", "team": team,
+			"pos": [m.map.pits.baron.x, m.map.pits.baron.y]})
 
 
 # --- towers / nexus ----------------------------------------------------------
@@ -290,11 +292,13 @@ func _update_siege(t: int, lane: String, defender: String) -> void:
 				"army": army})
 		if nexus_hp[defender] <= 0.0:
 			winner = attacker
-			m.emit_event(t, "nexus_destroyed", {"team": defender, "winner": attacker})
+			m.emit_event(t, "nexus_destroyed", {"team": defender, "winner": attacker,
+				"pos": [m.map.bases[defender].x, m.map.bases[defender].y]})
 		return
 	standing[0].hp -= dps / SimMatch.TICKS_PER_SECOND
 	if standing[0].hp <= 0.0:
 		var tier: String = standing[0].tier
+		var where: Vector2 = standing[0].pos
 		standing.pop_front()
 		m.award_team(t, attacker, float(bal.gold_per_player), 0.0)
 		# First tower of the match is a real swing — the tempo a coordinated
@@ -304,4 +308,5 @@ func _update_siege(t: int, lane: String, defender: String) -> void:
 			first_tower_taken = true
 			m.award_team(t, attacker, float(bal.first_tower_bonus_per_player), 0.0)
 		m.emit_event(t, "tower_destroyed", {
-			"team": defender, "lane": lane, "tier": tier, "first": is_first})
+			"team": defender, "lane": lane, "tier": tier, "first": is_first,
+			"pos": [where.x, where.y]})
