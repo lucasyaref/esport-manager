@@ -1,0 +1,72 @@
+; MOBA Manager terrain map -- DRAFT 1, generated 2026-08-02, then hand-edited.
+; This file is the source of truth for the map's walkable space. Edit it in any
+; text editor: one character = one cell = 2x2 world units, 50x50 over the
+; 100x100 world. Row 0 is the TOP of the map (y=100); column 0 is x=0.
+; Blue base is bottom-left, red base is top-right. Lines starting with ';' are
+; comments and are ignored.
+;
+;   #  wall     rock. not walkable, blocks sight.
+;   .  open     walkable jungle floor.
+;   ,  brush    walkable; hides a body from enemies outside it.
+;   ~  river    walkable, cosmetic.
+;   o  pit      walkable; the dragon / baron bowls.
+;   =  lane     walkable; the lane road (minions walk it, it is drawn as road).
+;   c  camp     walkable; a jungle camp pocket. Must line up with data/map.json.
+;   B  base     blue base floor.        R  base     red base floor.
+;
+; Rules the loader enforces (tools/check.sh):
+;   - exactly 50 lines of exactly 50 characters, comments aside
+;   - every camp / pit / tower / base position in map.json sits on a walkable cell
+;   - every walkable cell is reachable from both bases
+;   - the map is 180-degree symmetric about the centre (fairness: blue-side win
+;     rate is a tracked metric, so an asymmetric map would poison it)
+##################################################
+########################################RRRRRRRRR#
+################################========RRRRRRRRR#
+################===================,,===RRRRRRRRR#
+###===============================,,,,==RRRRRRRRR#
+##================================,,,,==RRRRRRRRR#
+##======================#####......######RRRRRRRR#
+##======~~~#################......######=RRRRRRRR#
+##====~~~~~~###############c.....######===RRRRRRR#
+##====~~~~~~~############.ccc....#####=====#RRRRR#
+##====#~~~~~~~##########..ccc.....###=====##====##
+##====##~~~~~~~########.,,.c........=====###====##
+##====###~~~~~~~#####..,,,,####....=====####====##
+##====####~~~~~~~###...,,,######..=====#####,===##
+##====#####~~~~~~~#cc...#########=====######,===##
+##====######~~~~~~~cc..#########=====..####,====##
+##====#######~~~~oooo.#########=====....##..====##
+##====########~~oooooo########=====#....#...====##
+##====########.~oooooo.######=====###.......===###
+##====#######.ccoooooo~.####====,####.......===###
+##====#######.ccoooooo~~.##=====######......===###
+##====######.....oooo~~~~.=====#######.cc..#===###
+##====#####,,......~~~~~~=====########cccc##===###
+##====#####,,,.#....~~~~====,,#######..cc###===###
+##====####,,,,###...,,~====,,,,######,,..###===###
+##===####..,,######,,,,====~,,...###,,,,####===###
+##===####cc..#######,,====~~~~....#.,,,####====###
+##===###cccc########=====~~~~~~......,,####====###
+##===##..cc.#######=====.~~~~oooo.....#####====###
+##===#......######=====##.~~oooooo...######====###
+##===#.......####,====####.~ooooooc..######====###
+##===........###=====######.oooooo~.#######====###
+##===....#....#=====########oooooo~~#######====###
+##===...##....=====#########.oooo~~~~######====###
+##===.,####..=====#########...c~~~~~~~#####===####
+##===,######=====#########.....#~~~~~~~####===####
+##===######=====..######,,,...###~~~~~~~###===####
+##===#####=====....####,,,,..#####~~~~~~~##===####
+##===####=====........c.,,.########~~~~~~~#===####
+##===###=====###.....ccc..##########~~~~~~~===####
+#BBBBB#=====#####....ccc.############~~~~~~===####
+#BBBBBBB===######.....c###############~~~~~===####
+#BBBBBBBB=######......#################~~~====####
+#BBBBBBBB######......###################~~====####
+#BBBBBBBBB####,,...######=====================####
+#BBBBBBBBB==,,,,==============================####
+#BBBBBBBBB===,,===============================####
+#BBBBBBBBB===================================#####
+#BBBBBBBBB########################################
+##################################################

@@ -264,13 +264,50 @@ that appears.
   match length, and total kills — and it is the only change in M5-F1 that *helped* the macro
   roster, because a team that wins through scaling wants the game to last.
 
-**Scope guard**: this is a readable pro game, not a MOBA engine. No pathfinding search, no
-collision resolution — steering toward a desired point along the precomputed lane paths only.
-Minions are **squads, not entities**: a handful of moving points per lane, each carrying a
-count, marching out of base along its lane, stopping on contact and grinding the enemy squad
-down by attrition. They cannot leave their lane by construction. Aggregate counts still drive
-CS, gold and the push front (the front is now *derived* from where the squads meet), so
-headless batch runs stay cheap while the viewer draws real minion dots that walk.
+**Scope guard**: this is a readable pro game, not a MOBA engine. No collision resolution —
+steering toward a desired point, now routed around terrain (§6.2) rather than free across an
+empty plane. Minions are **squads, not entities**: a handful of moving points per lane, each
+carrying a count, marching out of base along its lane, stopping on contact and grinding the
+enemy squad down by attrition. They cannot leave their lane by construction. Aggregate counts
+still drive CS, gold and the push front (the front is now *derived* from where the squads meet),
+so headless batch runs stay cheap while the viewer draws real minion dots that walk.
+
+### 6.2 The map: terrain, walls and brush (designer decision, 2026-08-02)
+Until now `SimMap` is three lane polylines plus a handful of points on an otherwise empty
+100×100 plane. There is no walkable space, so there are no corridors, no walls to hug, no
+brush to sit in and no escape that costs anything. The designer's long-standing "need walls
+around the jungle, complexify the map" is **taken up** (2026-08-02), driven by the close-up
+view: at 4× zoom terrain is most of what you look at, and characters strolling through jungle
+that does not exist reads as broken (§7.2, §7.3).
+
+**The map is authored, not generated.** It is a real Summoner's-Rift-shaped layout — bases in
+opposite corners, three lanes, a diagonal river, four jungle quadrants of blocks with corridors
+between them, camps in their own pockets, the two pits on the river. It is authored as a
+**human-readable ASCII grid** (`data/terrain.txt`), one character per cell, so the designer can
+open it in any text editor, see the map, and move a wall by typing. The sim compiles that grid
+once at load; the ASCII file is the source of truth and the only thing anyone edits.
+
+**Cell kinds**, and what each one means to the sim:
+
+- **Open** — walkable, visible.
+- **Wall** — not walkable, blocks vision. Jungle rock, the base perimeter, the river banks.
+- **Brush** — walkable; a body inside it is **invisible to enemies outside it** unless adjacent.
+  This is the mechanic that makes a gank an ambush instead of a converging dot.
+- **River** — walkable, cosmetic (and the place-name the reel already uses).
+- **Pit** — walkable, the dragon/baron bowls, drawn as their own floor.
+
+**What terrain changes in the sim, and what it deliberately does not.** Movement stops being
+free 2D steering: a body routes around walls on a precomputed navigation grid, so a gank from
+the enemy jungle takes the corridor and arrives late, and a fleeing carry can be cut off. That
+is a *real* change to gank timing, escape rates and rotation cost, and it will move balance —
+it is measured as a batch delta like every other lever, not assumed. What terrain does **not**
+introduce: no per-body collision (bodies still overlap), no minions leaving their lane, no
+per-agent search at runtime — routing is precomputed per destination and looked up.
+
+**Vision through brush is a second, separable step.** Walls blocking sight and brush hiding
+bodies is the part that changes how ganks *play*; walls merely blocking movement is the part
+that changes how they *look*. They ship in that order, and the vision half is gated on its own
+batch measurement (§ M6-T in `BACKLOG.md`).
 
 ## 7. Viewer ✅
 - Top-down 2D map, sprite per character (shared placeholder sprite: team tint + role marker; per-character sprites later via data field).
@@ -378,6 +415,12 @@ both pacing modes for free: *full match* (watch it all, drop into each highlight
 ~12 real minutes) and *highlights-only* (jump moment to moment, ~4–5 minutes) — the second is what
 a manager watching a 38-game season actually wants, and it is the same code.
 
+**Pacing: the watched match gets longer ✅ (designer, 2026-08-02).** Highlights are *added on top*
+of the overview, not paid for by speeding it up — the overview keeps its 1x and a watched match
+grows from ~8 to ~11–12 real minutes. Immersion wins over the time budget; the budget was never a
+requirement, only an assumption. *Highlights-only* still ships as a mode (same machinery), and it
+is what the season calendar will live in later.
+
 **What the close-up demands that the overview never did.** Zoom is a magnifying glass on the sim:
 things invisible at map scale become the whole picture. Bodies drawn away from their sim positions
 for legibility (§7.1) stop being harmless; walking through jungle walls that do not exist reads as
@@ -415,6 +458,13 @@ below are the durable part).
   clearest statement yet that terrain is a prerequisite for the close view (§7.2, M6-D).
 - **Sprites are small and cheap.** Characters are tiny pixel sprites — recognisable, animated,
   not detailed. The bar to clear for the close-up view is *far* lower than "real character art".
+  ✅ **Adopted (designer, 2026-08-02): pixel sprite sheets, not procedural bodies.** The close-up
+  actor is a 16–32 px animated pixel character per role, drawn from a sprite sheet, with the
+  animation states in §7.2/M6-D. This lifts CLAUDE.md's placeholder-only guardrail *narrowly*:
+  a CC0/free top-down pixel set (or one authored here) is allowed as the shared placeholder. The
+  per-character `sprite` data field still overrides it with real art and no code change, so the
+  contract is unchanged — only the default behind it. The map art direction follows the same
+  choice: pixel terrain (§6.2) and pixel characters are one look, not two.
 - **Persistent per-team panels** — five portraits a side, level and HP bar, each bound to a
   camera hotkey (F1–F10) so you can jump the camera to a player.
 - **A scoreboard that reads like a broadcast** — per player: items in slots, KDA, CS, gold, with
@@ -432,6 +482,38 @@ below are the durable part).
 **Where we deliberately differ:** their sim is theirs; ours is the pro-play sim described in §6.1
 and everything visible must still come from it (Pillar 3). And their game has no draft-time
 management depth of the kind in §5 — the club/roster fantasy is ours to push further.
+
+### 7.4 The broadcast header (designer direction, 2026-08-02)
+The designer's reference is the **top bar of a real LoL broadcast** (Worlds / LEC / LCK, and the
+OTP-lol-style watch-along framing) — the strip that sits across the top of every pro game and lets
+anyone read the state of the match in one glance, without knowing anything else. Our HUD today has
+a clock, a kill score and a gold bar scattered around the screen; this makes it *one* header that
+reads like a broadcast.
+
+**What the header carries**, per team, symmetrically around the clock:
+
+- **Team name and tag**, tinted its side colour, blue left / red right.
+- **Kills** — the big number, the pair of them either side of the clock.
+- **Dragons taken**, as one pip per dragon (so "3 dragons, soul point" is readable at a glance,
+  not a digit) — and **baron**, shown only when a team has it, with its remaining duration since
+  the sim already tracks `baron_duration_s`.
+- **Turrets destroyed**, a count per team.
+- **Team gold**, absolute, both sides — with the **delta marked on the leading team only**, in the
+  broadcast's own form: `+1.7k`. One number, on one side, so the lead reads instantly and never
+  needs a subtraction.
+- **The game clock**, centre.
+
+**Rules.** Everything in it is a *read* of the sim's own snapshot and event stream — the HUD never
+counts anything the sim did not report (Pillar 3). It is permanently on screen at every zoom level,
+because the whole point is that a zoomed-in camera has lost the map and still has to tell you who
+is winning. The existing side kill-feed stays; the header is state, the feed is narration, and the
+full-width kill banner (§7.3) is the event.
+
+**Not adopted, recorded:** per-player item slots from the reference target — we abstract item
+power, and changing that is a sim decision, not a viewer one.
+
+*(The highlight **selection weights** in §7.2 were reviewed at the same time and left as shipped:
+nothing added, nothing blacklisted. The rarity bonuses there remain unbuilt-by-choice.)*
 
 ## 8. Later phases (recorded, not in PoC)
 - PoC+ : club creation, pro-league calendar (LCK/LEC-like round robin), match history/standings, other matches simulated headless.

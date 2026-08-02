@@ -16,11 +16,27 @@ Full rationale, diagnostics and batch numbers behind completed work live in `CHA
 | M4.5 — Sim depth: space, health, agency | done |
 | M5 — Macro play: cross-map coordination | done 2026-08-01 (report: REPORTS/M5.md; A–G in CHANGELOG.md) |
 | M5.5 — Viewer v2: combat readability & juice | done (playtest gate passed 2026-07-26; A–H in CHANGELOG.md) |
-| **M6 — Highlights & the close-up view** | **in-progress — A done (shipped with M5-G), B–F to-do**; reordered ahead of the draft screen 2026-07-31 — the scene should look good before draft |
+| **M6 — Highlights & the close-up view** | **in-progress — A done (shipped with M5-G); T next, B–G to-do**; reordered ahead of the draft screen 2026-07-31 — the scene should look good before draft |
 | M7 — PoC polish pass | to-do (scope: match + highlight view; draft screen not yet in scope, see below) |
 | Draft screen | **deferred** — decision point after M7: go to draft, or keep the designer's focus on the sim/viewer |
 
-## Now — M6: the close-up view (phase B next)
+## Now — M6: the close-up view (phase **T** next — terrain)
+
+**Designer decisions, 2026-08-02** (answers to `REPORTS/M6-scoping.md` §Questions):
+1. *Ordering* — already settled 2026-07-31: the view goes before the draft screen.
+2. *Pacing* — **(a) the watched match gets longer.** Highlights add on top of the overview
+   (~8 → ~11–12 real minutes); the overview is **not** sped up to pay for them. Highlights-only
+   still ships as a mode. GDD §7.2.
+3. *Art* — **(b) pixel sprite sheets**, not procedural bodies. This narrowly lifts the
+   placeholder-only guardrail for a shared CC0/authored pixel set; the per-character `sprite`
+   field still overrides with no code change. **M6-D is unblocked.** GDD §7.3.
+4. *Highlight scoring* — weights left as shipped. The designer's answer was a **broadcast
+   header** (kills / dragon pips / baron / turrets / team gold with `+1.7k` on the leader /
+   clock), which is a HUD item, now GDD §7.4 and phase **M6-G** below.
+5. *Terrain* — **build it, jointly.** Promoted out of the parking lot into phase **M6-T**,
+   scheduled next. Design model: GDD §6.2. Working method and the first draft map:
+   `REPORTS/M6-terrain-scoping.md`.
+
 
 **M5 is done** (2026-08-01, `REPORTS/M5.md`). The macro win-vector target is **met**: the macro
 roster wins **42.5%** against a ~43% target, up from 34.5% before M5-F2, and kills land exactly on
@@ -78,16 +94,26 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
 - Reordered ahead of the draft screen by designer direction (2026-07-31): the scene should look good before draft is built on top of it. Question 1 from the scoping report (whether the zoomed fight should jump ahead of the draft screen as a demo) is resolved by this — it does.
 
 **Phases:**
+- **M6-T — The map: terrain, walls and brush — next** (designer go-ahead 2026-08-02; design model
+  GDD §6.2, working method `REPORTS/M6-terrain-scoping.md`). A real SR-shaped map authored as a
+  human-readable ASCII grid (`data/terrain.txt`) the designer can read and edit directly; compiled
+  at load into a navigation grid. Sub-phases, each measured before the next: **T1** author + compile
+  + render the terrain (cosmetic, sim untouched — a runnable look-at-it build); **T2** movement
+  routes around walls (precomputed per-destination flow, no runtime search), with a batch delta on
+  gank connect rate, escape rate and rotation cost; **T3** brush hides bodies and walls block sight,
+  gated on its own batch measurement; **T4** camps and pits moved into their real pockets, sign-off.
+  Ships before the camera because every later phase draws on top of it.
 - **M6-A — Highlight scoring (headless, no view) — done** (2026-08-01, `REPORTS/M6-A.md`). `sim/highlights.gd` + `data/highlights.json` + `tools/reel.gd`, measured in batch: **8.0 moments per reel** over 400 sims, deterministic, floor/spacing/diversity/cap all live. **The designer gate is still open**: read a reel or three (`tools/reel.gd -- --seed=N`) and say whether those are the moments you would want to watch.
 - **M6-B — The camera.** `MapView`'s world→screen transform becomes a camera (centre, **continuous zoom**, smoothing, follow-a-point); overview is the camera fitted to the world, so nothing changes visually on day one. Zoom-aware sizing for everything currently clamped in pixels. Manual zoom in/out controls, click-or-hotkey to follow a player (TFM2 binds F1–F10), and — because zooming in loses the map — a **minimap** with player dots, the viewport rectangle and objective timers. The minimap is a requirement of this phase, not polish.
 - **M6-C — Real speed + the director.** A sub-1x playback speed (today's 1x is already **4× sim-time**; real speed is 0.25× of it), visual lifetimes rescaled below the current 4× cap, snapshot cadence raised to one per tick for viewer runs. An **auto-camera director** consumes M6-A's scored moments: it pushes the camera in and drops the speed for pre-roll (the approach) + action + aftermath, then pulls back out. Auto-camera is a toggle — manual camera always available. On-screen framing (what this highlight is, who it's about) and a skip control. Both pacing modes fall out of the same machinery: **full match** (highlights add ~3.5 min on top) and **highlights-only** (jump between moments, ~4–5 min a match). Transport to match the reference: skip-to-start / rewind / skip-to-end over the existing slider, which makes **"replay that highlight"** nearly free.
-- **M6-D — Close-up actors.** Characters read as characters at 4× zoom: animation states (idle / run / attack / cast / hurt / die / recall), wind-up telegraphs, facing **reported by the sim** rather than inferred by the viewer. Default is richer *procedural* bodies (no art dependency); the `sprite` data field still overrides with real art and no code change (CLAUDE.md). **Blocked on designer question 3** (procedural vs. real sprite sheets) — the answer changes the actor contract, not the schedule.
+- **M6-D — Close-up actors.** Characters read as characters at 4× zoom: animation states (idle / run / attack / cast / hurt / die / recall), wind-up telegraphs, facing **reported by the sim** rather than inferred by the viewer. ✅ **Unblocked 2026-08-02: pixel sprite sheets** (designer answer (b), GDD §7.3). The actor is built around a sprite-sheet contract from the start — a 16–32 px animated body per role, shared placeholder set, per-character `sprite` field overriding it with no code change. Same pixel art direction as the M6-T terrain.
 - **M6-E — Spell effects at close range.** Per effect family, at the ability's real radius and real cast time: telegraph → cast → impact → aftermath. The overview's M5.5-C shapes stay as the far-view version of the same event.
-- **M6-F — Pacing, modes & sign-off.** Measure the real minutes a watched match costs in each mode, tune the selection floor against the designer's answer, `REPORTS/M6.md`, playtest gate. Cheap broadcast juice from the reference target lands here if it hasn't already: a **full-width kill banner** with both portraits (we have a side feed; the banner is what makes a kill feel like an event).
+- **M6-G — The broadcast header** (designer direction 2026-08-02, GDD §7.4). One top strip that reads like a LoL broadcast: team names, kills either side of the clock, **dragon pips** per team, baron with its remaining duration, turret counts, team gold with the delta marked on the leader only (`+1.7k`). Replaces today's scattered clock / score / gold bar. Permanently on screen at every zoom, because a zoomed camera has lost the map and must still say who is winning. Everything in it is a read of the sim's own output — the HUD counts nothing the sim did not report. Ships with the **full-width kill banner** (both portraits) from the reference target; the side feed stays as narration.
+- **M6-F — Pacing, modes & sign-off.** Measure the real minutes a watched match costs in each mode against the designer's **(a)** answer (target ~11–12 min for a full watched match; ~4–5 for highlights-only), tune the selection floor, `REPORTS/M6.md`, playtest gate.
 
-**Prerequisite decisions this milestone forces** (both already on the books, both promoted by it):
-- **Sim-side body volume** (parked at M5-E/F). Playback currently fakes separation by drawing bodies up to 1.9 world units off their sim positions. Invisible at overview scale; at 4× zoom a character is drawn away from the point its own attack beat comes from. The close-up view is the argument for taking the real lever.
-- **Jungle walls / terrain / chokepoints** (parking lot, deferred since M4.5-C). A gank at a distance is dots converging; a gank *close up* is a story about a corridor, and characters walking through walls that don't exist will read as broken. Decision point before **M6-D** — at minimum a cosmetic terrain layer that steering respects. The reference target settles this: at close zoom, terrain is most of what you are looking at (GDD §7.3).
+**Prerequisite decisions this milestone forces:**
+- **Sim-side body volume** (parked at M5-E/F). Playback currently fakes separation by drawing bodies up to 1.9 world units off their sim positions. Invisible at overview scale; at 4× zoom a character is drawn away from the point its own attack beat comes from. The close-up view is the argument for taking the real lever. **Still open** — and M6-T changes its terms, since a body that has to fit through a corridor has a size whether we model one or not.
+- ✅ **Jungle walls / terrain / chokepoints** — resolved 2026-08-02: build it. Now phase **M6-T**, above.
 
 **Already-shipped work that M6 modifies** (none of it a rewrite):
 - `game/map_view.gd` — `_scale()` / `_w2s()` replaced by the camera (M6-B); `CHAMP_R_MIN/MAX`, `TOWER_R`, `PIT_R`, `PAD` and font sizes are clamped for the fit-the-world assumption and must become zoom-aware.
@@ -115,5 +141,6 @@ No work should start on this until that checkpoint.
 Club creation · league calendar + standings + headless league sims · match history · budget/mercato · coaching staff system · marketing · per-character sprites.
 
 **Wanted by the designer, deliberately deferred** (revisit after M4.5 lands, before M7):
-- **Jungle walls, terrain and chokepoints** — "need wall around the jungle, complexify the map". `SimMap` is lane polylines plus point positions today; there is no notion of walkable space, so there are no corridors and no escapes. Deferred by scope call in M4.5-C, which does boundary clamping only. **Promoted 2026-07-25**: the close-up view makes missing walls visible, so this is now a decision point before **M6-D**, not an open-ended nice-to-have.
+- ~~**Jungle walls, terrain and chokepoints**~~ — deferred at M4.5-C, promoted 2026-07-25, and
+  **taken up 2026-08-02** on designer go-ahead. No longer parked: it is phase **M6-T**.
 - **Basic ability kits** (slow / dash / stun / shield on short cooldowns). *Being brought forward in M5* via the three-action model (2026-07-24) — the basic-ability slot is the vehicle for early CC. M5 ships CC (slow/stun) on a few characters; the wider kit variety (dash/shield/etc. across the roster) stays deferred to post-PoC.
