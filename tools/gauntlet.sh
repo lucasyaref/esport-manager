@@ -3,6 +3,7 @@
 #
 #   tools/gauntlet.sh iter04              -> gate + .shots/iter04.png
 #   tools/gauntlet.sh iter04 --overlay    -> also .shots/iter04-overlay.png
+#   tools/gauntlet.sh iter04 --bare       -> terrain only, no towers/nexus
 #   tools/gauntlet.sh iter04 --size=1400
 #
 # Gate first, then render. That order is the point of this script existing: the
@@ -27,10 +28,12 @@ fi
 LABEL="$1"; shift
 
 OVERLAY=0
+BARE=0
 SIZE_ARG=""
 for arg in "$@"; do
   case "$arg" in
     --overlay) OVERLAY=1 ;;
+    --bare)    BARE=1 ;;
     --size=*)  SIZE_ARG="$arg" ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
@@ -61,10 +64,15 @@ fi
 
 echo
 echo "--- render ---"
-"$PROJECT_ROOT/tools/shot.sh" --out="res://.shots/${LABEL}.png" ${SIZE_ARG:+"$SIZE_ARG"} \
+# Structures on by default: the critics grade the picture a player watches, and
+# game/map_view.gd draws towers and nexuses over the terrain every frame. --bare
+# renders the terrain layer alone when you want to judge that in isolation.
+STRUCT_ARG="--structures"
+[[ $BARE -eq 1 ]] && STRUCT_ARG=""
+"$PROJECT_ROOT/tools/shot.sh" --out="res://.shots/${LABEL}.png" ${STRUCT_ARG:+"$STRUCT_ARG"} ${SIZE_ARG:+"$SIZE_ARG"} \
   2>&1 | grep -v '^Godot Engine v\|^Metal \|^Vulkan \|^OpenGL ' || true
 if [[ $OVERLAY -eq 1 ]]; then
-  "$PROJECT_ROOT/tools/shot.sh" --out="res://.shots/${LABEL}-overlay.png" --overlay ${SIZE_ARG:+"$SIZE_ARG"} \
+  "$PROJECT_ROOT/tools/shot.sh" --out="res://.shots/${LABEL}-overlay.png" --overlay ${STRUCT_ARG:+"$STRUCT_ARG"} ${SIZE_ARG:+"$SIZE_ARG"} \
     2>&1 | grep -v '^Godot Engine v\|^Metal \|^Vulkan \|^OpenGL ' || true
 fi
 

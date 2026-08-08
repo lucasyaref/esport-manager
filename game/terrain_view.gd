@@ -19,34 +19,39 @@ extends RefCounted
 ## (rock, floor, lane) onto the reference's hues and, more importantly, onto its
 ## contrast ordering — lane lightest, floor mid, rock dark, void darkest.
 const PALETTE := {
-	Terrain.WALL:       Color("223026"),
-	Terrain.OPEN:       Color("3e5c33"),
-	Terrain.BRUSH:      Color("26401f"),
-	Terrain.RIVER:      Color("35708c"),
-	Terrain.PIT:        Color("6b5f52"),
-	Terrain.LANE:       Color("6d7570"),
-	Terrain.CAMP:       Color("46603a"),
+	Terrain.WALL:       Color("16261a"),
+	Terrain.OPEN:       Color("3c4f30"),
+	Terrain.BRUSH:      Color("2a3a22"),
+	Terrain.RIVER:      Color("2c5a72"),
+	Terrain.PIT:        Color("5d6058"),
+	Terrain.LANE:       Color("5f6862"),
+	Terrain.CAMP:       Color("445a35"),
 	# Paved stone first, team second. The baseline read as two flat swatches
 	# because the tint *was* the surface; here it only leans the grey.
-	Terrain.BASE_BLUE:  Color("55677a"),
-	Terrain.BASE_RED:   Color("7a5f63"),
+	Terrain.BASE_BLUE:  Color("46545f"),
+	Terrain.BASE_RED:   Color("5e4a4d"),
 }
 ## Top face of a rock, where it meets open ground — the single cue that reads as
 ## height in a top-down pixel map. In the reference this face is bare grey stone
 ## breaking out of the canopy, so it is much lighter than the rock body.
-const C_WALL_LIT := Color("57625c")
-const C_WALL_SHADE := Color("131b16")
+const C_WALL_LIT := Color("46514a")
+## The arena's own wall: quarried stone, not canopy. It needs to be lighter than
+## the rock inside the arena and darker than the road, or the boundary reads as
+## either more jungle or a second lane — both of which the panels reported when
+## the rampart shared the rock colour.
+const C_RAMPART := Color("3a4038")
+const C_WALL_SHADE := Color("0d150f")
 ## Cast onto the ground south of a rock. Alpha, not a colour: it has to work
 ## over grass, over lane stone and over water without being retuned for each.
 const C_ROCK_SHADOW := Color(0.0, 0.0, 0.0, 0.33)
 ## The kerb where paving meets dirt. Darker than the road, so the road's shape is
 ## carried by its banks rather than by a per-tile pattern.
-const C_LANE_EDGE := Color("4a524d")
+const C_LANE_EDGE := Color("3c433e")
 ## The carved stone lip of a pit — the lightest thing on the map, on purpose.
-const C_PIT_RIM := Color("8a9289")
+const C_PIT_RIM := Color("7e867c")
 ## The masonry ring around a base precinct — stone, deliberately not team-tinted,
 ## so the wall reads as built and the tint stays a property of the floor.
-const C_BASE_WALL := Color("7c857e")
+const C_BASE_WALL := Color("6b736c")
 ## Water shallow enough to walk: laid over the *lane* where mid crosses the
 ## river, so the channel reads as continuing under the road instead of being
 ## erased by it. Alpha, not a flat colour — the paving has to stay visible.
@@ -54,17 +59,17 @@ const C_FORD := Color(0.29, 0.60, 0.72, 0.42)
 ## How far a ford looks for water. The mid lane is ~5 cells wide where it cuts
 ## the river, so anything less than that finds nothing.
 const FORD_REACH := 5
-const C_RIVER_SHIMMER := Color("6fb3c9")
+const C_RIVER_SHIMMER := Color("5b96ad")
 ## Warm amber: the reference marks every camp and path junction with torch fire,
 ## and it is the only warm hue on an otherwise entirely cool-green map.
-const C_CAMP_MARK := Color("c8863c")
+const C_CAMP_MARK := Color("b3762f")
 ## Brush is dense canopy seen from above — darker than the floor it sits on, not
 ## the bright grass the baseline drew.
-const C_BRUSH_TUFT := Color("1a2f16")
+const C_BRUSH_TUFT := Color("182712")
 const C_OUTLINE := Color("0a0f12")
 ## Everything outside the arena wall. The reference drops it to near-black and
 ## lets the rampart's lit edge do the work of drawing the boundary.
-const C_VOID := Color("0b100e")
+const C_VOID := Color("080c0a")
 
 ## Per-cell tonal variation, so large fields of grass are not flat. Deterministic
 ## by construction (hashed from the cell index, never from an RNG) — the whole
@@ -89,12 +94,20 @@ static func draw(ci: CanvasItem, t: Terrain, origin: Vector2, px_per_world: floa
 			var rect := Rect2(pos - Vector2(bleed, bleed),
 				Vector2(cell_px + bleed * 2.0, cell_px + bleed * 2.0))
 			var col: Color = _base_color(kind)
-			# Out-of-bounds drops to near-black, so the arena has an edge. Rock
-			# *inside* the arena keeps its green, so it still reads as terrain a
-			# champion walks around rather than as the end of the world.
-			if kind == Terrain.WALL and t.is_surround_cell(c, r):
-				col = C_VOID
-			ci.draw_rect(rect, _tone(col, c, r))
+			var jitter := true
+			# Three values where there used to be one: rock inside the arena stays
+			# green so it reads as terrain to walk around, the arena's wall is
+			# quarried stone, and beyond it the map has ended. The void takes no
+			# tonal jitter — speckled black reads as texture, and there is nothing
+			# out there to have texture.
+			if kind == Terrain.WALL:
+				match t.wall_class(c, r):
+					Terrain.RAMPART:
+						col = C_RAMPART
+					Terrain.VOID:
+						col = C_VOID
+						jitter = false
+			ci.draw_rect(rect, _tone(col, c, r) if jitter else col)
 
 	# Second pass for anything that reads as *on top of* the floor. Kept separate
 	# so a cell's detail is never painted over by its neighbour's fill.

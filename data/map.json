@@ -1,171 +1,179 @@
 {
-  "size": 100,
-  "bases": {
-    "blue": [
-      7,
-      7
-    ],
-    "red": [
-      93,
-      93
-    ]
-  },
-  "lanes": {
-    "top": {
-      "path": [
-        [
-          7,
-          12
-        ],
-        [
-          8,
-          88
-        ],
-        [
-          88,
-          93
-        ]
-      ]
-    },
-    "mid": {
-      "path": [
-        [
-          10,
-          10
-        ],
-        [
-          90,
-          90
-        ]
-      ]
-    },
-    "bot": {
-      "path": [
-        [
-          12,
-          7
-        ],
-        [
-          88,
-          8
-        ],
-        [
-          93,
-          88
-        ]
-      ]
-    }
-  },
-  "towers": {
-    "blue": {
-      "outer": 0.3,
-      "inner": 0.18,
-      "base": 0.08
-    },
-    "red": {
-      "outer": 0.7,
-      "inner": 0.82,
-      "base": 0.92
-    }
-  },
-  "pits": {
-    "dragon": [
-      62,
-      38
-    ],
-    "baron": [
-      38,
-      62
-    ]
-  },
-  "camps": [
-    {
-      "id": "b_buff_top",
-      "side": "blue",
-      "pos": [
-        20,
-        45
-      ],
-      "gold": 100,
-      "xp": 310,
-      "clear_s": 14
-    },
-    {
-      "id": "b_camp_top",
-      "side": "blue",
-      "pos": [
-        30,
-        60
-      ],
-      "gold": 85,
-      "xp": 270,
-      "clear_s": 10
-    },
-    {
-      "id": "b_buff_bot",
-      "side": "blue",
-      "pos": [
-        45,
-        20
-      ],
-      "gold": 100,
-      "xp": 310,
-      "clear_s": 14
-    },
-    {
-      "id": "b_camp_bot",
-      "side": "blue",
-      "pos": [
-        62,
-        33
-      ],
-      "gold": 85,
-      "xp": 270,
-      "clear_s": 10
-    },
-    {
-      "id": "r_buff_bot",
-      "side": "red",
-      "pos": [
-        80,
-        55
-      ],
-      "gold": 100,
-      "xp": 310,
-      "clear_s": 14
-    },
-    {
-      "id": "r_camp_bot",
-      "side": "red",
-      "pos": [
-        67,
-        38
-      ],
-      "gold": 85,
-      "xp": 270,
-      "clear_s": 10
-    },
-    {
-      "id": "r_buff_top",
-      "side": "red",
-      "pos": [
-        55,
-        80
-      ],
-      "gold": 100,
-      "xp": 310,
-      "clear_s": 14
-    },
-    {
-      "id": "r_camp_top",
-      "side": "red",
-      "pos": [
-        40,
-        70
-      ],
-      "gold": 85,
-      "xp": 270,
-      "clear_s": 10
-    }
+ "size": 100,
+ "bases": {
+  "blue": [
+   7,
+   7
+  ],
+  "red": [
+   93,
+   93
   ]
+ },
+ "lanes": {
+  "top": {
+   "path": [
+    [
+     8,
+     10
+    ],
+    [
+     14,
+     26
+    ],
+    [
+     14,
+     84
+    ],
+    [
+     86,
+     90
+    ]
+   ]
+  },
+  "mid": {
+   "path": [
+    [
+     10,
+     10
+    ],
+    [
+     90,
+     90
+    ]
+   ]
+  },
+  "bot": {
+   "path": [
+    [
+     14,
+     10
+    ],
+    [
+     86,
+     16
+    ],
+    [
+     86,
+     74
+    ],
+    [
+     92,
+     90
+    ]
+   ]
+  }
+ },
+ "towers": {
+  "blue": {
+   "outer": 0.3,
+   "inner": 0.18,
+   "base": 0.08
+  },
+  "red": {
+   "outer": 0.7,
+   "inner": 0.82,
+   "base": 0.92
+  }
+ },
+ "pits": {
+  "dragon": [
+   62,
+   38
+  ],
+  "baron": [
+   38,
+   62
+  ]
+ },
+ "camps": [
+  {
+   "id": "b_buff_top",
+   "side": "blue",
+   "pos": [
+    20,
+    45
+   ],
+   "gold": 100,
+   "xp": 310,
+   "clear_s": 14
+  },
+  {
+   "id": "b_camp_top",
+   "side": "blue",
+   "pos": [
+    30,
+    60
+   ],
+   "gold": 85,
+   "xp": 270,
+   "clear_s": 10
+  },
+  {
+   "id": "b_buff_bot",
+   "side": "blue",
+   "pos": [
+    45,
+    20
+   ],
+   "gold": 100,
+   "xp": 310,
+   "clear_s": 14
+  },
+  {
+   "id": "b_camp_bot",
+   "side": "blue",
+   "pos": [
+    62,
+    33
+   ],
+   "gold": 85,
+   "xp": 270,
+   "clear_s": 10
+  },
+  {
+   "id": "r_buff_bot",
+   "side": "red",
+   "pos": [
+    80,
+    55
+   ],
+   "gold": 100,
+   "xp": 310,
+   "clear_s": 14
+  },
+  {
+   "id": "r_camp_bot",
+   "side": "red",
+   "pos": [
+    67,
+    38
+   ],
+   "gold": 85,
+   "xp": 270,
+   "clear_s": 10
+  },
+  {
+   "id": "r_buff_top",
+   "side": "red",
+   "pos": [
+    55,
+    80
+   ],
+   "gold": 100,
+   "xp": 310,
+   "clear_s": 14
+  },
+  {
+   "id": "r_camp_top",
+   "side": "red",
+   "pos": [
+    40,
+    70
+   ],
+   "gold": 85,
+   "xp": 270,
+   "clear_s": 10
+  }
+ ]
 }

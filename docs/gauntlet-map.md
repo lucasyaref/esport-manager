@@ -174,7 +174,66 @@ belongs in the viewer as a screen-space overlay, not here.
 **Full suite green after the `sim/terrain.gd` change:** data validation, guard rails, determinism
 across 3 seeds, viewer selftest.
 
-## Open — the arena margin, for the designer
+### Designer decisions, 2026-08-08
+
+Asked at the pause after panel 2, both answered:
+
+1. **Inset the lanes** — match the reference, accept the pacing change, rebalance from data after.
+2. **Add structures to the capture** — the panel should grade the picture a player actually watches.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 11 | Outer lanes inset by moving their **polylines in `data/map.json`** and re-rasterising the terrain band around them, half-width 3.6 world units. Towers needed no edit — they are stored as a fraction along the lane, so they ride the path. | **pass** | — | Margin 2 → 5 cells. But the new margin rendered *entirely black*: see below. |
+| 12 | `is_surround_cell` → `is_void_cell`: border-connected **and** more than `RAMPART_DEPTH` from walkable ground. | **pass** | — | The band nearest the arena now reads as its wall, the deep part as nothing. Hierarchy is light road, dark rock wall, black void. |
+| 13 | `tools/shoot_map.gd --structures`, on by default in `gauntlet.sh` (`--bare` opts out). Towers and nexuses drawn intact in the viewer's own idiom. | **pass** | **panel 3** ↓ | Towers sit on the roads, which is criterion E confirmed by eye: terrain and `map.json` now agree *by construction*, both being generated from the same polyline. |
+
+**Four failed attempts before the one that worked**, all trying to transform `data/terrain.txt`
+directly, and each failure was informative:
+
+1. shift rows and columns by available room — tore the corners, where the row rule and the column
+   rule fight over the same cells;
+2. same, restricted to straight stretches — the top band is *diagonal*, so shifting each column
+   independently sheared it;
+3. trim the outer edge instead of shifting — a per-row rule cannot see that a lane run is a base
+   *mouth*, and it walled both bases in;
+4. windowed column pass — the window boundary became a cliff the band stepped off.
+
+The band is a distance field around a path, so it had to be treated as one: move the path, repaint
+the cells within half-width of it. That version also fixes criterion E for free, because the picture
+and the sim are now generated from the same numbers rather than kept in sync by hand.
+
+**A fix can create the next finding.** Iteration 11 passed the gate and looked *worse*: pulling the
+lanes inward made the margin bigger, and since "out of bounds" was defined as *border-connected wall*,
+a bigger margin was simply more black. The road went straight back to abutting the void — panel 2's
+finding, restored by the change meant to close it. The definition had to become "outside **and** far
+from walkable" before the geometry could pay off. Worth remembering: the guard rails cannot catch
+this class of thing, and neither can a self-graded look at the render, because I knew what I had
+changed and saw the intent.
+
+### Panel 3 — on `iter13` (first render including structures)
+
+**Gate:** clean. **Fidelity:** 2 × `breaks-immersion` — *"terrain is flat unshaded colour fill"* and
+*"overall value and saturation much higher than reference"* — plus 6 × `moderate`. **Legibility:**
+lanes, river, both pits, both bases, the ford and all nine towers per side identified; its
+highest-priority confusion was again *"dark-green canopy vs mid-green ground — I would have mistaken
+impassable terrain for open jungle with roughly 50/50 odds."*
+
+**Coordinate verification:** 8 camps, 2 pits, 6 brush patches, ~9 towers per side — all verified
+against `data/terrain.txt` and `data/map.json`. **Third panel running, still zero confabulations.**
+
+The structures change paid for itself immediately: with towers on the map the cold reader could read
+territory — *"the colour gradient along each lane makes ownership legible without any labels, which
+is the map's strongest single success"* — a sentence no terrain-only render could ever have produced.
+
+**Both critics converged on value structure**, from opposite directions: too bright and too flat
+against the reference, and not enough separation between walkable floor and blocking canopy. Those
+are compatible, and the fix is one change.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 14 | Lowered the whole key toward the reference's low-key palette, and split `is_void_cell` into `wall_class` → `ROCK` / `RAMPART` / `VOID`. Value hierarchy is now explicit: road › rampart › jungle floor › canopy › void. Pits to grey stone (the reference has no tan anywhere). Void loses its tonal jitter — speckled black reads as texture, and there is nothing out there to have texture. | **pass** | — | Canopy and floor now separate at a glance, which is the question both cold readers have led with since panel 1. The rampart reads as built wall rather than more jungle. |
+
+## Superseded — the arena margin, for the designer
 
 The loop has taken the look as far as palette and rendering can take it. What remains at
 `breaks-immersion` is one geometric fact: **the arena has no outer margin.** Closing it means pulling

@@ -38,8 +38,8 @@ var n: int = 0                  ## cells per side
 var world_size: float = 100.0
 var cell_size: float = 2.0      ## world units per cell
 var cells: PackedByteArray = PackedByteArray()
-## Lazily built by _build_surround(); empty until the first is_surround_cell().
-var _surround: PackedByteArray = PackedByteArray()
+## Lazily built by _build_void(); empty until the first is_void_cell().
+var _void: PackedByteArray = PackedByteArray()
 
 
 ## Parses the grid text. Structural problems (wrong size, unknown characters) are
@@ -121,29 +121,46 @@ func blocks_sight_cell(col: int, row: int) -> bool:
 	return kind_at_cell(col, row) == WALL
 
 
-## True for wall cells that are part of the out-of-bounds surround rather than a
-## rock formation standing inside the arena. Both are equally unwalkable, so the
-## sim never asks; the eye very much does. Told apart by flood-filling wall from
-## the map border: the surround is one connected shell, and on the current map it
-## is cleanly disjoint from all 640 interior rock cells.
-func is_surround_cell(col: int, row: int) -> bool:
-	if _surround.is_empty():
-		_build_surround()
+## How deep into the border wall the arena's rampart reaches. Beyond this the
+## map has simply ended.
+const RAMPART_DEPTH := 2
+
+## The three kinds of unwalkable cell. Identical to the sim, which only ever asks
+## "can I walk here"; quite different to the eye, which needs to tell a boulder
+## it can walk around from the wall at the end of the world.
+enum {ROCK, RAMPART, VOID}
+
+## Which of the three a wall cell is. Rock stands inside the arena; rampart is
+## the arena's own wall, the part of the outside within RAMPART_DEPTH of walkable
+## ground; void is everything beyond that.
+##
+## The middle case earns its keep. A plain outside/inside split was the first
+## version and it failed the moment the outer lanes were pulled inward: a thicker
+## border is still entirely border-connected, so the whole new margin went black
+## and the road went straight back to abutting the void — reinstating the very
+## finding the inset was meant to close.
+func wall_class(col: int, row: int) -> int:
+	if _void.is_empty():
+		_build_void()
 	if col < 0 or row < 0 or col >= n or row >= n:
-		return true
-	return _surround[row * n + col] == 1
+		return VOID
+	return _void[row * n + col]
 
 
 ## Built once, on the first query, and never invalidated — a Terrain's cells are
 ## fixed at construction.
-func _build_surround() -> void:
-	_surround.resize(n * n)
+func _build_void() -> void:
+	_void.resize(n * n)
+	# Pass 1: wall reachable from the map border through wall. Everything outside
+	# the arena, including its own wall.
+	var outside := PackedByteArray()
+	outside.resize(n * n)
 	var queue: Array[Vector2i] = []
 	for i in n:
 		for cell in [Vector2i(i, 0), Vector2i(i, n - 1), Vector2i(0, i), Vector2i(n - 1, i)]:
 			var idx: int = cell.y * n + cell.x
-			if cells[idx] == WALL and _surround[idx] == 0:
-				_surround[idx] = 1
+			if cells[idx] == WALL and outside[idx] == 0:
+				outside[idx] = 1
 				queue.append(cell)
 	while not queue.is_empty():
 		var cell: Vector2i = queue.pop_back()
@@ -152,10 +169,40 @@ func _build_surround() -> void:
 			if nb.x < 0 or nb.y < 0 or nb.x >= n or nb.y >= n:
 				continue
 			var idx: int = nb.y * n + nb.x
-			if _surround[idx] == 1 or cells[idx] != WALL:
+			if outside[idx] == 1 or cells[idx] != WALL:
 				continue
-			_surround[idx] = 1
+			outside[idx] = 1
 			queue.append(nb)
+
+	# Pass 2: how far each wall cell sits from walkable ground, capped at
+	# RAMPART_DEPTH. Anything within that is the arena's wall, not the void.
+	var near := PackedByteArray()
+	near.resize(n * n)
+	var front: Array[Vector2i] = []
+	for r in n:
+		for c in n:
+			if cells[r * n + c] != WALL:
+				near[r * n + c] = 1
+				front.append(Vector2i(c, r))
+	for _step in RAMPART_DEPTH:
+		var next_front: Array[Vector2i] = []
+		for cell in front:
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var nb: Vector2i = cell + d
+				if nb.x < 0 or nb.y < 0 or nb.x >= n or nb.y >= n:
+					continue
+				var idx: int = nb.y * n + nb.x
+				if near[idx] == 1:
+					continue
+				near[idx] = 1
+				next_front.append(nb)
+		front = next_front
+
+	for i in n * n:
+		if outside[i] == 0:
+			_void[i] = ROCK
+		else:
+			_void[i] = RAMPART if near[i] == 1 else VOID
 
 
 ## World position -> cell. Row 0 is the top of the map, so y is flipped.

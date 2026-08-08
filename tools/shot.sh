@@ -5,6 +5,7 @@
 #
 #   tools/shot.sh                        -> .shots/map.png
 #   tools/shot.sh --out=res://.shots/a.png --size=1400 --overlay
+#   tools/shot.sh --out=res://.shots/a.png --structures
 #
 # Godot has no rendering context under --headless (the viewport texture comes
 # back null), so this runs a real window. It is parked off-screen and lives for

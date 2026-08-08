@@ -15,10 +15,14 @@ extends SceneTree
 ## off-screen so it does not steal focus.
 ##
 ## Usage:
-##   godot --path . --script res://tools/shoot_map.gd -- [--out=PATH] [--size=N] [--overlay]
+##   godot --path . --script res://tools/shoot_map.gd -- [--out=PATH] [--size=N]
+##       [--overlay] [--structures]
 ##
 ##   --out      output PNG path (default res://.shots/map.png)
 ##   --size     square edge in pixels (default 1024)
+##   --structures  draw towers and nexuses over the terrain, intact, the way
+##                 game/map_view.gd draws them every frame. Not diagnostic:
+##                 this is the picture a player actually watches.
 ##   --overlay  draw the sim's own geometry (lanes, towers, pits, camps) on top,
 ##              to check the terrain and data/map.json still agree
 
@@ -32,6 +36,7 @@ func _initialize() -> void:
 	var out_path: String = args.get("out", DEFAULT_OUT)
 	var size := maxi(64, int(args.get("size", str(DEFAULT_SIZE))))
 	var overlay := args.has("overlay")
+	var structures := args.has("structures")
 
 	# --- data -----------------------------------------------------------------
 	var errors: Array[String] = []
@@ -59,6 +64,7 @@ func _initialize() -> void:
 	canvas.px_per_world = (size - MARGIN * 2.0) / map.size
 	canvas.origin = Vector2(MARGIN, MARGIN)
 	canvas.overlay = overlay
+	canvas.structures = structures
 
 	var vp := SubViewport.new()
 	vp.size = Vector2i(size, size)
@@ -125,6 +131,22 @@ class ShotCanvas extends Node2D:
 	var origin := Vector2.ZERO
 	var overlay := false
 
+	var structures := false
+
+	## Match game/map_view.gd's own values. The cold critics kept reporting "no
+	## towers, no nexus anywhere" against a terrain-only still, which is a true
+	## statement about the render and a useless one about the map — the viewer
+	## draws all of it every frame. Drawn here at full health with none down,
+	## i.e. the map as it stands at the first whistle.
+	const TOWER_R := 6.0
+	const NEXUS_R := 13.0
+	const TEAM := {
+		"blue": {"fill": Color(0.30, 0.55, 1.0), "ring": Color(0.62, 0.78, 1.0),
+			"dark": Color(0.18, 0.30, 0.55)},
+		"red": {"fill": Color(1.0, 0.42, 0.42), "ring": Color(1.0, 0.66, 0.66),
+			"dark": Color(0.55, 0.22, 0.22)},
+	}
+
 	const C_LANE_LINE := Color(1, 1, 1, 0.35)
 	const C_TOWER := Color("f2e6c0")
 	const C_CAMP := Color("d8c070")
@@ -134,11 +156,40 @@ class ShotCanvas extends Node2D:
 
 	func _draw() -> void:
 		TerrainView.draw(self, terrain, origin, px_per_world)
+		if structures:
+			_draw_structures()
 		if overlay:
 			_draw_overlay()
 
 	func _w2s(w: Vector2) -> Vector2:
 		return origin + Vector2(w.x, map.size - w.y) * px_per_world
+
+	## Towers and nexuses as the viewer draws them, intact. Unlike the overlay,
+	## this is not diagnostic — it is part of the picture a player watches, so the
+	## critics should be grading it.
+	func _draw_structures() -> void:
+		for team: String in map.towers:
+			var t: Dictionary = TEAM[team]
+			for tier: String in map.towers[team]:
+				for lane in SimMap.LANES:
+					var c := _w2s(map.pos_on_lane(lane, float(map.towers[team][tier])))
+					var r: float = TOWER_R if tier != "base" else TOWER_R + 2.0
+					draw_rect(Rect2(c - Vector2(r, r), Vector2(r * 2, r * 2)), t.dark, true)
+					draw_rect(Rect2(c - Vector2(r, r), Vector2(r * 2, r * 2)),
+						t.ring, false, 1.5)
+		for team: String in map.bases:
+			var t: Dictionary = TEAM[team]
+			var c := _w2s(map.bases[team])
+			draw_circle(c, NEXUS_R, Color(t.fill.r, t.fill.g, t.fill.b, 0.22))
+			draw_arc(c, NEXUS_R, 0, TAU, 28, t.fill, 2.5, true)
+			var d := NEXUS_R * 0.5
+			var hull := PackedVector2Array([c + Vector2(0, -d), c + Vector2(d, 0),
+				c + Vector2(0, d), c + Vector2(-d, 0)])
+			draw_colored_polygon(hull, t.fill)
+			var outline := hull.duplicate()
+			outline.append(hull[0])
+			draw_polyline(outline, Color(t.fill.r, t.fill.g, t.fill.b, 0.85), 1.4, true)
+
 
 	func _draw_overlay() -> void:
 		for lane in SimMap.LANES:
