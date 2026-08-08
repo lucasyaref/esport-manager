@@ -72,6 +72,19 @@ footprints, corridors and chokepoints, all against the reference.
 floor, lane against jungle); surface texture; edge treatment; and legibility at overview scale — the
 map is normally seen whole, so detail that turns to mush at 1024 px is worse than no detail.
 
+**C′ — What C does not cover.** The reference is a painted illustration and the renderer is a tile
+painter, so some of its differences are unreachable by any knob. `docs/reference/map/README.md` lists
+them: per-object props, painted lighting, the vignette, the 4:3 frame, the watermark. The critic is
+never told about that list — it comes in cold and will report them, which is correct and is the point
+of it. **The orchestrator files those findings as `out-of-scope` in the log and they do not block the
+exit.** Anything else the critic finds still counts.
+
+This distinction is load-bearing. Without it the exit is unreachable: the panel returns the same
+texture and lighting findings at every checkpoint, the loop either grinds forever or quietly lowers
+its own bar, and neither outcome is visible in the log. Filing them explicitly keeps the critic sharp
+and the ceiling honest. If a finding filed `out-of-scope` is one you would actually pay for, that is
+not a rendering task — it is a decision to add an art layer, and it belongs to the designer.
+
 **D — Legibility, cold.** Judged by `map-legibility-critic`, which never sees the reference. Can
 someone who has never seen this game find the lanes, the river, the pits, the bases? Every claim it
 makes comes with coordinates, which the orchestrator verifies against `data/terrain.txt` — a confident
@@ -84,9 +97,10 @@ and it is not always the picture.
 
 ## Exit criteria
 
-A single checkpoint producing all of: guard rails clean; no fidelity finding above `cosmetic`; every
-real feature identified by the legibility critic with verifying coordinates and nothing claimed that
-is not there; overlay agreeing with `map.json`.
+A single checkpoint producing all of: guard rails clean; no **in-scope** fidelity finding above
+`cosmetic` (see C′ — findings filed `out-of-scope` are logged, not chased); every real feature
+identified by the legibility critic with verifying coordinates and nothing claimed that is not there;
+overlay agreeing with `map.json`.
 
 Then the designer looks at the final render next to the reference and signs off. **That is the real
 exit** — the rest exists so the designer is only ever asked to judge something that has already passed
@@ -232,6 +246,29 @@ are compatible, and the fix is one change.
 | # | Change | Gate | Panel | Read |
 |---|---|---|---|---|
 | 14 | Lowered the whole key toward the reference's low-key palette, and split `is_void_cell` into `wall_class` → `ROCK` / `RAMPART` / `VOID`. Value hierarchy is now explicit: road › rampart › jungle floor › canopy › void. Pits to grey stone (the reference has no tan anywhere). Void loses its tonal jitter — speckled black reads as texture, and there is nothing out there to have texture. | **pass** | — | Canopy and floor now separate at a glance, which is the question both cold readers have led with since panel 1. The rampart reads as built wall rather than more jungle. |
+
+## Reference swap — end of run 1
+
+`Pixel_art_MOBA_arena_map_…jpeg` → **`terrain_moba_2.png`** (designer, 2026-08-08). The same
+artwork, uncropped: the earlier file cut into the frame, this one shows the full rampart and the
+corners, so it says something about the map's edge that the crop could not. The old file was deleted,
+not kept — two versions of one picture is two answers to the same question, and the fidelity critic
+globs the folder.
+
+Two things landed with it, and neither is an art change:
+
+- **Scope declared.** The image fixes the *look*; `data/terrain.txt` and `data/map.json` fix the
+  *layout*. Run 1 spent panels re-deriving this — the critic ranks layout first, so an undeclared
+  illustration invites the loop to move lanes to match a picture that has no mid lane, no towers and
+  a 4:3 frame. Now written down in `docs/reference/map/README.md`, with the deliberate-differences
+  table.
+- **Rubric C′ added.** Props, painted lighting, vignette, frame and watermark are unreachable by a
+  tile painter and are filed `out-of-scope` rather than counted toward the exit. The critic is not
+  told — it stays cold and keeps reporting them; the orchestrator does the filing.
+
+**Panels graded against the old crop do not compare to panels graded against this one.** Run 1's log
+below is closed. The next checkpoint opens run 2, starting from a baseline re-render of the current
+map against the new reference.
 
 ## Superseded — the arena margin, for the designer
 
