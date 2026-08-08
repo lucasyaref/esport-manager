@@ -38,6 +38,8 @@ var n: int = 0                  ## cells per side
 var world_size: float = 100.0
 var cell_size: float = 2.0      ## world units per cell
 var cells: PackedByteArray = PackedByteArray()
+## Lazily built by _build_surround(); empty until the first is_surround_cell().
+var _surround: PackedByteArray = PackedByteArray()
 
 
 ## Parses the grid text. Structural problems (wrong size, unknown characters) are
@@ -117,6 +119,43 @@ func walkable_cell(col: int, row: int) -> bool:
 ## walkable and hides you, a wall is neither.
 func blocks_sight_cell(col: int, row: int) -> bool:
 	return kind_at_cell(col, row) == WALL
+
+
+## True for wall cells that are part of the out-of-bounds surround rather than a
+## rock formation standing inside the arena. Both are equally unwalkable, so the
+## sim never asks; the eye very much does. Told apart by flood-filling wall from
+## the map border: the surround is one connected shell, and on the current map it
+## is cleanly disjoint from all 640 interior rock cells.
+func is_surround_cell(col: int, row: int) -> bool:
+	if _surround.is_empty():
+		_build_surround()
+	if col < 0 or row < 0 or col >= n or row >= n:
+		return true
+	return _surround[row * n + col] == 1
+
+
+## Built once, on the first query, and never invalidated — a Terrain's cells are
+## fixed at construction.
+func _build_surround() -> void:
+	_surround.resize(n * n)
+	var queue: Array[Vector2i] = []
+	for i in n:
+		for cell in [Vector2i(i, 0), Vector2i(i, n - 1), Vector2i(0, i), Vector2i(n - 1, i)]:
+			var idx: int = cell.y * n + cell.x
+			if cells[idx] == WALL and _surround[idx] == 0:
+				_surround[idx] = 1
+				queue.append(cell)
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_back()
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nb: Vector2i = cell + d
+			if nb.x < 0 or nb.y < 0 or nb.x >= n or nb.y >= n:
+				continue
+			var idx: int = nb.y * n + nb.x
+			if _surround[idx] == 1 or cells[idx] != WALL:
+				continue
+			_surround[idx] = 1
+			queue.append(nb)
 
 
 ## World position -> cell. Row 0 is the top of the map, so y is flipped.

@@ -100,6 +100,85 @@ everything a machine and two cold readers could.
 | 01 | `--mirror=red --write`. | **pass** | — | Symmetry fixed. The art problems in row 00 all stand — and are exactly what the reference decides, so left alone. |
 | 02 | Loop built: two cold critics, orchestrator skill, `tools/gauntlet.sh`, terrain gate wired into `tools/check.sh`. Retired the unused sim-macro critic pipeline. | **pass** | not yet run | No visual change — this iteration was structural. |
 
-**Waiting on:** the reference images (`docs/reference/map/`). Until they land the fidelity critic
-cannot run, and the loop can only measure "is this readable", not "is this right". The legibility
-critic *can* run now and is worth one pass on the current render as a baseline.
+| 03 | Reference image landed (`Pixel_art_MOBA_arena_map_…jpeg`). Baseline re-render, no change. | **pass** | — | Against the reference the render is inverted: navy rock over khaki roads, green nowhere. The reference is a *green* jungle cut by *grey stone*, lit by warm torches. |
+| 04 | Repalette to the reference's hues and contrast ordering (lane lightest → floor → rock → void). Fixed a latent bug: `_draw_brush_tufts` painted with `C_CAMP_MARK`, not `C_BRUSH_TUFT`. | **pass** | — | Colour world now right. The lane chequerboard, previously masked by the khaki, is now the loudest defect. |
+| 05 | Lanes: replaced the per-cell inset square with **banked edges** — flat surface, dark kerb only on sides facing off-road. | **pass** | — | Lanes read as continuous roads. Three routes legible at a glance. |
+| 06 | Pits: bright stone rim wherever pit meets non-pit; floor darkened. | **pass** | **panel 1** ↓ | Pits became the clearest objects on the map. Darkening the floor was my guess, and it was wrong — see panel 1. |
+
+### Panel 1 — on `iter06`
+
+**Gate:** clean. **Fidelity:** 2 × `breaks-immersion` (bases are flat colour swatches; river severed into
+puddles), 6 × `moderate` (mid lane too wide/straight/bright; pits read as holes — *contrast inverted vs
+reference*; camps are dot grids; no map boundary; flat surfaces, no lighting; hard stair edges).
+**Legibility:** identified lanes, river, both pits, both bases, brush and camps. Its five "actively
+confusing" items led with *"the near-black green inside the ring is the same colour as the region
+outside it — I cannot tell which greens are passable."*
+
+**Coordinate verification — the reason this checkpoint is trustworthy.** Every claim checked against
+the grid:
+
+| Claim | Ground truth | |
+|---|---|---|
+| 8 camp clusters, all 8 coordinates | 8 clusters, all within 0.02 | ✓ |
+| 2 pits at (.385,.385), (.625,.625) | (.38,.38), (.62,.62) | ✓ |
+| River = 2 long arms + 2 small diamonds | 4 components: 65, 65, 18, 18 cells | ✓ |
+| 9 brush patches | all 9 verify | ✓ |
+
+**Zero confabulations** — nothing was claimed that is not in `data/terrain.txt`. On the features it
+could see, the map is legible rather than merely suggestive. Its failures were all *omissions*, not
+inventions. And the river finding was not a rendering artefact: the river genuinely is severed into
+four components in the data, which both critics found independently and neither was told.
+
+**Acted on the top three.** Deliberately left: camps-as-dot-grids, flat surfaces, hard edges — all
+`moderate`, all texture work that wants its own iteration.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 07 | River continuity. **Ford**: lane cells with water on both sides get a translucent water band, so the channel carries across mid. Pit floor corrected to warm stone — *lighter* than surroundings, per the reference; iteration 06 had it backwards. | **pass** | — | First attempt drew nothing. Mid and the river cross at 90° to each other but 45° to the grid, so an axis-aligned scan found water on both sides of precisely zero cells. Adding the diagonal axes selects 16 cells, all at the centre crossing, stable for any reach 4–6. |
+| 08 | Arena boundary. `Terrain.is_surround_cell()` flood-fills wall from the map border: 454 surround cells vs 640 interior rock, cleanly disjoint. Surround → near-black void; interior rock keeps its green and its lit face. | **pass** | — | The arena now has an edge. Directly answers the legibility critic's #1 confusion. |
+| 09 | Bases as walled precincts: paved stone leaning to the team colour rather than a saturated fill, plus a masonry rim that treats LANE as inside, so the lane mouths stay open as gates. | **pass** | **panel 2** ↓ | Bases read as built ground instead of colour swatches. |
+
+**Scope note — "no structures at all".** The legibility critic reported no towers, inhibitors or nexus
+anywhere. Verified: `game/map_view.gd:115-116` draws bases, towers and nexus over the terrain every
+frame; the still-frame rig draws the terrain layer alone. So this is an artefact of *what the loop
+renders*, not a defect in the map, and adding structures to `TerrainView` would duplicate the viewer
+and break the shared-renderer contract. Logged, not chased — but it does mean the panel is grading a
+picture the player never quite sees, which is a question for the designer.
+
+### Panel 2 — on `iter09`
+
+**Gate:** clean. **Fidelity:** 3 × `breaks-immersion` (outer lanes and the boundary wall are the same
+grey ring; bases still flat swatches, and they spill past the boundary; everything is flat fill, no
+height or light — escalated from `moderate`), 3 × `moderate`, 1 × `cosmetic`. **Legibility:** the
+arena boundary now reads as unambiguous out-of-bounds — panel 1's #1 confusion is gone. Both pits,
+the river, the ford waist and the mid corridor are `certain`. New #1 confusion: *"the perimeter grey
+vs. the diagonal grey — identical material, contradictory functions."*
+
+**The two panels are describing one fault, not two.** Panel 1: "the outer wall is missing." Panel 2,
+after I supplied a boundary: "the boundary and the lane are indistinguishable." This is the
+oscillation pattern the skill warns about, and the diagnosis is that neither finding is about colour.
+Measured against the grid: the outer lane sits **2 cells from the map edge** (4% of map width) and the
+base footprints **1 cell**. There is physically nowhere for a rampart to live, so whatever I paint in
+that margin either vanishes or competes with the road. The reference puts the road well inside a thick
+wall with jungle between the two. The fix is layout, and palette iterations cannot reach it.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 10 | Rock height. Lit cap stays on the north edge, but the shadow now falls *forward onto the open ground to the south* instead of onto the rock itself, plus a contact line on the east/west faces. | **pass** | — | The single largest legibility gain so far. Rock reads as raised formations standing on a continuous grass floor; the "which greens are walkable" question that both panels led with is largely answered by shadow rather than by hue. |
+
+**Deliberate difference — no vignette.** The fidelity critic asked for the reference's vignette twice.
+Declining: the reference is a single framed illustration, the map is a viewport that pans and zooms, and
+a vignette baked into terrain drawing would swim against the camera. If the designer wants one it
+belongs in the viewer as a screen-space overlay, not here.
+
+**Full suite green after the `sim/terrain.gd` change:** data validation, guard rails, determinism
+across 3 seeds, viewer selftest.
+
+## Open — the arena margin, for the designer
+
+The loop has taken the look as far as palette and rendering can take it. What remains at
+`breaks-immersion` is one geometric fact: **the arena has no outer margin.** Closing it means pulling
+the outer lanes and both base footprints inward to leave a band of jungle and rampart against the
+edge — which changes lane length, jungle volume, and the tower and lane-polyline coordinates in
+`data/map.json`. Those are gameplay numbers, not art, so it is the designer's call and not mine.
+See `REPORTS/` for the question as posed.
