@@ -6,3 +6,4 @@
 # git alongside the reference images. Only machine-local settings stay ignored.
 .claude/settings.local.json
 .shots/
+docs/reference/inspirations/

@@ -309,6 +309,67 @@ bodies is the part that changes how ganks *play*; walls merely blocking movement
 that changes how they *look*. They ship in that order, and the vision half is gated on its own
 batch measurement (§ M6-T in `BACKLOG.md`).
 
+### 6.3 The map's own look (designer direction, 2026-08-08)
+
+Two visual sources were on the table and they pull in different directions. A painted
+top-down arena illustration (`docs/reference/map/`) — warm, ornamented, richly lit. And a
+shipped esports-manager viewer (§7.3) — dark, muted, chunky, sparse. The designer's call:
+**aim toward the second, take warmth from the first, copy neither.** A map that copies a
+shipped game's map is that game's map, and the club fantasy it is carrying is ours.
+
+So this section, not either picture, is the target. The pictures are evidence; these are the
+rules. **Where a reference image and this section disagree, this section wins.**
+
+**The eight rules.**
+
+1. **Dark by default.** The map's resting value is low. Anything a viewer must find is
+   *lighter* than what surrounds it, and nothing competes with the lanes for brightness.
+2. **One saturated thing.** Water is the only strongly saturated element on the map. Every
+   other surface is desaturated. This is what stops a busy map turning to soup at overview
+   scale, and it is why the river reads instantly even when tiny.
+3. **A small shape vocabulary — five kinds of thing, repeated.** Ground, stone mass, canopy,
+   water, brush. A viewer learns five shapes in the first ten seconds of their first match and
+   never has to learn another. Adding a sixth kind costs more than it looks like it costs.
+4. **Big blocks, not fine detail.** Stone masses are chunky rectangles and Ls, sized so you
+   could count them at full zoom-out. Per-cell noise is texture *within* a mass, never the
+   thing that defines its shape. This is the single largest correction against the painted
+   reference, and it is the designer's own read of the target: *"the blocks are bigger and the
+   map is simpler."*
+5. **Height is read from shadow, not hue.** Every raised mass carries a dark outline and casts
+   onto the ground beside it. Run 1 proved this empirically — hue changes could not tell a cold
+   reader which greens were walkable; a cast shadow could, in one iteration.
+6. **The road is the only warm hue.** Lanes are a warm sand-to-stone band against cold green.
+   They are the highest-value surface on the map and the eye follows them without being told to.
+   This is where the painted reference earns its place.
+7. **The ornament budget goes to five places.** Both bases, both pits, and the river. Detail,
+   accent light and decoration live there and nowhere else, because those are the five places a
+   match is won. Jungle is texture, not scenery. This buys the target's sparseness without
+   flattening the things that matter.
+8. **Contested ground is visible.** Ours, and in neither source. Each half of the map carries a
+   faint colour bias toward its owner — cold on blue's side, warm on red's — strongest at the
+   base and fading to nothing at the river. **Hue and saturation only; it must never change a
+   cell's value**, or it eats rule 5. At a glance you can see whose half a fight is in, which is
+   exactly the thing a manager watching a match wants to know, and it is a thing a player-facing
+   MOBA map has no reason to do.
+
+**The register, in one line:** this is a **pitch being played on**, not a place being explored.
+Broadcast, not adventure. When a change would make the map more atmospheric but less readable
+as a board, it is the wrong change.
+
+**What we refuse from each source**, so the gauntlet loop's critics can be overruled on record:
+
+| Source | Present there | Our call |
+|---|---|---|
+| Painted illustration | Statues, braziers, rune glyphs, per-object props | No. Tile renderer, no decal layer; and rule 7 spends the budget elsewhere. |
+| Painted illustration | Painted lighting, bloom, soft gradients | Value *hierarchy* yes, painted light no. |
+| Painted illustration | Vignette and dark framing border | Not baked into terrain — it is a frame on a picture, and our map pans and zooms. Screen-space overlay in the viewer if ever wanted. |
+| Painted illustration | Dense ornament everywhere | Refused by rule 7. |
+| Shipped viewer | Its exact palette, its block shapes, its map | Refused outright. Take the discipline, not the drawing. |
+| Shipped viewer | Its layout | Ours is Summoner's-Rift-shaped and symmetric (§6.2), and the symmetry is a balance requirement, not a taste. |
+
+Rules 1–5 are the loop's business now (M6-T1). Rule 8 is a distinct change with a legibility
+risk, so it ships **after** the loop exits and is judged on its own render, against rule 5.
+
 ## 7. Viewer ✅
 - Top-down 2D map, sprite per character (shared placeholder sprite: team tint + role marker; per-character sprites later via data field).
 - Animations per character: Move, Attack, Spell/Ultimate, Hurt, Die, Recall.
@@ -435,11 +496,21 @@ converge: at the average fight 3.9 bodies are standing within reach of an enemy 
 swinging. **69% of that gap is the disengage lock** (§6.1), not a failure to rotate. The
 prerequisite for the close-up view is therefore a *commitment* fix, not more plays.
 
-### 7.3 Reference target ✅ — *Teamfight Manager 2* (designer, 2026-07-25)
+### 7.3 Reference target ✅ — a shipped esports-manager viewer (designer, 2026-07-25)
 The designer named a concrete long-term target for what a watched match should look and feel
-like: **Teamfight Manager 2** (Team Nigo). Not to be copied — to be aimed at. Recorded here so
-the bar does not drift; two screenshots were supplied (see `docs/reference/` — the observations
-below are the durable part).
+like: a released esports-manager game with a watchable pixel-art match view. Named once here for
+honesty about where these observations came from — *Teamfight Manager 2*, Team Nigo — and not
+again elsewhere. It is a different game by other people; the point of this section is the
+**observations**, which are ours, not the thing they were made about.
+
+**Aimed at, never copied.** The designer's position (2026-08-08): copy it and this becomes a
+worse version of it. What we take is *discipline* — restraint, chunk size, one-renderer zoom —
+and what we build on top is ours. The map's resulting rules, including the two that come from
+neither source, are **§6.3**, and §6.3 outranks this section wherever they meet.
+
+**The screenshots are not in this repository.** They live in `docs/reference/inspirations/`,
+which is git-ignored: third-party material, local evidence only, never committed and never
+described in fine detail in a public file. The observations below are the durable part.
 
 **What it does, and what we take from it:**
 

@@ -2,18 +2,25 @@
 
 Visual and design targets we are aiming at. Nothing here ships in the game.
 
-## teamfight-manager-2/
+## `map/` — ours, committed
 
-Long-term reference target for the match viewer, named by the designer on 2026-07-25.
-What we take from it is written up in `GDD.md` §7.3 — **that is the durable record**; the
-images here are just the evidence.
+Images the designer made or commissioned for **this** map. These are the gauntlet loop's
+palette and mood evidence (`docs/gauntlet-map.md`). See `map/README.md` for what each one is
+for and, importantly, what it is *not* for.
 
-Designer: drop the screenshots you sent into this folder (any filename) so the reference
-survives outside the chat. Two were supplied:
+## `inspirations/` — third-party, git-ignored, local only
 
-- a **zoomed** view — mid lane at ~02:26, sprites with name/level/HP bars, terrain corridors,
-  turret platforms, per-team side panels, item/KDA/CS/gold scoreboard, playback transport and
-  0.5x–3x speed controls, "Auto Camera" toggle.
-- a **pulled-out** view — the whole map at ~02:57, a full-width "Pure has slain Twisten!" kill
-  banner, an AoE ability circle mid-fight, and a minimap with player dots, a viewport rectangle
-  and timers.
+Screenshots of other people's shipped games. **This folder is in `.gitignore` and must stay
+there.** It is someone else's art; it is evidence for a conversation, not an asset of this
+project, and it never goes to a public remote.
+
+The rule that follows from that: **the durable record is the written observation, not the
+image.** Anything worth keeping from a screenshot gets written up in `GDD.md` in our own
+vocabulary, phrased as a rule for our map, so it survives the file being deleted and so this
+repository does not read as a catalogue of another game.
+
+What we have taken from this folder is in **GDD §7.3** (viewer structure — one renderer with a
+continuous zoom, minimap, broadcast scoreboard, kill banner, transport) and **GDD §6.3** (the
+map's look). §6.3 is the one to read before touching the renderer: it states the eight rules the
+map obeys, including the two that come from no reference at all, and it outranks every image in
+this tree when they disagree.

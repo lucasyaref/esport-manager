@@ -72,18 +72,28 @@ footprints, corridors and chokepoints, all against the reference.
 floor, lane against jungle); surface texture; edge treatment; and legibility at overview scale — the
 map is normally seen whole, so detail that turns to mush at 1024 px is worse than no detail.
 
-**C′ — What C does not cover.** The reference is a painted illustration and the renderer is a tile
-painter, so some of its differences are unreachable by any knob. `docs/reference/map/README.md` lists
-them: per-object props, painted lighting, the vignette, the 4:3 frame, the watermark. The critic is
-never told about that list — it comes in cold and will report them, which is correct and is the point
-of it. **The orchestrator files those findings as `out-of-scope` in the log and they do not block the
-exit.** Anything else the critic finds still counts.
+**C′ — What C does not cover, and the three buckets.** The critic compares the render to a picture.
+The map's actual target is **GDD §6.3**, which the critic has never read and must never be told about.
+So its findings land in three buckets, and the orchestrator does the sorting — never the critic.
 
-This distinction is load-bearing. Without it the exit is unreachable: the panel returns the same
-texture and lighting findings at every checkpoint, the loop either grinds forever or quietly lowers
+| Bucket | Meaning | Blocks the exit? |
+|---|---|---|
+| `in-scope` | A real gap between the render and where the map is going. | **Yes.** Fix it. |
+| `out-of-scope` | Unreachable by any knob this renderer has: per-object props, painted lighting, the vignette, the 4:3 frame, the watermark. | No. Logged. |
+| `by-design` | Reachable, and refused. The reference has it; §6.3 says we do not want it. Density, even ornament, fine detail defining mass shape, overall richness. | No. Logged **with the §6.3 rule number** that overrules it. |
+
+The `by-design` bucket is the one that can be abused, so it has a cost attached: every filing cites
+a numbered rule in §6.3. If there is no rule to cite, it is not `by-design` — it is a finding you
+did not want, and it goes in `in-scope`. Wanting to skip work is not a design position. If you find
+yourself needing a rule that does not exist yet, that is a question for the designer and §6.3 is
+theirs to amend, not yours.
+
+This sorting is load-bearing. Without it the exit is unreachable: the panel returns the same texture,
+lighting and density findings at every checkpoint, the loop either grinds forever or quietly lowers
 its own bar, and neither outcome is visible in the log. Filing them explicitly keeps the critic sharp
-and the ceiling honest. If a finding filed `out-of-scope` is one you would actually pay for, that is
-not a rendering task — it is a decision to add an art layer, and it belongs to the designer.
+and the ceiling honest — and it keeps the two rejections *different*, because "we cannot" and "we
+chose not to" are not the same admission. If a finding filed `out-of-scope` is one you would actually
+pay for, that is a decision to add an art layer and it belongs to the designer.
 
 **D — Legibility, cold.** Judged by `map-legibility-critic`, which never sees the reference. Can
 someone who has never seen this game find the lanes, the river, the pits, the bases? Every claim it
@@ -98,7 +108,7 @@ and it is not always the picture.
 ## Exit criteria
 
 A single checkpoint producing all of: guard rails clean; no **in-scope** fidelity finding above
-`cosmetic` (see C′ — findings filed `out-of-scope` are logged, not chased); every real feature
+`cosmetic` (see C′ — findings filed `out-of-scope` or `by-design` are logged, not chased); every real feature
 identified by the legibility critic with verifying coordinates and nothing claimed that is not there;
 overlay agreeing with `map.json`.
 
@@ -269,6 +279,30 @@ Two things landed with it, and neither is an art change:
 **Panels graded against the old crop do not compare to panels graded against this one.** Run 1's log
 below is closed. The next checkpoint opens run 2, starting from a baseline re-render of the current
 map against the new reference.
+
+### And then the target moved (designer, 2026-08-08, same day)
+
+Hours later the designer supplied a second source — a shipped esports-manager viewer's map — and
+resolved the fork that had been open since GDD §7.3: **gravitate toward that, take warmth from the
+painting, copy neither.** Their own read of it, and it is the accurate one: *the blocks are bigger
+and the map is simpler.*
+
+That makes `terrain_moba_2.png` a **palette and mood** source rather than the target, and it means
+run 1's direction of travel was partly wrong — it was heading toward *more* painted, and the map
+wants *less*. Three consequences for run 2:
+
+- **The target is now GDD §6.3**, eight written rules, not a picture. §6.3 outranks every image in
+  `docs/reference/`. Read it before the first iteration of a session.
+- **The `by-design` bucket exists** (C′) because the fidelity critic will now, correctly, push the
+  render toward a painting we have decided against. Each refusal cites a §6.3 rule number.
+- **The second source is never given to a critic and never committed.** It is another game's
+  screenshot, git-ignored in `docs/reference/inspirations/`. What we took from it is written up in
+  our own vocabulary in §6.3 and §7.3; the image is evidence, the rules are the record. A critic
+  handed both pictures would grade "how close to their map is this", which is the one outcome the
+  designer explicitly does not want.
+
+Run 2's baseline re-render is therefore graded against §6.3 with `terrain_moba_2.png` supplying
+palette only — a different question from the one run 1 was answering.
 
 ## Superseded — the arena margin, for the designer
 
