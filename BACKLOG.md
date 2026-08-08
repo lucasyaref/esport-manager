@@ -104,7 +104,12 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
   `tools/terrain_tool.gd`). Draft 1 was 143 cell-pairs asymmetric; mirrored, and the map now passes
   every guard rail. The look is being iterated against designer reference images under **gauntlet
   loop 1** — protocol, rubric and log in `docs/gauntlet-map.md`, references in
-  `docs/reference/map/`; **T2** movement
+  `docs/reference/map/`. **Run 2 (2026-08-08, `REPORTS/M6-T1-gauntlet-run2.md`) is graded against
+  GDD §6.3's eight rules rather than a picture**, and is **paused on three designer questions** —
+  the river being cut in two by the pits, the bases overlapping the boundary wall, and the outer
+  lanes forming one closed ring instead of two readable lanes. All three move `data/map.json`
+  coordinates, so they are gameplay calls; everything reachable by the renderer and the grid is
+  done and the guard rails are clean. **T2** movement
   routes around walls (precomputed per-destination flow, no runtime search), with a batch delta on
   gank connect rate, escape rate and rotation cost; **T3** brush hides bodies and walls block sight,
   gated on its own batch measurement; **T4** camps and pits moved into their real pockets, sign-off.

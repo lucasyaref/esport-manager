@@ -304,6 +304,129 @@ wants *less*. Three consequences for run 2:
 Run 2's baseline re-render is therefore graded against §6.3 with `terrain_moba_2.png` supplying
 palette only — a different question from the one run 1 was answering.
 
+## Run 2 — graded against §6.3
+
+Reference demoted to palette-and-mood; the target is the eight rules. My own read of the
+`iter15` baseline against them: rules 1, 2 and 5 broadly holding; **rule 6 violated** (the road was a
+cold green-grey, the same hue and value as the rampart and the pit rims); **rule 4 violated** (canopy
+masses were diagonal sawtooth blobs); **rule 7 violated** (the loudest, most saturated thing on the
+map was eight amber camp dot-grids in the jungle, which rule 7 says is texture).
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 15 | Baseline re-render, no change. Opens run 2. | **pass** | — | See above. |
+| 16 | **Rule 6.** Road to warm sand (`7a6e58`), highest value on the map; kerb warmed to match; pit rim dropped *below* the road, since rule 1 gives the lanes the top of the value scale and run 1 had the rim as the brightest thing on the map. | **pass** | — | This is what panels 2 and 3 were actually asking for. Three panels reported the road and the arena wall as *"identical material, contradictory functions"* and I read it as geometry twice — iteration 11 moved the lanes, iteration 12 redefined the void. It was hue. One palette line closed a finding two layout changes had not. |
+| 17 | **Rule 7.** Camps from amber torch-fire to a near-neutral scuffed clearing. | **pass** | — | The jungle stops being the most decorated part of the map. Warm accent is now the road's alone. |
+| 18 | **Rule 4**, via a new `--chunkify=N` in `terrain_tool.gd`: snap rock masses to a 2×2 block grid, a block with ≥N rock cells becoming all rock. Applied at N=3. | **pass** | **panel 4** ↓ | The diagonal serration is gone and the canopy is countable rectangles and Ls. But N=3 was the wrong threshold — see below. |
+
+**Why the layout pass is a transform and not a hand edit.** Symmetry is *structural*: n is even, so the
+2×2 decomposition maps onto itself under the 180° rotation, and the decision is a function of the rock
+count alone. A symmetric grid in gives a symmetric grid out, with no mirror pass afterwards. The block
+decides but the **cell vetoes** — lane, river, pit, camp, brush, base and rampart cells vote and are
+then left alone, so no anchor is built over and the lanes and pits keep the exact shapes `map.json`
+reads. The first version skipped any block that was not purely rock-and-floor; that disqualified 525
+of 625 blocks and moved 34 cells, because brush is sprinkled through the whole jungle.
+
+### Panel 4 — on `iter18`
+
+**Gate:** clean. **Fidelity:** 2 × `breaks-immersion` — *"blockers are isolated islands, not walls;
+nothing narrows"* and *"nothing in the interior reads as rock or as height"* — plus 5 × `moderate`.
+**Legibility:** lanes, river, both pits, both bases, the ford, 9 towers per side, and the four-quadrant
+wilderness all identified. Its top confusion, for the third panel running: *"dark-green blobs vs
+dark-green blobs — cover or obstruction, I would not bet either way."*
+
+**Coordinate verification.** Pits (0.38, 0.38) / (0.63, 0.62) ✓. Bases ✓. Towers: both critics counted
+9 per side; `map.json` stores 3 tiers × 3 lanes = 9 ✓. River as 2 arms + 2 pools ✓. **Fourth panel,
+still zero confabulations.**
+
+**The top finding was mine, and the gate could not see it.** *"Nothing narrows"* is true and I caused
+it at iteration 18. Measured on the grid — jungle cells with ≥2 wall neighbours, a proxy for corridor
+pinch:
+
+| | jungle cells | pinched |
+|---|---|---|
+| iter17, before chunkify | 302 | 66 (22%) |
+| iter18, threshold 3 | 410 | 34 (**8%**) |
+| iter19, threshold 2 | 326 | 44 (13%) |
+
+Threshold 3 grew the jungle floor by 36% and erased two-thirds of the chokepoints. Rule 4 and the
+map's chokepoints pull against each other — a one-cell gap cannot survive a two-cell block grid — and
+threshold 2 is where that trade sits. **A guard rail that passes is not a change that worked.**
+
+**The height cue was not missing; it was too small to survive.** Both critics reported no height
+information. Cropping the render and upscaling it 4× showed the lit cap, both contact lines and the
+cast shadow all drawn exactly as intended — and the shadow measuring 7 px at 33% black over an already
+dark floor. Worth doing before touching a knob: *"the cue is absent"* and *"the cue is inaudible"* look
+identical in a critic's report and want opposite fixes.
+
+**The crop also found what neither critic could name.** Brush was `2a3a22` on tufts of `182712`, and
+rock `16261a` — one dark-green blob family carrying two opposite meanings. That is the "cover or
+obstruction" ambiguity every panel has led with, and it is a rule 3 violation (two of the five kinds
+were not distinguishable), not the value problem it kept being reported as.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 19 | Re-ran chunkify at threshold 2. | **pass** | — | Masses stay chunky; pinch back to 13%. |
+| 20 | **Rule 5.** Shadow 0.33 → 0.52 alpha and 0.34 → 0.42 deep; dark contact line extended to the south face, so a mass is outlined on every side facing open ground rather than on two. | **pass** | — | Masses stand off the floor instead of being stickers on it. |
+| 21 | **Rule 3.** Brush inverted: `4e6338`, *lighter* than the floor, second only to the road, tufts a shade off the patch. | **pass** | — | Five kinds now separate. Panel 5 enumerated all three greens and placed them correctly. |
+| 22 | **Rule 7.** Pit gets a dark contact ring cast onto the ground outside it — the same cue that says "raised" everywhere else, inverted to say "sunk" — under the existing light lip. | **pass** | **panel 5** ↓ | The bowls sit into the map instead of floating on it. |
+| 23 | Void `080c0a` → `0a1113`. Pure black read as a cutout; the reference's surround is a very dark desaturated teal, and palette is what that image is authoritative for. | **pass** | — | Cosmetic. |
+
+### Panel 5 — on `iter22`
+
+**Gate:** clean. **Fidelity:** 2 × `breaks-immersion`, 4 × `moderate`. **Legibility:** everything above
+still identified, plus the third and fourth ground textures now seen as distinct types. Its verdict
+moved from panel 4's *"I would not bet either way"* to *"I read the dark blobs as blocking terrain, but
+they could be brush"* — the same item, one confidence step better.
+
+**The two critics contradicted each other, and the pixels settled it.** Fidelity's top finding was
+*"jungle quadrants read as solid wall — essentially no walkable-looking floor"*. Legibility, on the
+same image, described *"a medium olive-green that reads as walkable grass"* with dark blobs scattered
+in it. Measured, over the quadrant rectangles the legibility critic itself gave:
+
+| Quadrant | Grid walkable | Render pixels above 0.20 luminance |
+|---|---|---|
+| north | 62% | 63% |
+| west | 60% | 57% |
+| east | 59% | 59% |
+| south | 53% | 54% |
+
+The render's value split tracks the grid's walkable split within 3 points. The finding is a misread —
+**logged, not acted on.** Worth recording as a method note: the rubric's coordinate check catches
+invented *positions*, and this was an invented *proportion*, which needed the same treatment. A cold
+critic is a good instrument and not an oracle, and the orchestrator holds the ground truth for value
+claims exactly as much as for coordinates.
+
+**Filed `by-design`,** each against a numbered rule:
+
+| Finding | Rule |
+|---|---|
+| *"Lanes are warm dirt; reference lanes are cool paved stone"* — panels 4 and 5 both | **6** — the road is the only warm hue, and the highest-value surface. This is the rule doing its job; the reference is being overruled on record. |
+| *"River too saturated"* | **2** — water is the one saturated thing, and that is why it reads when tiny. |
+| *"No warm torch chain tracing the lanes"* | **7** — budget goes to bases, pits and river. Also props, so `out-of-scope` twice over. |
+| *"Camps have no readable marker"* | **7** — deliberate, at iteration 17. |
+
+**Filed `out-of-scope`:** painted lighting and per-object props on the rampart, statues and braziers on
+the towers, nexus glow. Unreachable by a tile painter; unchanged from run 1.
+
+**Three findings are verified, in scope, and not mine to fix.** Each has survived multiple panels and
+each fix moves numbers in `data/map.json`:
+
+1. **The river is severed at both pits.** Four components — two 65-cell arms, two 18-cell pools. Every
+   panel since panel 1 has found it, and it is real in the data, not a rendering artefact. The pits sit
+   *centred on* the river's diagonal; the reference has them beside the water. Routing a channel around
+   either pit means overwriting camp anchor cells or carving rock.
+2. **Both bases sit 1 cell from the map edge**, so they overlap the boundary the rampart draws.
+   Iteration 11 inset the *lanes* on the designer's instruction; the bases were never part of it.
+3. **The outer lanes form a closed rectangular ring**, so top and bot are one racetrack. Both critics
+   independently said they could only tell it was two lanes from the tower colours.
+
+**One in-scope item stays open and is mine.** Brush versus canopy is better — three greens now
+separate and verify — but *which* green blocks is not fully answerable from a still. §6.3 rule 3
+anticipates this (*"a viewer learns five shapes in the first ten seconds of their first match"*), which
+is a claim about watching a match and not about a frame. Recording it as a limit of the rig rather than
+banking it as solved.
+
 ## Superseded — the arena margin, for the designer
 
 The loop has taken the look as far as palette and rendering can take it. What remains at

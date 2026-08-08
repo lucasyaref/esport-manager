@@ -21,11 +21,26 @@ extends RefCounted
 const PALETTE := {
 	Terrain.WALL:       Color("16261a"),
 	Terrain.OPEN:       Color("3c4f30"),
-	Terrain.BRUSH:      Color("2a3a22"),
+	# Lighter than the floor it sits on, not darker. Run 1 drew brush as dark
+	# canopy, which put it in the same value band as rock — so at overview scale
+	# the map had two different dark-green blob families meaning "walk through
+	# this" and "walk around this", and every cold reader has conflated them.
+	# §6.3 rule 1 settles it: a thing the viewer must find is lighter than its
+	# surroundings. Brush is now the second-lightest surface after the road.
+	Terrain.BRUSH:      Color("4e6338"),
 	Terrain.RIVER:      Color("2c5a72"),
-	Terrain.PIT:        Color("5d6058"),
-	Terrain.LANE:       Color("5f6862"),
-	Terrain.CAMP:       Color("445a35"),
+	Terrain.PIT:        Color("5a5d56"),
+	# GDD §6.3 rule 6: the road is the *only* warm hue on the map, and the
+	# highest-value surface on it. Run 1 left it a cold green-grey, which is why
+	# three consecutive panels reported the road and the arena wall as "identical
+	# material, contradictory functions" — the fault was never the geometry that
+	# separates them, it was that they were the same colour.
+	Terrain.LANE:       Color("7a6e58"),
+	# A clearing trodden into the jungle floor, not a landmark on it. §6.3 rule 7
+	# spends the ornament budget on the bases, the pits and the river; the jungle
+	# is texture. So a camp is ground, marked — the same *kind* of thing as the
+	# floor around it, which is also what keeps the shape vocabulary at five.
+	Terrain.CAMP:       Color("42482e"),
 	# Paved stone first, team second. The baseline read as two flat swatches
 	# because the tint *was* the surface; here it only leans the grey.
 	Terrain.BASE_BLUE:  Color("46545f"),
@@ -43,12 +58,28 @@ const C_RAMPART := Color("3a4038")
 const C_WALL_SHADE := Color("0d150f")
 ## Cast onto the ground south of a rock. Alpha, not a colour: it has to work
 ## over grass, over lane stone and over water without being retuned for each.
-const C_ROCK_SHADOW := Color(0.0, 0.0, 0.0, 0.33)
+##
+## Strengthened at iteration 20. The cue was not missing — a crop of the render
+## upscaled 4x showed the cap, the contact lines and the shadow all drawn exactly
+## as intended — it was 7 px of 33% black over an already dark floor, which is a
+## cue that exists at zoom and is gone at the scale the map is actually watched.
+## Both cold readers reported no height information on a render that had it.
+const C_ROCK_SHADOW := Color(0.0, 0.0, 0.0, 0.52)
+## How far the shadow reaches into the cell south of the rock.
+const ROCK_SHADOW_DEPTH := 0.42
 ## The kerb where paving meets dirt. Darker than the road, so the road's shape is
-## carried by its banks rather than by a per-tile pattern.
-const C_LANE_EDGE := Color("3c433e")
-## The carved stone lip of a pit — the lightest thing on the map, on purpose.
-const C_PIT_RIM := Color("7e867c")
+## carried by its banks rather than by a per-tile pattern. Warm, like the road —
+## a cold kerb reads as a grey line drawn *on* the sand rather than its edge.
+const C_LANE_EDGE := Color("463c2d")
+## The carved stone lip of a pit. Cold stone, and deliberately a shade *under* the
+## road: rule 1 says nothing competes with the lanes for brightness, and run 1 had
+## this as the brightest thing on the map. It stays findable by being the lightest
+## thing in its own neighbourhood, which is all a rim has ever needed to be.
+const C_PIT_RIM := Color("6b726a")
+## Cast onto the ground *around* a pit, so the bowl sits into the map instead of
+## floating on it. Alpha for the same reason the rock shadow is: a pit borders
+## jungle floor, rock and water, and one band has to work over all three.
+const C_PIT_SHADOW := Color(0.0, 0.0, 0.0, 0.40)
 ## The masonry ring around a base precinct — stone, deliberately not team-tinted,
 ## so the wall reads as built and the tint stays a property of the floor.
 const C_BASE_WALL := Color("6b736c")
@@ -60,16 +91,23 @@ const C_FORD := Color(0.29, 0.60, 0.72, 0.42)
 ## the river, so anything less than that finds nothing.
 const FORD_REACH := 5
 const C_RIVER_SHIMMER := Color("5b96ad")
-## Warm amber: the reference marks every camp and path junction with torch fire,
-## and it is the only warm hue on an otherwise entirely cool-green map.
-const C_CAMP_MARK := Color("b3762f")
-## Brush is dense canopy seen from above — darker than the floor it sits on, not
-## the bright grass the baseline drew.
-const C_BRUSH_TUFT := Color("182712")
+## Scuffed earth where the camp is fought over. Run 1 took the painted reference
+## at its word and put torch fire on all eight camps, which made the jungle the
+## most decorated part of the map and gave the map two warm accents competing at
+## overview scale. Rule 6 gives the warm hue to the road alone, so this drops to a
+## near-neutral olive-brown that reads as bare ground at zoom and disappears into
+## texture at overview — which is what a camp should do to the eye.
+const C_CAMP_MARK := Color("4c4a35")
+## Foliage stipple *within* the brush patch — §6.3 rule 4's "noise lives inside a
+## mass, never defining its shape". Only a shade off the patch itself: the patch
+## is read by its value, and the tufts only say what kind of surface it is.
+const C_BRUSH_TUFT := Color("3c5029")
 const C_OUTLINE := Color("0a0f12")
-## Everything outside the arena wall. The reference drops it to near-black and
-## lets the rampart's lit edge do the work of drawing the boundary.
-const C_VOID := Color("080c0a")
+## Everything outside the arena wall. Near-black, but not black: the reference's
+## surround is a very dark desaturated teal, and pure #000 makes the map look like
+## a cutout pasted on the page rather than a place with night around it. Palette
+## is the one thing that reference is authoritative for, so it wins here.
+const C_VOID := Color("0a1113")
 
 ## Per-cell tonal variation, so large fields of grass are not flat. Deterministic
 ## by construction (hashed from the cell index, never from an RNG) — the whole
@@ -156,15 +194,18 @@ static func _draw_rock_face(ci: CanvasItem, t: Terrain, c: int, r: int,
 		ci.draw_rect(Rect2(pos, Vector2(cell_px, maxf(1.0, cell_px * 0.26))), C_WALL_LIT)
 	if t.kind_at_cell(c, r + 1) != Terrain.WALL:
 		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px),
-			Vector2(cell_px, maxf(1.0, cell_px * 0.34))), C_ROCK_SHADOW)
-	# A contact line on the east and west faces. Without it the green rock and the
-	# green grass dissolve into each other and half the map's walkability goes
-	# unreadable — which is exactly what the cold reader reported.
+			Vector2(cell_px, maxf(1.0, cell_px * ROCK_SHADOW_DEPTH))), C_ROCK_SHADOW)
+	# A dark contact line on every face that meets open ground — §6.3 rule 5's
+	# "dark outline", which the mass previously only had east and west. An outline
+	# that stops on two sides is not an outline: it reads as two stripes, and it
+	# left the south face relying on a cast shadow alone to say the mass was there.
 	var e: float = maxf(1.0, cell_px * 0.16)
 	if t.kind_at_cell(c - 1, r) != Terrain.WALL:
 		ci.draw_rect(Rect2(pos, Vector2(e, cell_px)), C_WALL_SHADE)
 	if t.kind_at_cell(c + 1, r) != Terrain.WALL:
 		ci.draw_rect(Rect2(pos + Vector2(cell_px - e, 0.0), Vector2(e, cell_px)), C_WALL_SHADE)
+	if t.kind_at_cell(c, r + 1) != Terrain.WALL:
+		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px - e), Vector2(cell_px, e)), C_WALL_SHADE)
 
 
 static func _draw_shimmer(ci: CanvasItem, c: int, r: int, pos: Vector2, cell_px: float) -> void:
@@ -195,11 +236,34 @@ static func _draw_lane_edges(ci: CanvasItem, t: Terrain, c: int, r: int,
 
 
 ## The two pits are where the match's biggest fights happen, so they have to be
-## findable at a glance. Same trick as the lane banks, inverted: a *bright* stone
-## rim wherever the pit meets anything else, which closes the bowl into a ring
-## and stops it reading as one more grey blob among the rocks.
+## findable at a glance — §6.3 rule 7 spends part of the ornament budget here.
+##
+## Two bands, not one, and the outer one is the point. A light lip alone made the
+## pit a bright flat disc that both cold readers called a clearing or a hole; what
+## says "bowl" is the same thing that says "raised rock" everywhere else on this
+## map — a dark contact line on the ground outside it (rule 5). So: the lip stays
+## inside the pit, and a shadow band is cast onto whatever the pit borders.
+##
+## The lip is also no longer the brightest thing on the map. Rule 1 gives that to
+## the road, and a rim only ever needed to be the lightest thing in its *own*
+## neighbourhood, which against dark jungle it comfortably is.
 static func _draw_pit_rim(ci: CanvasItem, t: Terrain, c: int, r: int,
 		pos: Vector2, cell_px: float) -> void:
+	var d: float = maxf(1.0, cell_px * 0.22)
+	for dir in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		if t.kind_at_cell(c + dir.x, r + dir.y) == Terrain.PIT:
+			continue
+		var band := Rect2(pos, Vector2(cell_px, d)) if dir.y != 0 \
+			else Rect2(pos, Vector2(d, cell_px))
+		if dir.y > 0:
+			band.position.y += cell_px
+		elif dir.y < 0:
+			band.position.y -= d
+		elif dir.x > 0:
+			band.position.x += cell_px
+		else:
+			band.position.x -= d
+		ci.draw_rect(band, C_PIT_SHADOW)
 	_draw_rim(ci, t, c, r, pos, cell_px, [Terrain.PIT], C_PIT_RIM, 0.3)
 
 
