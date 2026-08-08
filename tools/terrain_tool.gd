@@ -47,21 +47,24 @@ func _initialize() -> void:
 
 	if args.has("mirror"):
 		_mirror(terrain, map, str(args["mirror"]), args.has("write"))
-	else:
-		_check(terrain, map)
-	quit(0)
+		quit(0)
+		return
+	# --check is a gate: tools/check.sh and tools/gauntlet.sh both depend on the
+	# exit code, not on the text.
+	quit(0 if _check(terrain, map) else 1)
 
 
-func _check(terrain: Terrain, map: SimMap) -> void:
+func _check(terrain: Terrain, map: SimMap) -> bool:
 	print("terrain: %dx%d cells, %.1f world units per cell, %.0f%% walkable"
 		% [terrain.n, terrain.n, terrain.cell_size, terrain.walkable_fraction() * 100.0])
 	var problems := terrain.validate(map)
 	if problems.is_empty():
 		print("terrain: all guard rails pass")
-		return
+		return true
 	print("terrain: %d problem(s):" % problems.size())
 	for p in problems:
 		print("  - %s" % p)
+	return false
 
 
 ## Copies one half of the grid onto the other under 180-degree rotation.

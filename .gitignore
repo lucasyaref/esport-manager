@@ -1,5 +1,8 @@
 .godot/
 .DS_Store
 *.tmp
-.claude/
+# The gauntlet loop's critics and orchestrator live under .claude/ and are part of
+# the project: they carry the acceptance criteria for the map, so they belong in
+# git alongside the reference images. Only machine-local settings stay ignored.
+.claude/settings.local.json
 .shots/

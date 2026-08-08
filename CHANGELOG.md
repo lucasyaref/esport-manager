@@ -119,3 +119,24 @@ Inserted between M5-D and M5-E after the 2026-07-25 playtest: the sim's combat d
 - **F — Report + proof of report-only.** A 30-seed fingerprint (winner, length, kills and gold per side) matched the pre-M5.5 commit exactly and the 200-sim baseline reproduced M5-D's numbers to the decimal, so B–E's sim additions are provably observational. `tools/check.sh` gained a **headless viewer selftest**: it plays a whole match through the real playback code with no display and fails if the visuals the sim's events imply were never drawn.
 - **G — Playtest corrections (2026-07-25 notes).** Three of the designer's four notes had one root cause: **1x playback runs 4× sim-time** (40 ticks a real second against the sim's 10), and every visual lifetime was written in *sim* ticks — so an ult impact lived 0.65 s and an attack beat 0.12 s. They were glimpses because they *were* glimpses. Lifetimes are now sized in real seconds at 1x and stretch with the speed button, capped at 4x. Also: the amber "fighting" halo meant `in_combat`, which the sim sets on standoffs across a wave too (measured: only **30%** of in-combat player-frames are real exchanges) — it now means *trading blows*, in hot red so it stops competing with the amber CC mark, and disengaging draws retreat chevrons; HP deltas between snapshots become **floating damage numbers** and a hit-flash (the bars *were* moving — 2 px a swing on a 22 px bar); turrets drain like a battery, leave rubble, and pulse orange while losing HP, with turrets-standing and both nexus healths permanently in the side panel and feed lines for every turret, an exposed nexus and each nexus threshold; the ult caster flares white and gets a feed line with its body count. `--selftest` asserts all of it and prints the closing feed lines, so "can this ending be narrated?" is checked on every run.
 - **H — The wave that takes the nexus is visible (2026-07-26 notes).** The designer, watching phase G, correctly diagnosed the silent ending: "in reality minions are hitting nexus". Two halves. *Viewer:* a squad chipping a structure right now is drawn swinging at it — each minion pokes on its own beat, matched by proximity to a structure that is actually losing HP, so nothing is drawn that the sim is not doing. *Sim (the deliberate exception):* an open lane's push bound was `0.06`/`0.94`, which is **11–14 world units from the nexus, an eighth of the map** — the wave really did drain the nexus from a screen-distance away, so the designer's "no enemy hitting nexus, too far from it" was literal truth, not a rendering gap. The bound is now `towers.open_lane_front` in `data/balance.json` (0.015, the base doorstep), tunable because it is also how fast a won lane converts. The selftest now fails if a structure is chipped with no besieging minion drawn, or if a nexus falls with nothing drawn hitting it — the exact bug the designer caught, now caught headlessly. Measured over the same 200 seeds M5-D signed off on: blue-side 49.5% → 47.0%, Azure (macro) 36.5% → **33.0%**, gold-lead conversion 66.3% → **64.8%** (onto target), length 26.9 → 27.1 min, assertions PASS — each win-rate move is about one standard error at n=200, so a nudge rather than a regression. Notably the **pacing did not change**: the wave reaches the nexus now, but still bleeds it slowly, so M5-G keeps the decisive-endgame item (with `open_lane_front` as a new dial).
+
+## Retired — the sim-macro critic pipeline (2026-08-08)
+
+`AGENT_HARNESS.md` and its two subagents (`lol-macro-critic`, `tuning-analyst`) are deleted. They
+specified a review pipeline for **sim macro fidelity**: a critic grounding the project's own targets
+(43/57 macro split, ~65% gold-lead conversion, first-tower timing) against real pro-play numbers via
+web search, and an analyst turning its findings into `TUNING_BACKLOG.md` entries.
+
+Recorded here because the files were never tracked in git, so this is the only surviving account.
+
+Why retired: the pipeline was half-built and unused. Part A — a structured `REPORTS/batch_metrics.json`
+export from `tools/batch_run.gd` — was specified as the critic's preferred input and never written, so
+the critic could only ever work from prose tables. Part C never produced a single entry; `TUNING_BACKLOG.md`
+does not exist. Meanwhile M5 signed off (`REPORTS/M5.md`) with its macro win-vector target met at 42.5%
+against ~43%, reached by ordinary batch measurement without the pipeline.
+
+The idea it was right about — that a critic must be **grounded in something outside the thing being
+judged**, and must emit findings in a fixed format with a severity and a category that decides who acts
+on them — is kept, and is the shape of the map gauntlet's critics (`docs/gauntlet-map.md`). If sim-macro
+review is ever wanted again, build Part A first; a critic reading prose is a critic reading our own
+opinion of the numbers.

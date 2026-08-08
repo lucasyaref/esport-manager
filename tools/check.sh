@@ -54,6 +54,12 @@ fi
 echo "--- data validation ---"
 "$GODOT" --headless --path "$PROJECT_ROOT" --script res://tools/data_check.gd
 
+# data/terrain.txt is hand-editable by design, so its guard rails belong in CI:
+# 180-degree symmetry (blue-side win rate is a tracked metric), every map.json
+# anchor on walkable ground, and no pocket of jungle sealed off by a stray wall.
+echo "--- terrain guard rails ---"
+"$GODOT" --headless --path "$PROJECT_ROOT" --script res://tools/terrain_tool.gd -- --check
+
 echo "--- determinism check ---"
 "$GODOT" --headless --path "$PROJECT_ROOT" --script res://tools/determinism_check.gd
 

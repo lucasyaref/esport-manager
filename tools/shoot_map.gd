@@ -45,17 +45,12 @@ func _initialize() -> void:
 		_fail(errors)
 		return
 
-	# Validation is reported, not fatal: a map that breaks a guard rail is exactly
-	# the map you most want to look at.
-	var problems := terrain.validate(map)
+	# This tool renders and says what it drew; it does not judge. The guard rails
+	# have exactly one owner — tools/terrain_tool.gd -- --check, which tools/check.sh
+	# and tools/gauntlet.sh both run — so there is never a second opinion about
+	# whether the map is legal.
 	print("terrain: %dx%d cells, %.1f world units per cell, %.0f%% walkable"
 		% [terrain.n, terrain.n, terrain.cell_size, terrain.walkable_fraction() * 100.0])
-	if problems.is_empty():
-		print("terrain: all guard rails pass")
-	else:
-		print("terrain: %d problem(s):" % problems.size())
-		for p in problems:
-			print("  - %s" % p)
 
 	# --- render ---------------------------------------------------------------
 	var canvas := ShotCanvas.new()
