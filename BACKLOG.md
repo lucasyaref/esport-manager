@@ -94,11 +94,17 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
 - Reordered ahead of the draft screen by designer direction (2026-07-31): the scene should look good before draft is built on top of it. Question 1 from the scoping report (whether the zoomed fight should jump ahead of the draft screen as a demo) is resolved by this — it does.
 
 **Phases:**
-- **M6-T — The map: terrain, walls and brush — next** (designer go-ahead 2026-08-02; design model
+- **M6-T — The map: terrain, walls and brush — in progress** (designer go-ahead 2026-08-02; design model
   GDD §6.2, working method `REPORTS/M6-terrain-scoping.md`). A real SR-shaped map authored as a
   human-readable ASCII grid (`data/terrain.txt`) the designer can read and edit directly; compiled
   at load into a navigation grid. Sub-phases, each measured before the next: **T1** author + compile
-  + render the terrain (cosmetic, sim untouched — a runnable look-at-it build); **T2** movement
+  + render the terrain (cosmetic, sim untouched — a runnable look-at-it build) — **rig built
+  2026-08-08**: the loader and its guard rails (`sim/terrain.gd`), the renderer shared with the match
+  viewer (`game/terrain_view.gd`), and the capture/repair tools (`tools/shot.sh`,
+  `tools/terrain_tool.gd`). Draft 1 was 143 cell-pairs asymmetric; mirrored, and the map now passes
+  every guard rail. The look is being iterated against designer reference images under **gauntlet
+  loop 1** — protocol, rubric and log in `docs/gauntlet-map.md`, references in
+  `docs/reference/map/`; **T2** movement
   routes around walls (precomputed per-destination flow, no runtime search), with a batch delta on
   gank connect rate, escape rate and rotation cost; **T3** brush hides bodies and walls block sight,
   gated on its own batch measurement; **T4** camps and pits moved into their real pockets, sign-off.
