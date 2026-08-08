@@ -265,6 +265,7 @@ func validate(map: SimMap = null) -> Array[String]:
 	_check_symmetry(errors)
 	if map != null:
 		_check_anchors(map, errors)
+		_check_anchor_symmetry(map, errors)
 	_check_reachability(map, errors)
 	return errors
 
@@ -324,6 +325,52 @@ func _check_anchors(map: SimMap, errors: Array[String]) -> void:
 				% [entry[0], pos.x, pos.y, cell.x, cell.y])
 	if reported > MAX_REPORTED:
 		errors.append("terrain: ... and %d more anchors in rock" % (reported - MAX_REPORTED))
+
+
+## The *positions* in map.json must be 180-degree symmetric too, not just the grid.
+##
+## `_check_symmetry` proves the drawn map is fair and `_check_anchors` proves every
+## anchor stands on walkable ground, and between them they look like they cover it.
+## They do not: an anchor can sit on perfectly good ground, in a perfectly
+## symmetric grid, at a position whose opposite number is somewhere else entirely.
+## Found exactly that in the shipped data — four camps whose map.json positions had
+## drifted 3.6 world units from the symmetric clusters the grid actually draws, so
+## blue's jungle route was measurably shorter than red's while every rail passed.
+## Blue-side win rate is a tracked balance metric; this is the half of it the grid
+## check could never see.
+func _check_anchor_symmetry(map: SimMap, errors: Array[String]) -> void:
+	var pairs: Array = [
+		["base", map.bases.get("blue", Vector2.ZERO), map.bases.get("red", Vector2.ZERO)],
+	]
+	if map.pits.has("dragon") and map.pits.has("baron"):
+		pairs.append(["pit", map.pits["dragon"], map.pits["baron"]])
+	# Camps pair by position rather than by id: nothing in the data says which camp
+	# is which one's opposite, so the check is "every camp has an opposite number",
+	# which is the property that actually matters.
+	var unmatched: Array[String] = []
+	for camp: Dictionary in map.camps:
+		var want := Vector2(world_size, world_size) - (camp.pos as Vector2)
+		var found := false
+		for other: Dictionary in map.camps:
+			if (other.pos as Vector2).distance_to(want) <= cell_size * 0.5:
+				found = true
+				break
+		if not found:
+			unmatched.append("%s at (%.0f, %.0f) — nothing sits at its opposite (%.0f, %.0f)"
+				% [camp.get("id", "?"), camp.pos.x, camp.pos.y, want.x, want.y])
+	for entry: Array in pairs:
+		var a: Vector2 = entry[1]
+		var b: Vector2 = entry[2]
+		var want := Vector2(world_size, world_size) - a
+		if want.distance_to(b) > cell_size * 0.5:
+			errors.append("terrain: %s pair is not symmetric — (%.0f, %.0f) implies "
+				% [entry[0], a.x, a.y]
+				+ "(%.0f, %.0f), but the other is at (%.0f, %.0f)" % [want.x, want.y, b.x, b.y])
+	for u in unmatched.slice(0, MAX_REPORTED):
+		errors.append("terrain: camp %s" % u)
+	if unmatched.size() > MAX_REPORTED:
+		errors.append("terrain: ... and %d more asymmetric camps"
+			% (unmatched.size() - MAX_REPORTED))
 
 
 ## Every walkable cell must be reachable from both bases. Catches the classic
