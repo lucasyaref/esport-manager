@@ -180,6 +180,10 @@ const C_CAMP_MARK := Color("4c4a35")
 ## mass, never defining its shape". Only a shade off the patch itself: the patch
 ## is read by its value, and the tufts only say what kind of surface it is.
 const C_BRUSH_TUFT := Color("3c5029")
+## Blade tips where a brush patch meets open ground — the patch's silhouette.
+## Lighter than the brush it edges (0.40 against 0.36) and under the road (0.44),
+## so it gives brush a shape without taking rule 1's peak brightness off the lanes.
+const C_BRUSH_EDGE := Color("5a6e3e")
 const C_OUTLINE := Color("0a0f12")
 ## Everything outside the arena wall. Near-black, but not black: the reference's
 ## surround is a very dark desaturated teal, and pure #000 makes the map look like
@@ -249,7 +253,7 @@ static func draw(ci: CanvasItem, t: Terrain, origin: Vector2, px_per_world: floa
 					ci.draw_circle(pos + Vector2(cell_px, cell_px) * 0.5,
 						cell_px * 0.28, C_CAMP_MARK)
 				Terrain.BRUSH:
-					_draw_brush_tufts(ci, c, r, pos, cell_px)
+					_draw_brush_tufts(ci, t, c, r, pos, cell_px)
 				Terrain.BASE_BLUE, Terrain.BASE_RED:
 					_draw_base_wall(ci, t, c, r, pos, cell_px)
 
@@ -507,13 +511,41 @@ static func _is_road(t: Terrain, c: int, r: int) -> bool:
 	return k == Terrain.LANE or k == Terrain.BASE_BLUE or k == Terrain.BASE_RED
 
 
-static func _draw_brush_tufts(ci: CanvasItem, c: int, r: int, pos: Vector2, cell_px: float) -> void:
+## Tufts give a brush cell texture; they do not give a brush *patch* a shape. Every
+## feature on this map that a cold reader can find has an edge — the lane its kerb,
+## a rock its contact line, a pit its lip — and brush was the only one drawn as
+## interior detail alone. So a patch got no silhouette, and the report that follows
+## from that is the one every panel has filed: "one shade off ordinary grass, no
+## border, no shadow", and camps and brush mistaken for each other.
+##
+## The rim is *lighter* than the patch, and that direction is the whole point. A dark
+## contact line is how this renderer says "raised and solid" (rule 5), so putting one
+## around brush would argue it blocks — which is the exact ambiguity runs 2 and 3
+## spent four iterations closing. Brush is walkable and lighter than the floor by
+## rule 1, so it gets brighter at its boundary: blade tips catching the light where
+## the tall grass ends, the same inversion the pits used to say "sunk" with the cue
+## that everywhere else says "raised".
+##
+## Kept under the road. Rule 1 gives peak brightness to the lanes and a rim only ever
+## needs to be the lightest thing in its own neighbourhood.
+static func _draw_brush_tufts(ci: CanvasItem, t: Terrain, c: int, r: int,
+		pos: Vector2, cell_px: float) -> void:
 	var h := _hash(c, r)
 	for i in 3:
 		var fx: float = float((h >> (i * 5)) % 100) / 100.0
 		var fy: float = float((h >> (i * 5 + 3)) % 100) / 100.0
 		ci.draw_rect(Rect2(pos + Vector2(fx, fy) * cell_px * 0.7,
 			Vector2(maxf(1.0, cell_px * 0.16), maxf(1.0, cell_px * 0.3))), C_BRUSH_TUFT)
+	var w: float = maxf(1.0, cell_px * 0.18)
+	# north, south, west, east — every face that does not meet more brush
+	if t.kind_at_cell(c, r - 1) != Terrain.BRUSH:
+		ci.draw_rect(Rect2(pos, Vector2(cell_px, w)), C_BRUSH_EDGE)
+	if t.kind_at_cell(c, r + 1) != Terrain.BRUSH:
+		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px - w), Vector2(cell_px, w)), C_BRUSH_EDGE)
+	if t.kind_at_cell(c - 1, r) != Terrain.BRUSH:
+		ci.draw_rect(Rect2(pos, Vector2(w, cell_px)), C_BRUSH_EDGE)
+	if t.kind_at_cell(c + 1, r) != Terrain.BRUSH:
+		ci.draw_rect(Rect2(pos + Vector2(cell_px - w, 0.0), Vector2(w, cell_px)), C_BRUSH_EDGE)
 
 
 ## Deterministic per-cell tone jitter.

@@ -772,3 +772,141 @@ value and category claims need the same treatment positions get.
   measuring separates them.
 - **Two critics disagreeing is a design decision.** It happened twice, and both times the answer
   was the designer's, not another iteration.
+
+## Run 4 — the reference changed under a closed loop
+
+Loop 1 exited on 2026-08-09 with designer sign-off. Hours later the designer replaced the reference:
+`terrain_moba_2.png` deleted, **`terrain_moba_3.png`** committed. `docs/reference/map/README.md` was
+updated in the same commit and already records what the new image is authoritative for, the
+deliberate differences, the designer's own hand-edit artefacts, and **two open reversals** left
+undecided.
+
+A sign-off is against a reference. When the reference changes, the sign-off does not transfer, so
+the exit has to be re-tested by a cold panel rather than inherited — the same rule applied at
+panel 5 → panel 6 when the geometry moved. That is what iterations 38–39 do.
+
+**The tree also carried uncommitted sim work** — tower tiers 3 → 2 per lane, a designer decision of
+the same day — so the render grades 6 structures a side, not 9, and this is the first panel to see
+them. Full suite green with it in.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 38 | Baseline re-render, no change. Opens run 4 against the new reference. | **pass** | **panel 10** ↓ | The new reference inverts the map's two largest surfaces. Ours is a tan road field with grey stone masses; it is a green field with narrow grey stone roads and dark canopy as the blocker. |
+
+### Panel 10 — on `iter38`
+
+**Gate:** clean. **Fidelity:** 4 × `breaks-immersion` (jungle is bare ground, not forest; rock value
+inverted vs the reference's pale masonry; rock occupies most of the jungle interior; bases and
+turrets are flat markers), 5 × `moderate`. **Legibility:** the strongest cold read the loop has had
+— lanes, river, ford, both pits, both bases, all four jungle wedges, the 180° symmetry and *which
+corner is which team* all `certain`, and it narrated the map unprompted.
+
+**Coordinate verification — tenth panel, still zero confabulated positions.**
+
+| Claim | Ground truth | |
+|---|---|---|
+| 2 pit centres | both land on `o`; exact | ✓ |
+| 6 camp clusters | **6/6 land on `c`**, all within 0.015 | ✓ |
+| 8 camps exist in `map.json` | the 2 missed are the ones tangent to a pit bowl — omission, not invention | — |
+| ford at (0.53, 0.49) | `~` with `=` adjacent — the ford exactly | ✓ |
+| 6 brush patches | **5/6 land on `,`**; one lands on `#` with brush in its 3×3 | ~ |
+| 9 chokepoints | mid-road pinches all land on `=`/`#`; the four "pit entrances" land *inside* the bowls | ~ |
+
+The y axis flips between world and image (`image_y = 1 − world_y/100`), which is worth writing down:
+checked naively, every pit and camp claim looks wrong by exactly the reflection.
+
+**Two category merges, no positional errors** — the same failure mode as panel 9, and the rubric's
+coordinate check still does not catch it. A cold critic's *positions* have been trustworthy for ten
+panels; its *categories* and *proportions* have not, and both need the orchestrator's measurement.
+
+**The census settles the biggest finding, and it is not a palette question.**
+
+| surface | cells | share |
+|---|---|---|
+| rock | 1190 | **48%** |
+| road | 602 | 24% |
+| river | 196 | 8% |
+| green floor + brush | 248 | **10%** |
+| pit / camp / bases | 264 | 10% |
+
+*"Rock occupies most of the jungle interior"* is measurably true: the map's largest surface by a
+wide margin is blocking mass, and walkable green is a tenth of it. The reference is close to the
+inverse. **Lane width and rock volume are gameplay numbers**, so this is the designer's, not mine —
+it is put to them below with a picture.
+
+### Iteration 39 — brush gets a silhouette
+
+The one `breaks-immersion`-adjacent finding both critics named that is independent of every open
+question. Fidelity: brush should be *"unmistakable at a glance"*. Legibility, cold and much blunter:
+*"I cannot confidently identify any [bushes] … one shade off from ordinary grass, no border, no
+shadow, no silhouette"*, and *"I would have mistaken the camps for bushes, or vice versa"*.
+
+Brush was the only feature on this map drawn as **interior texture with no edge**. The lane has its
+kerb, a rock its contact line and lit cap, a pit its lip and shadow ring — every feature a cold
+reader can find is a feature with a boundary.
+
+The direction of the edge is the whole decision. A *dark* rim is this renderer's way of saying
+"raised and solid", so putting one around brush argues that it blocks — the exact ambiguity runs 2
+and 3 spent four iterations closing. So the rim goes *lighter* than the patch: blade tips where the
+tall grass ends, the same inversion the pits used at iteration 35 to say "sunk" with the cue that
+everywhere else says "raised". Kept under the road, so rule 1 keeps peak brightness on the lanes.
+
+| | iter38 | iter39 |
+|---|---|---|
+| brush (whole-cell mean) | 0.333 | **0.352** |
+| floor | 0.266 | 0.266 |
+| road | 0.412 | 0.412 |
+
+Ladder still monotone, road still brightest, gate clean, full suite green.
+
+### A measurement trap worth the entry: I measured the mark, not the surface
+
+Sampling cell centres, camp came out at 0.286 against a floor of 0.284 — *identical*, which is
+verbatim what panel 9 reported and what iteration 37 was supposed to have fixed. It looked exactly
+like a cue that had gone quiet, which this loop has now seen three times.
+
+It had not. A camp draws `C_CAMP_MARK` as a disc of radius 0.28 cells **at the cell centre**, so the
+sampler was reading the mark and never the ground. Whole-cell means put camp at 0.245 against floor
+0.266 — iteration 37 landed and is intact.
+
+Adds a clause to the loop's own method note. *"Absent"* and *"inaudible"* are the same sentence in a
+cold report and want opposite fixes; **and a measurement can be neither, if it is aimed at the wrong
+pixel.** Sample the surface, not the ornament drawn on top of it.
+
+### What panel 10 was refused, and why
+
+| Finding | Filed | Cited |
+|---|---|---|
+| *"Rock value inverted — reference has pale masonry"* | `by-design` | **Rule 1**, and the designer's 2026-08-09 decision on this exact trade-off. The new reference restates the fidelity critic's side; the legibility critic, cold on the same image, again put walkable-vs-solid under `certain` — *"the contrast is strong and unambiguous everywhere"*. Same two answers, already decided. **Logged, not swung.** |
+| *"Lane surface is sand, not paved stone"* | `by-design` | **Rule 6** — sixth panel running. Coupled to open question A below. |
+| *"Bases and turrets are flat colour markers"* | `by-design` + `out-of-scope` | Team identity is what a manager's map is for; props need a sprite layer, not M6-T1. |
+| *"Pits should sit at the river's ends and look different from each other"* | `out-of-scope` | The reference **is not the layout** (README); pit positions are `map.json` and mirror by construction. Distinguishing dragon from baron is an icon layer. |
+| *"River loses continuity at the centre"* | misread, logged | It is the ford, and the *other* critic read it correctly as one — *"noticeably lighter … a shallow ford where the diagonal road crosses"*. Same treatment as panel 5's invented proportion. |
+| *"Elevation not conveyed — flat silhouettes"* | measured, refused | Cap 0.380 vs body 0.239; cast shadow 0.145 against plain floor 0.296, a **51% drop**. The cue says *raised*; what it cannot say is *cliff vs wall vs high ground*, which is the icon-layer item already standing since panel 7. |
+| *"Outer fringe looks like traversable forest"* | logged, not acted on | Real, and the critic self-resolved it (*"its position outside the tan ring settles it"*). The rampart's value sits in the middle of a three-panel oscillation between wall, road and rock; not swinging there on a first-impression finding. |
+
+### Open — three questions for the designer, with a picture
+
+The README already carried two open reversals. Panel 10 raises a third and makes the first
+measurable, and all three are one question: **is the new reference a re-direction of the look, or
+just a palette and mood source like the last one?**
+
+- **A. Green as the field, stone roads through it.** Measured above: rock 48%, road 24%, green 10%.
+  Getting to the reference's ratio means narrowing lanes and converting rock to floor — lane length,
+  jungle volume and chokepoint count are all gameplay, so this is not reachable by any knob.
+- **B. Trees as the blocking terrain.** Iteration 32 made blocking mass *stone* precisely so it would
+  stop being green, which closed the oldest finding in the log. The new reference blocks with canopy.
+- **C. Cool paved lanes instead of warm tan.** Rule 6 on record, six panels; the new reference agrees
+  with the critic rather than the rule.
+
+**Mocked, so the choice is two pictures and not a paragraph.** `.shots/ab-shipped-vs-green.png` —
+left `iter39` as shipped, right a palette-only mock (canopy blocks, grass is the field, roads cool
+grey). Reverted immediately; `tools/gauntlet.sh mock-green` rebuilds it from the recipe in this log.
+
+The mock is a palette swap and **not a converged design**, and it visibly costs two things the loop
+already paid for once: with the road grey, the ring road and the rampart become one material again
+(panel 2's finding, restored), and the pits stop being distinguishable from the roads. If the answer
+is "re-direct", those are solvable — but it is several iterations of run 4, not a one-line change.
+
+**Until the designer answers, the shipped look stands and none of this blocks.** Iteration 39 is
+independent of all three and is committed.
