@@ -70,7 +70,15 @@ const PALETTE := {
 	Terrain.CAMP:       Color("42482e"),
 	# Paved stone first, team second. The baseline read as two flat swatches
 	# because the tint *was* the surface; here it only leans the grey.
-	Terrain.BASE_BLUE:  Color("46545f"),
+	#
+	# Blue leans *indigo*, not teal, and that is the river's fault. At panel 8 a cold
+	# reader looking at the map's bottom-right water said it was "close enough in hue
+	# to the blue base wash that I briefly read it as a second blue territory", and
+	# noted the failure is not symmetric — red is unmistakable, so only one team's
+	# ground is ambiguous, which is worse than both being. Team colour has to be
+	# readable against every surface it can sit next to, and on this map blue sits
+	# next to a river.
+	Terrain.BASE_BLUE:  Color("4a4c64"),
 	Terrain.BASE_RED:   Color("5e4a4d"),
 }
 ## Top face of a rock, where it meets open ground — the single cue that reads as
