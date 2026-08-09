@@ -648,3 +648,87 @@ face and nowhere else; the step in a bowl was the only feature inventing its own
 | *"Towers are UI squares, not stone platforms"* | Out of scope — no prop layer in M6-T1 |
 | *"No torch pools, no glows"* | **7**, and out of scope twice over |
 | *"What the grey structures actually **are**"* | Genuinely unanswerable by terrain. Needs an icon layer. |
+
+## Run 2, continued — panels 8 and 9, iterations 34–37
+
+### Iteration 34 — a ratio is not a contrast
+
+Iteration 32 closed the loop's oldest finding and opened the next one. Panel 8 led with it from
+both critics independently: *"wall masses read as black holes … like cut-out voids"*, and, cold on
+the same image from the other critic, masses touching the edge *"look like the frame intruding
+rather than in-play terrain"*.
+
+Iteration 32 had checked the ladder and found it monotone — void 0.061, rock 0.184, floor 0.284.
+Three times the void's luminance, a full step under the floor, and **still two blacks to look at**.
+Down at the bottom of the range a 3× ratio is not a contrast, and a ladder can be monotone in
+arithmetic while two of its rungs are the same rung to the eye. Method note worth keeping next to
+the one about audible cues: *measuring is how you check a claim, not how you check a design.*
+
+Stone to 0.223, rampart to 0.266.
+
+### Iteration 35 — the same sun, the other way round
+
+Panel 8, both critics: *"raised bright pads"*, *"raised plazas or podiums, not sunken pits"*.
+
+Iteration 33 had fixed the pits' shape by putting them under the map's lighting rule — and under
+the rule for the wrong kind of object. A raised thing catches light on its north face. A hollow is
+the same sun and the opposite surface: the wall descending at the north edge faces away from the
+light and is shaded, the far wall at the south edge faces into it and is lit. **A hole is dark at
+the top and light at the bottom, the exact inverse of the rock convention.**
+
+### Iteration 36 — one team's ground was ambiguous and the other's was not
+
+*"Close enough in hue to the blue base wash that I briefly read it as a second blue territory."*
+Blue was a teal-leaning slate and so is the river; red was unmistakable. A one-sided failure is
+worse than a symmetric one on a map that is read through its symmetry. Blue leans indigo now.
+
+### Panel 9 — coordinate check, and what it exposed
+
+| Claim | Verified |
+|---|---|
+| 2 pit centres | **2/2 exact** |
+| 3 chokepoints | all 3 land on lane or river cells as described |
+| 7 "textured green / possible brush" patches | **4 are camps**, 1 brush, 1 pit, 1 plain floor |
+
+The critic also said outright: *"any camp, neutral spawn, ward spot or point of interest inside the
+green areas — I found none at all."* Measured, **camp 0.286 against jungle floor 0.283** — the same
+surface.
+
+### Iteration 37 — camps get a step, and no props
+
+Iteration 17 quietened the camps on rule 7's authority and was right to; run 1 had torch fire on
+all eight and the jungle was the most decorated part of the map. But rule 7 withholds *ornament*
+from the jungle, and iteration 17 read it as withholding existence. Rule 1 is the other half: a
+thing the viewer must find differs in value from what surrounds it.
+
+Camp to 0.24 — trodden bare ground, **down** where brush goes up. Two walkable greens that depart
+from the floor in opposite directions are far easier to hold apart than two that depart by amount.
+Same lesson as iteration 32, one rung quieter.
+
+## Oscillation: the walls, and the two critics who disagree about them
+
+Logged as a **trade-off, not a bug**, per this loop's own rule.
+
+| Position | Who | Says |
+|---|---|---|
+| Walls are too dark; rock should be *lighter* than the ground it stands in | fidelity critic, panels 8 **and** 9 | *"reads as pits punched through the ground"*; the reference has pale boulders on dark grass |
+| Walls read correctly and instantly | legibility critic, panel 9 | *"charcoal-grey slabs with black outlines that read unmistakably as walls or rock … my eye reads them as 'you cannot go here' immediately"* — filed under **certain, zero effort** |
+
+The finding came back after iteration 34 moved rock from 0.184 to 0.223, so the loop stops swinging
+here. Three things bear on the designer's call:
+
+1. **§6.3 wins over the reference on record.** The palette block's stated ordering is *lane
+   lightest, floor mid, rock dark, void darkest*, and rule 1 is "dark by default". The reference
+   inverts it. `docs/reference/map/README.md` says §6.3 wins where they disagree.
+2. **Part of the finding is measurably false.** *"No lighter cap, no cast shadow"* — third panel to
+   say it. Cap 0.380 against a rock body of 0.222; cast shadow a 52% drop, 0.283 → 0.137. Both
+   present, both strong, on the render being judged.
+3. **The two critics are answering different questions.** Fidelity asks "does this look like the
+   picture"; legibility asks "can a cold viewer read it". On this item they now give opposite
+   answers, which is the definition of a design decision.
+
+## Where run 2 ends
+
+Every remaining in-scope finding is `by-design` against a numbered rule, out of reach of a tile
+renderer, or a question for the designer. The full disposition is in
+`REPORTS/M6-T1-gauntlet-run3.md`.
