@@ -105,11 +105,18 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
   every guard rail. The look is being iterated against designer reference images under **gauntlet
   loop 1** — protocol, rubric and log in `docs/gauntlet-map.md`, references in
   `docs/reference/map/`. **Run 2 (2026-08-08, `REPORTS/M6-T1-gauntlet-run2.md`) is graded against
-  GDD §6.3's eight rules rather than a picture**, and is **paused on three designer questions** —
-  the river being cut in two by the pits, the bases overlapping the boundary wall, and the outer
-  lanes forming one closed ring instead of two readable lanes. All three move `data/map.json`
-  coordinates, so they are gameplay calls; everything reachable by the renderer and the grid is
-  done and the guard rails are clean. **T2** movement
+  GDD §6.3's eight rules rather than a picture** and ended on three designer questions, all three
+  since answered (2026-08-09): pits nudged off the river's centreline, bases inset inside the wall,
+  and the outer ring **kept on purpose** — recorded in GDD §6.2 with its consequence, that top and
+  bot are one shape and can only be told apart by colour, towers or labels. **Run 3 (2026-08-09,
+  `REPORTS/M6-T1-gauntlet-run3.md`) applied those answers and ran four more panels.** The river is
+  one body of water for the first time; blocking terrain stopped being green and became stone, which
+  closed the loop's oldest finding — a cold reader now reads wall, road and water as unambiguous at
+  zero effort. **Awaiting designer sign-off on two calls**: whether the road should take less of the
+  map (rule 6 plus the ring make tan the dominant field where the reference is green — the lever is
+  lane width, which is gameplay space), and the walls, where the two critics now give opposite
+  answers and §6.3 rule 1 already sides with the render. Everything else still open is `by-design`
+  against a numbered rule or out of reach of a tile renderer. **T2** movement
   routes around walls (precomputed per-destination flow, no runtime search), with a batch delta on
   gank connect rate, escape rate and rotation cost; **T3** brush hides bodies and walls block sight,
   gated on its own batch measurement; **T4** camps and pits moved into their real pockets, sign-off.
