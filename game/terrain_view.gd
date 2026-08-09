@@ -67,7 +67,20 @@ const PALETTE := {
 	# spends the ornament budget on the bases, the pits and the river; the jungle
 	# is texture. So a camp is ground, marked — the same *kind* of thing as the
 	# floor around it, which is also what keeps the shape vocabulary at five.
-	Terrain.CAMP:       Color("42482e"),
+	#
+	# Iteration 17 took that to mean *no separation at all*, and the measurement at
+	# panel 9 was camp 0.286 against floor 0.283 — the same surface. A cold reader
+	# said so: "any camp, neutral spawn or point of interest inside the green areas,
+	# I found none at all", and four of the seven patches it did point at as possible
+	# brush were camps. Rule 7 withholds *ornament* from the jungle. It does not ask a
+	# feature to be invisible, and rule 1 says a thing the viewer must find is lighter
+	# or darker than what surrounds it.
+	#
+	# So a camp gets a value step and no props: ground trodden bare, one step under
+	# the grass, going down where brush goes up. Two walkable greens that differ in
+	# opposite directions from the floor are much easier to hold apart than two that
+	# differ by amount.
+	Terrain.CAMP:       Color("3a4029"),
 	# Paved stone first, team second. The baseline read as two flat swatches
 	# because the tint *was* the surface; here it only leans the grey.
 	#
@@ -234,7 +247,7 @@ static func draw(ci: CanvasItem, t: Terrain, origin: Vector2, px_per_world: floa
 					_draw_lane_edges(ci, t, c, r, pos, cell_px)
 				Terrain.CAMP:
 					ci.draw_circle(pos + Vector2(cell_px, cell_px) * 0.5,
-						cell_px * 0.22, C_CAMP_MARK)
+						cell_px * 0.28, C_CAMP_MARK)
 				Terrain.BRUSH:
 					_draw_brush_tufts(ci, c, r, pos, cell_px)
 				Terrain.BASE_BLUE, Terrain.BASE_RED:
