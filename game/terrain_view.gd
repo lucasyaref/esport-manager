@@ -175,6 +175,22 @@ const C_WALL_SHADE := Color("101413")
 ## here — the mass keeps its dark, and only gains a surface.
 const C_CANOPY_CROWN := Color("31452a")
 const C_CANOPY_UNDER := Color("16210f")
+## The sixth shape: the stone escarpment a canopy mass stands on, drawn only where
+## the mass meets ground you can walk on.
+##
+## Grey, and that is the entire point — it is the *material* cue, not another value
+## step. Four cold panels could not tell two greens apart at three different ratios;
+## the two configurations that ever worked both had a hard material boundary. So the
+## rim rejoins the built-stone family that the roads, pit rims and base walls belong
+## to, and the mass it edges stays canopy.
+##
+##   grass 0.317  <  stone rim 0.430  <  lit rim 0.489  <  road 0.510
+##
+## Kept under the road, so rule 1 keeps peak brightness on the lanes — but only
+## just, because this is the one edge on the map a player collides with and the
+## reference draws it as pale masonry, not as shadow.
+const C_ROCK_EDGE := Color("6b6f66")
+const C_ROCK_EDGE_LIT := Color("7b7f75")
 ## Cast onto the ground south of a rock. Alpha, not a colour: it has to work
 ## over grass, over lane stone and over water without being retuned for each.
 ##
@@ -338,23 +354,56 @@ static func _base_color(kind: int) -> Color:
 ## square here is safe.
 static func _draw_rock_face(ci: CanvasItem, t: Terrain, c: int, r: int,
 		pos: Vector2, cell_px: float) -> void:
-	if t.wall_class(c, r) == Terrain.ROCK:
+	var is_canopy: bool = t.wall_class(c, r) == Terrain.ROCK
+	if is_canopy:
 		_draw_canopy_crowns(ci, c, r, pos, cell_px)
-	if t.kind_at_cell(c, r - 1) != Terrain.WALL:
+	var n_open: bool = t.kind_at_cell(c, r - 1) != Terrain.WALL
+	var s_open: bool = t.kind_at_cell(c, r + 1) != Terrain.WALL
+	var w_open: bool = t.kind_at_cell(c - 1, r) != Terrain.WALL
+	var e_open: bool = t.kind_at_cell(c + 1, r) != Terrain.WALL
+
+	# The sixth shape (§6.3 rule 3, designer decision 2026-08-09): a canopy mass is
+	# trees, but its *boundary* is stone. Four cold panels filed "which green is
+	# walkable" as invisible, at three different green/canopy ratios, with and
+	# without crown texture. The variable was never tone or ratio — it was material,
+	# and the only two configurations that ever read were stone-against-green and
+	# green-against-earth. This buys the material distinction back without giving up
+	# the canopy the designer asked for: the mass stays green, and the edge a player
+	# would actually collide with is rock.
+	#
+	# Drawn only where the mass meets open ground, so it is the silhouette rather
+	# than a fill, and it costs nothing in the mass's interior.
+	var b: float = maxf(1.0, cell_px * 0.30)
+	if is_canopy:
+		if s_open:
+			ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px - b), Vector2(cell_px, b)), C_ROCK_EDGE)
+		if w_open:
+			ci.draw_rect(Rect2(pos, Vector2(b, cell_px)), C_ROCK_EDGE)
+		if e_open:
+			ci.draw_rect(Rect2(pos + Vector2(cell_px - b, 0.0), Vector2(b, cell_px)), C_ROCK_EDGE)
+		# North last and lighter: the face the light hits, same sun as everything
+		# else raised on this map. Drawn over the side bands so a corner reads as
+		# one lit cap rather than two materials meeting.
+		if n_open:
+			ci.draw_rect(Rect2(pos, Vector2(cell_px, b)), C_ROCK_EDGE_LIT)
+	elif n_open:
+		# The rampart is masonry already and keeps the older treatment.
 		ci.draw_rect(Rect2(pos, Vector2(cell_px, maxf(1.0, cell_px * 0.26))), C_WALL_LIT)
-	if t.kind_at_cell(c, r + 1) != Terrain.WALL:
+
+	if s_open:
 		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px),
 			Vector2(cell_px, maxf(1.0, cell_px * ROCK_SHADOW_DEPTH))), C_ROCK_SHADOW)
 	# A dark contact line on every face that meets open ground — §6.3 rule 5's
 	# "dark outline", which the mass previously only had east and west. An outline
 	# that stops on two sides is not an outline: it reads as two stripes, and it
 	# left the south face relying on a cast shadow alone to say the mass was there.
-	var e: float = maxf(1.0, cell_px * 0.16)
-	if t.kind_at_cell(c - 1, r) != Terrain.WALL:
+	# It is now the seam *under* the stone rather than the mass's whole edge.
+	var e: float = maxf(1.0, cell_px * 0.10 if is_canopy else cell_px * 0.16)
+	if w_open:
 		ci.draw_rect(Rect2(pos, Vector2(e, cell_px)), C_WALL_SHADE)
-	if t.kind_at_cell(c + 1, r) != Terrain.WALL:
+	if e_open:
 		ci.draw_rect(Rect2(pos + Vector2(cell_px - e, 0.0), Vector2(e, cell_px)), C_WALL_SHADE)
-	if t.kind_at_cell(c, r + 1) != Terrain.WALL:
+	if s_open:
 		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px - e), Vector2(cell_px, e)), C_WALL_SHADE)
 
 

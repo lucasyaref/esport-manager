@@ -26,6 +26,7 @@ extends SceneTree
 ##   --lanes     re-rasterise the lane bands from the polylines in map.json.
 ##   --erode=N   shrink every interior canopy mass by N cells, handing the cells to
 ##               the jungle floor.
+##   --dilate=N  grow every interior canopy mass by N cells, taking plain floor only.
 ##   --write     apply. Without it, a dry run that reports what would change.
 ##
 ## Modifiers for --lanes:
@@ -123,8 +124,10 @@ func _initialize() -> void:
 		changed = _paint_lanes(terrain, map_data, lane_half, vacated_kind)
 	elif args.has("erode"):
 		changed = _erode_rock(terrain, int(str(args["erode"])))
+	elif args.has("dilate"):
+		changed = _dilate_rock(terrain, int(str(args["dilate"])))
 	else:
-		print("ERROR: need one of --pits=D, --bases=K, --lanes, --erode=N")
+		print("ERROR: need one of --pits=D, --bases=K, --lanes, --erode=N, --dilate=N")
 		quit(1)
 		return
 
@@ -461,6 +464,55 @@ func _erode_rock(t: Terrain, passes: int) -> int:
 			changed += 1
 		# wall_class caches off the grid it was built from; the next pass has to see
 		# the cells this one opened or it will re-derive the rampart from stale data.
+		t.invalidate_wall_classes()
+	return changed
+
+
+## Grow every interior canopy mass by one cell per pass, taking only plain jungle
+## floor. The inverse of --erode, and the one that needed writing second.
+##
+## Panels 15 and 16 converged on this from opposite directions: the fidelity critic
+## wanted *"jungle coverage — the reference's interior is mostly canopy with paths
+## cut through it, the render's is mostly open ground with forest strips laid on
+## top"*, and the legibility critic could see the masses but would not call them
+## blocking. Measured, the interior jungle was 304 cells in 12 masses against a much
+## larger walkable interior, so both readings were of the same fact: too little
+## jungle to read as jungle.
+##
+## Only OPEN is eligible. Brush, camps, the river, pits, lanes and bases all keep
+## their cells, exactly as the lane painter refuses to pave over them — a dilation
+## that swallowed an anchor would move a feature `map.json` still believes in.
+##
+## Same three properties as --erode: symmetric by construction, snapshot per pass,
+## and the arena's frame excluded (a mass only grows from cells that are already
+## interior ROCK, so the border wall cannot march inward).
+func _dilate_rock(t: Terrain, passes: int) -> int:
+	var changed := 0
+	for _pass in passes:
+		var was := t.cells.duplicate()
+		var eligible: Array[int] = []
+		for r in t.n:
+			for c in t.n:
+				if was[r * t.n + c] != Terrain.OPEN:
+					continue
+				var touches_interior := false
+				for d: Vector2i in [Vector2i(0, -1), Vector2i(0, 1),
+						Vector2i(-1, 0), Vector2i(1, 0)]:
+					var cc: int = c + d.x
+					var rr: int = r + d.y
+					if cc < 0 or rr < 0 or cc >= t.n or rr >= t.n:
+						continue
+					if was[rr * t.n + cc] != Terrain.WALL:
+						continue
+					if t.wall_class(cc, rr) != Terrain.ROCK:
+						continue
+					touches_interior = true
+					break
+				if touches_interior:
+					eligible.append(r * t.n + c)
+		for i in eligible:
+			t.cells[i] = Terrain.WALL
+			changed += 1
 		t.invalidate_wall_classes()
 	return changed
 

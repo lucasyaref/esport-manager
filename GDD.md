@@ -363,8 +363,16 @@ been reporting the same difference for six panels either way.
 2. **One saturated thing.** Water is the only strongly saturated element on the map. Every
    other surface is desaturated. This is what stops a busy map turning to soup at overview
    scale, and it is why the river reads instantly even when tiny.
-3. **A small shape vocabulary — five kinds of thing, repeated.** Ground, blocking canopy, built
-   stone, water, brush. A viewer learns five shapes in the first ten seconds of their first
+3. **A small shape vocabulary — six kinds of thing, repeated.** Ground, blocking canopy, built
+   stone, water, brush, and the **stone escarpment** that edges a canopy mass.
+   **The sixth was added on 2026-08-09, by designer decision, and this rule's own warning was the
+   price.** Rule 6′ had made blocking mass green, and four cold panels then failed to tell walkable
+   green from blocking green — at three different green/canopy ratios, with and without tree-crown
+   texture. The two configurations that ever read were stone-against-green and green-against-earth,
+   so the variable was never tone or ratio but **material**. The escarpment buys the material
+   distinction back without giving up the canopy: the mass is trees, the edge you collide with is
+   rock. It is drawn only where a mass meets walkable ground, so it is a silhouette rather than a
+   sixth surface competing for area. A viewer learns five shapes in the first ten seconds of their first
    match and never has to learn another. Adding a sixth kind costs more than it looks like it
    costs.
    **Re-cut on 2026-08-09** along the same line as rule 6′. The five used to be ground, *stone

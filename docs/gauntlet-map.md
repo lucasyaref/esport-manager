@@ -1090,3 +1090,55 @@ the cool stone roads (40), and the crown texture (42, which is a fidelity gain i
 **Still open and mine:** the camps. Panel 13 found four of six and could not name them; panel 15 filed
 them *"guessing"*. They have been re-sited twice under two different floors and want one iteration
 once the floor stops moving.
+
+### The designer takes the sixth shape, 2026-08-09
+
+Of the two options rule 6′ left open, the more expensive one. **The mass stays trees; its boundary
+becomes stone.** Rule 3's vocabulary goes from five kinds to six, which that rule warns costs more
+than it looks — accepted on record.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 46 | Stone escarpment drawn on every canopy face that meets walkable ground: pale masonry, lit on the north like everything else raised on this map, with the old dark contact line demoted to the seam *under* it. Drawn only at the boundary, so it is a silhouette and costs nothing in a mass's interior. | **pass** | **panel 16** ↓ | The best result the canopy direction has had. |
+
+### Panel 16 — on `iter46`
+
+Suite green, gate clean. **The sixth shape works, and does not finish the job.**
+
+The critic's own opening description — written before it is asked anything — now reads *"large
+dark-green blobs with visible round canopy texture and hard dark outlines that **read as tree masses
+/ blocked terrain**"*, and under hiding places, *"I read those as blocking walls, not hiding spots,
+because of their hard outline and their role in separating lanes from jungle"*, filed `probable`.
+Three panels running had this at **invisible**. It still declines to call it `certain`.
+
+**Both critics then converged on the same next cause, from opposite ends.** Fidelity: *"the
+reference's interior is mostly canopy with paths cut through it, the render's is mostly open ground
+with forest strips laid on top — jungle coverage is the single most valuable difference to close."*
+Legibility could see the masses and would not commit to what they do. Measured, both are describing
+one fact: **interior jungle is 304 cells in 12 masses**, against a much larger walkable interior.
+There is too little jungle for jungle to be the obvious reading — and since canopy is itself green,
+adding it serves the green-field direction rather than competing with it.
+
+### Iteration 47 — `--dilate`, reverted, and the second half of a lesson
+
+Wrote the inverse of `--erode` and it failed twice over in one pass:
+
+- **The gate caught it.** *"2 of 1164 walkable cells are cut off from the blue — a wall is sealing a
+  pocket of the map."* Growing every mass by a cell closed a corridor somewhere.
+- **It ate the thing it was serving.** Walkable green 356 → 210 cells, 14% → 8% — the green field the
+  designer had just chosen, spent in a single pass.
+
+Reverted; gate clean again.
+
+**Global morphology is the wrong instrument on this grid, in both directions.** Erode and dilate are
+each a one-cell change applied everywhere at once, and the interior masses are 34–71 cells — so a
+single pass is a third of the jungle either way. There is no setting between "no change" and "too
+much", because the operator has no notion of the shape it is editing. Erode deleted every mass two
+cells wide; dilate sealed a corridor and drank the field. What the remaining finding actually wants
+is a **shape-aware** edit — grow *these* masses along *this* axis, leave that corridor alone — which
+is either a real tool or a hand edit to `data/terrain.txt`, and is a decision about the map's rooms
+rather than a knob.
+
+**Kept from run 4, all gate-clean and suite-green:** narrowed lanes and grass outside the ring (45),
+the stone escarpment (46), the brush silhouette (39, 8/8 on a cold read), cool stone roads (40),
+canopy crowns (42). **Open:** interior jungle density, and the camps.
