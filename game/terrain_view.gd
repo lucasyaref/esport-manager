@@ -114,12 +114,12 @@ const C_PIT_SHADOW := Color(0.0, 0.0, 0.0, 0.40)
 ## The second tier, cut one step below the first. A bowl is a thing with an inside;
 ## one flat disc with a lip around it is a thing with an edge, and an edge is what a
 ## boulder has.
-const C_PIT_BASIN := Color(0.0, 0.0, 0.0, 0.22)
+const C_PIT_BASIN := Color(0.0, 0.0, 0.0, 0.14)
 ## The dais at the pit's eye — the one cell the objective stands on, and the
 ## lightest thing inside the bowl. Kept a shade under the road: rule 1 gives peak
 ## brightness to the lanes, and this earns its read by being one bright cell in a
 ## dark hollow rather than by out-shouting anything.
-const C_PIT_EYE := Color("7f8479")
+const C_PIT_EYE := Color("767b71")
 ## The masonry ring around a base precinct — stone, deliberately not team-tinted,
 ## so the wall reads as built and the tint stays a property of the floor.
 const C_BASE_WALL := Color("6b736c")
@@ -308,21 +308,17 @@ static func _draw_pit_rim(ci: CanvasItem, t: Terrain, c: int, r: int,
 	var depth := _pit_depth(t, c, r)
 	if depth >= 2:
 		ci.draw_rect(Rect2(pos, Vector2(cell_px, cell_px)), C_PIT_BASIN)
-		# The step's own lip, so the two tiers read as cut stone rather than as a
-		# stain on one floor. Same material as the outer lip — a pit is one thing.
-		for dir in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
-			if _pit_depth(t, c + dir.x, r + dir.y) >= 2:
-				continue
-			var w: float = maxf(1.0, cell_px * 0.2)
-			var lip := Rect2(pos, Vector2(cell_px, w)) if dir.y != 0 \
-				else Rect2(pos, Vector2(w, cell_px))
-			if dir.y > 0:
-				lip.position.y += cell_px - w
-			elif dir.x > 0:
-				lip.position.x += cell_px - w
-			ci.draw_rect(lip, C_PIT_RIM)
+		# The step's lip, on its north face only. Lighting this step from all four
+		# sides was iteration 30's mistake: the inner tier of an octagon is a plus,
+		# so outlining every face of it drew a four-spoked wheel, and panel 7 read
+		# both pits as "grey machinery" and "a cross/cog silhouette". Everything else
+		# raised on this map — every rock mass — catches light on its north face and
+		# nowhere else. A step in a bowl is the same kind of thing and obeys the same
+		# sun; it was the only feature here inventing its own.
+		if _pit_depth(t, c, r - 1) < 2:
+			ci.draw_rect(Rect2(pos, Vector2(cell_px, maxf(1.0, cell_px * 0.2))), C_PIT_RIM)
 	if depth >= 3:
-		ci.draw_circle(pos + Vector2(cell_px, cell_px) * 0.5, cell_px * 0.42, C_PIT_EYE)
+		ci.draw_circle(pos + Vector2(cell_px, cell_px) * 0.5, cell_px * 0.34, C_PIT_EYE)
 	var d: float = maxf(1.0, cell_px * 0.22)
 	for dir in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
 		if t.kind_at_cell(c + dir.x, r + dir.y) == Terrain.PIT:
