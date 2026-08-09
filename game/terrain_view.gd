@@ -29,7 +29,12 @@ const PALETTE := {
 	# surroundings. Brush is now the second-lightest surface after the road.
 	Terrain.BRUSH:      Color("4e6338"),
 	Terrain.RIVER:      Color("2c5a72"),
-	Terrain.PIT:        Color("5a5d56"),
+	# Dropped a step at iteration 30. A pale flat disc is how a boulder field is
+	# drawn, and that is what both cold readers called these — *"I would plausibly
+	# have called them terrain obstacles, not fight sites"*. The floor keeps enough
+	# value to stay lighter than the jungle around it (rule 1) and gives up the rest
+	# to the tiers cut into it, which are what say bowl.
+	Terrain.PIT:        Color("51554e"),
 	# GDD §6.3 rule 6: the road is the *only* warm hue on the map, and the
 	# highest-value surface on it. Run 1 left it a cold green-grey, which is why
 	# three consecutive panels reported the road and the arena wall as "identical
@@ -80,6 +85,15 @@ const C_PIT_RIM := Color("6b726a")
 ## floating on it. Alpha for the same reason the rock shadow is: a pit borders
 ## jungle floor, rock and water, and one band has to work over all three.
 const C_PIT_SHADOW := Color(0.0, 0.0, 0.0, 0.40)
+## The second tier, cut one step below the first. A bowl is a thing with an inside;
+## one flat disc with a lip around it is a thing with an edge, and an edge is what a
+## boulder has.
+const C_PIT_BASIN := Color(0.0, 0.0, 0.0, 0.22)
+## The dais at the pit's eye — the one cell the objective stands on, and the
+## lightest thing inside the bowl. Kept a shade under the road: rule 1 gives peak
+## brightness to the lanes, and this earns its read by being one bright cell in a
+## dark hollow rather than by out-shouting anything.
+const C_PIT_EYE := Color("7f8479")
 ## The masonry ring around a base precinct — stone, deliberately not team-tinted,
 ## so the wall reads as built and the tint stays a property of the floor.
 const C_BASE_WALL := Color("6b736c")
@@ -255,8 +269,34 @@ static func _draw_lane_edges(ci: CanvasItem, t: Terrain, c: int, r: int,
 ## The lip is also no longer the brightest thing on the map. Rule 1 gives that to
 ## the road, and a rim only ever needed to be the lightest thing in its *own*
 ## neighbourhood, which against dark jungle it comfortably is.
+##
+## What the lip alone still could not do is say *fight site* rather than *rock*. A
+## flat disc with a hard edge is how this renderer draws a boulder field, and both
+## cold readers at panel 6 read them that way — one of them was explicit that it
+## would have called them obstacles. So the bowl is cut in tiers, and the tiers come
+## out of the grid rather than out of `map.json`: measure how deep inside the pit a
+## cell sits and the shape names its own centre. There is exactly one deepest cell
+## in each pit, and it is the cell the objective stands on.
 static func _draw_pit_rim(ci: CanvasItem, t: Terrain, c: int, r: int,
 		pos: Vector2, cell_px: float) -> void:
+	var depth := _pit_depth(t, c, r)
+	if depth >= 2:
+		ci.draw_rect(Rect2(pos, Vector2(cell_px, cell_px)), C_PIT_BASIN)
+		# The step's own lip, so the two tiers read as cut stone rather than as a
+		# stain on one floor. Same material as the outer lip — a pit is one thing.
+		for dir in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+			if _pit_depth(t, c + dir.x, r + dir.y) >= 2:
+				continue
+			var w: float = maxf(1.0, cell_px * 0.2)
+			var lip := Rect2(pos, Vector2(cell_px, w)) if dir.y != 0 \
+				else Rect2(pos, Vector2(w, cell_px))
+			if dir.y > 0:
+				lip.position.y += cell_px - w
+			elif dir.x > 0:
+				lip.position.x += cell_px - w
+			ci.draw_rect(lip, C_PIT_RIM)
+	if depth >= 3:
+		ci.draw_circle(pos + Vector2(cell_px, cell_px) * 0.5, cell_px * 0.42, C_PIT_EYE)
 	var d: float = maxf(1.0, cell_px * 0.22)
 	for dir in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
 		if t.kind_at_cell(c + dir.x, r + dir.y) == Terrain.PIT:
@@ -273,6 +313,31 @@ static func _draw_pit_rim(ci: CanvasItem, t: Terrain, c: int, r: int,
 			band.position.x -= d
 		ci.draw_rect(band, C_PIT_SHADOW)
 	_draw_rim(ci, t, c, r, pos, cell_px, [Terrain.PIT], C_PIT_RIM, 0.3)
+
+
+## How far inside a pit a cell sits: 0 for anything that is not pit, 1 on the lip,
+## rising toward the middle. Measured in all eight directions so the tiers come out
+## as octagons rather than as crosses, and capped because nothing here needs to know
+## the difference between deep and deeper.
+##
+## This is the whole reason the pit can be drawn without `data/map.json`. The
+## renderer is handed a grid and nothing else, and on this map the measure has
+## exactly one maximum in each bowl — cells (15,22) and (34,27), which is where the
+## dragon and baron anchors are. The shape names its own centre, so nothing has to
+## be kept in step with the data file.
+const PIT_DEPTH_MAX := 3
+
+static func _pit_depth(t: Terrain, c: int, r: int) -> int:
+	if t.kind_at_cell(c, r) != Terrain.PIT:
+		return 0
+	var depth := PIT_DEPTH_MAX
+	for dir in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+			Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]:
+		for i in range(1, PIT_DEPTH_MAX + 1):
+			if t.kind_at_cell(c + dir.x * i, r + dir.y * i) != Terrain.PIT:
+				depth = mini(depth, i)
+				break
+	return depth
 
 
 ## A base is a walled precinct in the reference, not a coloured rectangle: a
