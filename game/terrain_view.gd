@@ -208,6 +208,22 @@ const ROCK_SHADOW_DEPTH := 0.42
 ## surface rather than as its edge. With the road now cool stone (rule 6, reversed
 ## 2026-08-09) the same argument runs the other way and the kerb goes cool with it.
 const C_LANE_EDGE := Color("363b3d")
+## How far the paving is held back from the edge of its own corridor, in cells.
+##
+## A lane cell used to be paved wall to wall, which quietly made "the corridor the
+## sim walks bodies down" and "the road a viewer sees" the same object. They are
+## not the same object in the reference, and measuring said how far apart they
+## should be: normalised over the play area (frame and void excluded, since the
+## reference is a crop and has neither), the render's green is already the
+## reference's — 43.9% against 44.1% — and its road is **twice** it, 30.6% against
+## ~15%. So the interior does not want more jungle. It wants less pavement, which
+## is the same finding both critics at panel 16 filed from opposite ends.
+##
+## A verge pays that entirely in pixels: the lane keeps every cell it has, so
+## corridor widths, `map.json`, the gate and the sim are all untouched, and the
+## cells that stop being road become the field they run through. It also chamfers
+## the mid lane's stair steps for free — a diagonal cell verges on two faces.
+const LANE_VERGE := 0.45
 ## The carved stone lip of a pit. Cold stone, and deliberately a shade *under* the
 ## road: rule 1 says nothing competes with the lanes for brightness, and run 1 had
 ## this as the brightest thing on the map. It stays findable by being the lightest
@@ -255,6 +271,19 @@ const C_RIVER_SHIMMER := Color("5b96ad")
 ## warm hue; that clause was reversed on 2026-08-09 and rule 7 is what actually
 ## holds the camps down.)
 const C_CAMP_MARK := Color("4c4a35")
+## Scuffed earth where a camp clearing meets whatever it is cut into — the camp
+## patch's silhouette, and the last walkable feature on this map still drawn as
+## interior detail alone. Brush had exactly this gap until iteration 39, and the
+## edge is what closed it: a cold reader went from "one shade off ordinary grass"
+## to 8/8 on brush the moment the patch got a boundary. Panels 13 and 15 have been
+## filing the same complaint about camps ever since — four of six found, none
+## named, "guessing".
+##
+## Warm and lighter than the camp floor (0.32 against 0.23), which keeps it apart
+## from both of its neighbours in the vocabulary: brush's rim is the same idea in
+## green, and a rock's boundary is a *dark* line because dark means raised here.
+## Under brush's tips (0.40) and well under the road, so rule 1's ordering holds.
+const C_CAMP_EDGE := Color("5a5238")
 ## Foliage stipple *within* the brush patch — §6.3 rule 4's "noise lives inside a
 ## mass, never defining its shape". Only a shade off the patch itself: the patch
 ## is read by its value, and the tufts only say what kind of surface it is.
@@ -294,6 +323,13 @@ static func draw(ci: CanvasItem, t: Terrain, origin: Vector2, px_per_world: floa
 				Vector2(cell_px + bleed * 2.0, cell_px + bleed * 2.0))
 			var col: Color = _base_color(kind)
 			var jitter := true
+			if kind == Terrain.LANE:
+				# The corridor is floored with the field it crosses, and the paving
+				# laid down the middle of it — see LANE_VERGE.
+				ci.draw_rect(rect, _tone(_base_color(Terrain.OPEN), c, r))
+				ci.draw_rect(_lane_surface(t, c, r, pos, cell_px, bleed),
+					_tone(col, c, r))
+				continue
 			# Three values where there used to be one: rock inside the arena stays
 			# green so it reads as terrain to walk around, the arena's wall is
 			# quarried stone, and beyond it the map has ended. The void takes no
@@ -321,16 +357,23 @@ static func draw(ci: CanvasItem, t: Terrain, origin: Vector2, px_per_world: floa
 					# Paving first, shimmer over it: the dashes are the water's
 					# own cue and have to survive the crossing, or the ford reads
 					# as a gap in the river instead of a gap in the road.
+					# The paving carries the road's own width across the water. It
+					# used to cover the whole cell, which was right while a lane cell
+					# was paved wall to wall and became wrong the moment LANE_VERGE
+					# narrowed the road: the crossing came out *wider* than the road
+					# feeding it, so a cold reader got a pale wash where it wanted a
+					# line continuing, and filed mid as possibly severed at the
+					# centre. A ford has to be the road doing something, never a
+					# sixth thing — and that now includes its width.
 					if _is_ford(t, c, r):
-						ci.draw_rect(Rect2(pos, Vector2(cell_px, cell_px)), C_FORD)
+						ci.draw_rect(_lane_surface(t, c, r, pos, cell_px, 0.5), C_FORD)
 					_draw_shimmer(ci, c, r, pos, cell_px)
 				Terrain.PIT:
 					_draw_pit_rim(ci, t, c, r, pos, cell_px)
 				Terrain.LANE:
 					_draw_lane_edges(ci, t, c, r, pos, cell_px)
 				Terrain.CAMP:
-					ci.draw_circle(pos + Vector2(cell_px, cell_px) * 0.5,
-						cell_px * 0.28, C_CAMP_MARK)
+					_draw_camp(ci, t, c, r, pos, cell_px)
 				Terrain.BRUSH:
 					_draw_brush_tufts(ci, t, c, r, pos, cell_px)
 				Terrain.BASE_BLUE, Terrain.BASE_RED:
@@ -454,16 +497,85 @@ static func _draw_shimmer(ci: CanvasItem, c: int, r: int, pos: Vector2, cell_px:
 ## opens out on its own.
 static func _draw_lane_edges(ci: CanvasItem, t: Terrain, c: int, r: int,
 		pos: Vector2, cell_px: float) -> void:
-	var w: float = maxf(1.0, cell_px * 0.22)
-	# north, south, west, east
+	var s: Rect2 = _lane_surface(t, c, r, pos, cell_px, 0.0)
+	var w: float = minf(maxf(1.0, cell_px * 0.22), minf(s.size.x, s.size.y) * 0.5)
+	# north, south, west, east — on the paving's edge, which is no longer the
+	# cell's edge once the verge holds it back.
 	if not _is_road(t, c, r - 1):
-		ci.draw_rect(Rect2(pos, Vector2(cell_px, w)), C_LANE_EDGE)
+		ci.draw_rect(Rect2(s.position, Vector2(s.size.x, w)), C_LANE_EDGE)
 	if not _is_road(t, c, r + 1):
-		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px - w), Vector2(cell_px, w)), C_LANE_EDGE)
+		ci.draw_rect(Rect2(s.position + Vector2(0.0, s.size.y - w),
+			Vector2(s.size.x, w)), C_LANE_EDGE)
 	if not _is_road(t, c - 1, r):
-		ci.draw_rect(Rect2(pos, Vector2(w, cell_px)), C_LANE_EDGE)
+		ci.draw_rect(Rect2(s.position, Vector2(w, s.size.y)), C_LANE_EDGE)
 	if not _is_road(t, c + 1, r):
-		ci.draw_rect(Rect2(pos + Vector2(cell_px - w, 0.0), Vector2(w, cell_px)), C_LANE_EDGE)
+		ci.draw_rect(Rect2(s.position + Vector2(s.size.x - w, 0.0),
+			Vector2(w, s.size.y)), C_LANE_EDGE)
+
+
+## A camp is a clearing in the jungle with something living in it, and until now it
+## was neither: a bare-earth cell with one dot in the middle of it, repeated. That
+## is a texture, and it is why two cold panels could find the patches and not name
+## them — a polka dot of identical marks says "this ground is different", never
+## "something is camped here".
+##
+## Two changes, one idea. The patch gets a boundary (C_CAMP_EDGE), which is the
+## instrument that fixed brush at iteration 39 and is the one thing every findable
+## feature on this map has. And the marks inside it stop being uniform: the cell
+## that opens the patch takes a big one, the rest take small ones, so a camp reads
+## as a group with something large in it rather than as spotting.
+##
+## "Opens the patch" is topological, not an anchor lookup: north and west both
+## non-camp. An L-shaped patch can satisfy that twice, which is harmless — one big
+## mark or two both read as a camp, and it keeps this function knowing nothing but
+## the terrain. TerrainView never takes the SimMap, deliberately, so that the still
+## rig and the match viewer cannot drift apart.
+static func _draw_camp(ci: CanvasItem, t: Terrain, c: int, r: int,
+		pos: Vector2, cell_px: float) -> void:
+	var w: float = maxf(1.0, cell_px * 0.20)
+	var n_camp: bool = t.kind_at_cell(c, r - 1) == Terrain.CAMP
+	var s_camp: bool = t.kind_at_cell(c, r + 1) == Terrain.CAMP
+	var w_camp: bool = t.kind_at_cell(c - 1, r) == Terrain.CAMP
+	var e_camp: bool = t.kind_at_cell(c + 1, r) == Terrain.CAMP
+	if not n_camp:
+		ci.draw_rect(Rect2(pos, Vector2(cell_px, w)), C_CAMP_EDGE)
+	if not s_camp:
+		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px - w), Vector2(cell_px, w)), C_CAMP_EDGE)
+	if not w_camp:
+		ci.draw_rect(Rect2(pos, Vector2(w, cell_px)), C_CAMP_EDGE)
+	if not e_camp:
+		ci.draw_rect(Rect2(pos + Vector2(cell_px - w, 0.0), Vector2(w, cell_px)), C_CAMP_EDGE)
+
+	var mid: Vector2 = pos + Vector2(cell_px, cell_px) * 0.5
+	if not n_camp and not w_camp:
+		ci.draw_circle(mid, cell_px * 0.34, C_CAMP_MARK)
+	else:
+		# Off centre by a stable jitter, so a patch reads as a scattered group and
+		# not as a grid of dots. Hashed on the cell, so it is the same every frame.
+		var h: int = _hash(c, r)
+		var off := Vector2(float(h % 5) - 2.0, float((h >> 3) % 5) - 2.0) * (cell_px * 0.06)
+		ci.draw_circle(mid + off, cell_px * 0.17, C_CAMP_MARK)
+
+
+## The paving inside a lane cell. Held back by LANE_VERGE on every face that does
+## not meet more road, and run out to the cell's edge — with the fill's overdraw —
+## on every face that does, so a straight run of road has no seams in it.
+static func _lane_surface(t: Terrain, c: int, r: int, pos: Vector2,
+		cell_px: float, bleed: float) -> Rect2:
+	var v: float = cell_px * LANE_VERGE
+	var x0: float = pos.x - bleed
+	var y0: float = pos.y - bleed
+	var x1: float = pos.x + cell_px + bleed
+	var y1: float = pos.y + cell_px + bleed
+	if not _is_road(t, c, r - 1):
+		y0 = pos.y + v
+	if not _is_road(t, c, r + 1):
+		y1 = pos.y + cell_px - v
+	if not _is_road(t, c - 1, r):
+		x0 = pos.x + v
+	if not _is_road(t, c + 1, r):
+		x1 = pos.x + cell_px - v
+	return Rect2(Vector2(x0, y0), Vector2(maxf(x1 - x0, 0.0), maxf(y1 - y0, 0.0)))
 
 
 ## The two pits are where the match's biggest fights happen, so they have to be

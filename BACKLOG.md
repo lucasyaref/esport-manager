@@ -98,9 +98,13 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
   GDD §6.2, working method `REPORTS/M6-terrain-scoping.md`). A real SR-shaped map authored as a
   human-readable ASCII grid (`data/terrain.txt`) the designer can read and edit directly; compiled
   at load into a navigation grid. Sub-phases, each measured before the next: **T1** author + compile
-  + render the terrain (cosmetic, sim untouched — a runnable look-at-it build) — **done 2026-08-09,
-  designer sign-off, narrative in `CHANGELOG.md`** (37 gauntlet iterations, 9 cold critic panels,
-  reports `REPORTS/M6-T1-gauntlet-run2.md` and `-run3.md`, loop log `docs/gauntlet-map.md`).
+  + render the terrain (cosmetic, sim untouched — a runnable look-at-it build) — signed off
+  2026-08-09 after 37 iterations and 9 panels (narrative in `CHANGELOG.md`), then **re-opened the
+  same day by designer direction** and carried through runs 4 and 5 — **51 iterations, 17 panels**,
+  reports `REPORTS/M6-T1-gauntlet-run2.md`, `-run3.md`, `-run5.md`, loop log `docs/gauntlet-map.md`.
+  **Two designer calls open** (`REPORTS/M6-T1-gauntlet-run5.md` §Open): whether to build the base
+  floors now or hold them for M6-D's sprites, and whether jungle density is still wanted now that it
+  costs walkable ground rather than paint.
   **T2** movement
   routes around walls (precomputed per-destination flow, no runtime search), with a batch delta on
   gank connect rate, escape rate and rotation cost; **T3** brush hides bodies and walls block sight,

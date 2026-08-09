@@ -1142,3 +1142,108 @@ rather than a knob.
 **Kept from run 4, all gate-clean and suite-green:** narrowed lanes and grass outside the ring (45),
 the stone escarpment (46), the brush silhouette (39, 8/8 on a cold read), cool stone roads (40),
 canopy crowns (42). **Open:** interior jungle density, and the camps.
+
+## Run 5, 2026-08-09 — the designer takes the jungle question, and the census answers a different one
+
+The designer's call on the panel-16 finding: **thicken the quadrants, keep the corridors.** Grow the
+interior masses so the jungle reads as forest with paths cut through it, but leave every corridor and
+lane approach at its current width.
+
+That instruction is what exposed the next measurement error, and it is the same class as the 886-cell
+frame hiding inside "rock is 48%".
+
+### Iteration 48 attempt 1 — shape-aware growth, and why it moved six cells
+
+Iteration 47 had established that global morphology is the wrong instrument in both directions, so the
+growth was written shape-aware: grow a mass into a neighbouring cell only where the passage it eats
+into stays at least three cells wide, apply every edit together with its 180° partner so symmetry holds
+by construction, and refuse the whole pass if any walkable cell is cut off.
+
+It found **six cells**. Decomposing the green said why:
+
+| | |
+|---|---|
+| green (open + brush) | 356 cells, in **54 connected regions** |
+| largest region | 45 cells, max clearance **3** |
+| regions of 1 cell | 34 of them |
+
+**There is no open field to convert.** The green is already 54 thin seams, none of them wider than five
+cells. "Thicken the quadrants" had no material to work with, and the only way to add 200 cells of
+canopy would have been to delete the green field the designer chose nine days ago — which is the option
+they explicitly declined.
+
+### What the interior is actually made of
+
+Normalised over the play area — the frame and the void excluded, because the reference is a crop and
+has neither:
+
+| | render (iter47) | reference |
+|---|---|---|
+| green | 43.9% | 44.1% |
+| road | 30.6% | ~15% |
+| road : green | 1.28 | 0.32 |
+
+**The green was never short. The road is double.** Both critics at panel 16 asked for more jungle from
+opposite ends, and both were describing this ratio from the wrong side of it. The interior does not
+want more canopy; it wants less pavement.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 48–49 | **The road gets a verge** (§6.3 rule 6″): paving held back `LANE_VERGE` from the edge of its own lane cells, the vacated ground drawn as the field it crosses. Tried at 0.35, kept at 0.45. Every lane cell stays walkable — corridor widths, `map.json`, the gate and the sim are untouched, and the mid lane's stair steps chamfer for free. road:green 1.28 → **0.68**, green 33.8% → **45.8%** against the reference's 47.2%. | **pass** | — | The map stops being a pavement ring with jungle in the gaps. |
+| 50 | **Camps become clearings.** The patch gets a boundary — the instrument that fixed brush at iteration 39 — plus a size hierarchy in the marks, so a camp reads as a group with something large in it rather than as one dot per cell repeated. | **pass** | **panel 17** ↓ | Camps stop being texture. |
+
+### Panel 17 — on `iter50`
+
+Gate clean. Both critics cold, image path only.
+
+**Camps: closed.** Panels 13 and 15 had them at "four of six found, none named, guessing". The
+legibility critic now locates **six of six** by coordinate — (0.545,0.195), (0.335,0.365), (0.20,0.555),
+(0.455,0.815), (0.80,0.455), (0.655,0.635), every one of which verifies against `data/terrain.txt` —
+and reads them as *"a different, smaller kind of site — likely camps rather than arenas"*, `probable`
+as a feature class. The edge did for camps exactly what it did for brush.
+
+**The verge is confirmed by the fidelity critic, in the one line that matters:** *"the lane-versus-grass
+value contrast is close to the reference's, so the lane ring is legible at a squint"* — the road got
+narrower and lost nothing.
+
+**Two verified findings, both acted on.**
+
+1. **The ford, and it is a regression the verge caused.** Legibility: *"between roughly (0.44,0.55) and
+   (0.56,0.45) the grey is overlaid by the widened river — I cannot tell whether mid is continuous
+   through the centre or is genuinely severed there."* Fidelity, independently: *"the grey path simply
+   stops at the waterline."* The grid says mid does cross there, as a ford. The cue was firing; it was
+   drawn to the **full cell**, so once the road either side narrowed to 55% of a cell the crossing came
+   out *wider* than the road feeding it, and a pale wash replaced a line continuing. Fixed by giving
+   the ford the road's drawn width. This is now the general clause on rule 6″: anything that continues
+   a road across something else carries the road's *drawn* width, never its cell width.
+2. **Brush marooned outside the lane ring.** *"Two speckled patches outside the ring at (0.72,0.07) and
+   (0.265,0.93) look like brush stranded in out-of-bounds; I would have mistaken them for a hidden path
+   off the map."* Verified exactly: brush at row 3 cols 35–36 and its 180° partner at row 46 cols
+   13–14, both in the jungle pocket behind the lane. Real, and a confusing place to put a hiding spot.
+   Converted to open ground (4 cells, symmetric, gate clean). The pocket stays walkable.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 51 | Ford drawn at the road's width; the four marooned brush cells returned to open ground. | **pass** | — | Mid reads as continuous across the centre. |
+
+### Where run 5 stops, and what it is stopping on
+
+The stopping rule is **not** met, and the two reasons are both worth the designer's time rather than
+another self-graded iteration.
+
+- **The bases are the fidelity critic's top finding, unprompted and new:** *"both bases read as flat
+  tinted rectangles, not built ground — no floor material, no perimeter wall, no structure silhouette
+  ... the one place a viewer would not believe this is the same map"*, filed `breaks-immersion`. Rule 7
+  already spends the ornament budget on the bases, so this is in-rule and mine to do; it is a genuinely
+  new feature (paved floor) rather than a knob, which is why it did not get folded into this run.
+- **Jungle density is still open, and the census has changed what the question means.** It can no
+  longer be read as "grow the masses" — there is nothing to grow into. It is now a question about the
+  map's rooms: the open pockets the fidelity critic named, e.g. cols 29–33 rows 10–14 and its mirror,
+  are the only places canopy could go, and putting it there is a hand edit to `data/terrain.txt` that
+  changes where bodies can walk.
+
+**Still standing, unchanged by this run:** whether the canopy reads as blocking. The legibility critic
+described the masses as *"dark-green lumpy blobs with raised pale outlines that read as solid tree
+walls"* and listed them under what is not walkable — then filed the inference itself as `guessing` in
+its verdict. That is panel 16's position holding, not improving: the escarpment is carrying the read,
+and it is carrying it on inference rather than on certainty.

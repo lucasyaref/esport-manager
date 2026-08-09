@@ -417,6 +417,22 @@ been reporting the same difference for six panels either way.
    The distinction now rides entirely on rule 5 and on value, and the loop is expected to prove
    with a cold reader that it holds. If it does not, the honest options are to go back to stone
    or to add a sixth shape, not to keep re-tinting two greens.
+6″. **The road a viewer sees is narrower than the corridor a body walks.** Paving is held back
+   from the edge of its own lane cells (`LANE_VERGE`), and the ground it gives up becomes the
+   field the road runs through. This decouples two things the renderer had quietly welded
+   together — the sim's corridor, which `map.json` and the gate own, and the road's drawn width,
+   which is a picture decision and nothing else.
+   **Measured, gauntlet run 5, 2026-08-09.** Normalised over the play area (the frame and void
+   excluded, since the reference is a crop and has neither), the render's green was *already* the
+   reference's — 43.9% against 44.1% — and its road was **twice** it, 30.6% against ~15%. Two
+   panels running had asked for "more jungle"; the interior did not want more jungle, it wanted
+   less pavement, and the two are the same ratio approached from opposite ends. A verge pays it
+   entirely in pixels: every lane cell stays walkable, so corridor widths, `map.json`, the gate
+   and the sim are untouched.
+   Consequence, and it is the general form of the trap: **anything drawn to a lane's full cell
+   width now reads as wider than the road.** The ford was, and a cold panel immediately filed mid
+   as possibly severed at the centre. Anything that continues a road across something else has to
+   carry the road's drawn width, not its cell width.
 7. **The ornament budget goes to five places.** Both bases, both pits, and the river. Detail,
    accent light and decoration live there and nowhere else, because those are the five places a
    match is won. Jungle is texture, not scenery. This buys the target's sparseness without
