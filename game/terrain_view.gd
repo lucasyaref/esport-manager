@@ -54,7 +54,20 @@ const PALETTE := {
 ## Top face of a rock, where it meets open ground — the single cue that reads as
 ## height in a top-down pixel map. In the reference this face is bare grey stone
 ## breaking out of the canopy, so it is much lighter than the rock body.
-const C_WALL_LIT := Color("46514a")
+##
+## Raised at iteration 31, and the number is the reason. Measured off the render,
+## this face sat at 0.306 luminance against a jungle floor of 0.283 — a gap of
+## 0.023, which is no gap. So the top edge of every rock mass was the same value as
+## the ground you can walk on, and the shadow it casts (0.137) was the same value as
+## the rock body (0.117): the mass read a cell too small at the top and a cell too
+## big at the bottom, and its real boundary was drawn nowhere. That is a better
+## account of why three panels could not tell which greens block than "the height
+## cue is missing", which is what the panels said and which the same measurement
+## refutes — the cast shadow is a 52% drop and always was.
+##
+## Now 0.38, which clears the floor by a full step and still sits under the road at
+## 0.43, so rule 1 keeps its promise that nothing outshines the lanes.
+const C_WALL_LIT := Color("5a6459")
 ## The arena's own wall: quarried stone, not canopy. It needs to be lighter than
 ## the rock inside the arena and darker than the road, or the boundary reads as
 ## either more jungle or a second lane — both of which the panels reported when
