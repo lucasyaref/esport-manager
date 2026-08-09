@@ -910,3 +910,103 @@ is "re-direct", those are solvable — but it is several iterations of run 4, no
 
 **Until the designer answers, the shipped look stands and none of this blocks.** Iteration 39 is
 independent of all three and is committed.
+
+### The designer's answer, 2026-08-09: *"look only — canopy blocks, cool roads, keep the layout"*
+
+B and C adopted, A declined. Translated into GDD §6.3 before any code: **rule 6 reversed on hue**
+(lanes are cool paved stone; what survives is that they hold the top of the value scale), **rule 6′
+added** (blocking mass is canopy; stone is what people built), **rule 3 re-cut** along the same line
+(the five kinds now split by *who made it* — canopy is grown and blocks, stone is built and you walk
+on it), and **rule 5 promoted to load-bearing**, because with green on both sides of the
+walkable/blocking line, shadow and value are the only things carrying it.
+
+Rule 6′ was written with its own falsification clause, and this is why: it reverses iteration 32,
+which closed the oldest finding in this log. *"The loop is expected to prove with a cold reader that
+it holds. If it does not, the honest options are to go back to stone or to add a sixth shape, not to
+keep re-tinting two greens."*
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 40 | **Rule 6 reversed.** Lanes to cool paved stone at 0.51, kerb and ford cooled to match. The value is up from the tan's 0.44 because hue used to separate the road from the pit rims (0.43) and base walls (0.43); with all three grey, they would be one value. | **pass** | — | Lanes unmistakable and clearly the top of the scale. |
+| 41 | **Rule 6′.** Blocking mass from grey stone to canopy. Canopy interior 0.135 against floor 0.283 — *a wider value gap than grey-on-green ever had*. | **pass** | **panel 11** ↓ | Numerically stronger, and it failed. |
+
+### Panel 11 — on `iter41`, and the cleanest A/B this loop has run
+
+One variable changed between panels 10 and 11. The same cold reader, on the same geometry:
+
+| | verdict on walkable vs blocking |
+|---|---|
+| **Panel 10** — grey stone blockers | *"the contrast is strong and unambiguous everywhere"* — **certain** |
+| **Panel 11** — canopy blockers | *"Nothing distinguishes walkable jungle from wall … I genuinely cannot tell which"* — **invisible** |
+
+It also downgraded everything downstream: the jungle wedges went to *"guessing that they are
+traversable"*, and chokepoints to *"probable, **and only if** the dark green is solid"*. The fidelity
+critic, independently: *"terrain is exactly two categories — green block or grey floor … nothing
+reads as raised."*
+
+**Coordinate verification — brush 8/8, camps 6/6, chokepoints all on lane or river cells.** Panel 10
+had brush at 5/6 with the critic calling it *"cannot confidently identify any"*; panel 11 volunteers
+eight positions and every one lands on a `,`. **Iteration 39 is confirmed by a cold reader**, which
+is the one unambiguous win of the session.
+
+Its *"small rectangles outside the play field, I have no idea what they are"* land on **real brush
+cells stranded in the boundary margin**. Iteration 39 gave brush a silhouette and thereby made a
+pre-existing layout oddity visible for the first time. Logged; not chased.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 42 | Canopy gets **crowns** — round foliage with shade under it, clipped inside the cell so rule 4 keeps the mass's silhouette on the grid. The hypothesis: the problem is not contrast but *material*, since a viewer knows what stone does and not what a green rectangle does. | **pass** | **panel 12** ↓ | Reads convincingly as forest, and made the legibility worse. |
+
+### Panel 12 — on `iter42`: a fidelity win that cost legibility
+
+Still **invisible**, verbatim: *"Which green is walkable. Nothing distinguishes 'trees you walk
+through' from 'trees that are wall.' This is the single biggest gap."* And a new regression in
+`by-design` territory: *"the out-of-bounds vegetation frame and the in-bounds forest are the same
+family of dark green — without the thin white boundary line, I could not tell where the map stops."*
+Panel 10 had the boundary as unambiguous.
+
+**The failure named its own cause.** Once the masses read as forest, the *ground* was read as forest
+too. So the diagnosis is not tone and not texture — **rule 6′ and layout question A are coupled**. In
+the reference, green is the field and tree clumps are objects standing on it, so *green = ground* is
+what a viewer assumes. Here the ratio is inverted — 48% canopy against 10% walkable floor — so
+*green = blocked* is what a viewer assumes, and the floor becomes the exception rather than the rule.
+Keeping the layout while taking the reference's blockers means **the ground cannot also be green.**
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 43 | **Floor to earth** (`564a37`). The split goes back to material, which is what grey was quietly providing all along: vegetation is green, earth is walkable. Brush stays the one light green — walkable but vegetation, which is exactly what brush is. | **pass** | **panel 13** ↓ | The decisive question moves for the first time. |
+
+### Panel 13 — on `iter43`
+
+Unprompted, in its opening description: *"the canopy reads as blocked or at least not-road, while
+grey, brown and the small light-green squares read as traversable."* Three panels of *"I cannot tell
+which"* end there.
+
+What remains under `invisible` is a **narrower** question — *"whether the dark canopy is impassable
+wall or slow/vision-blocking ground"* — i.e. canopy versus brush, not walkable versus blocking. That
+is a game-rules distinction a terrain renderer arguably cannot answer without a legend, and it is the
+same item §6.3 rule 3 has always known is settled by watching a match rather than a frame.
+
+It introduced one new finding, and it is real: *"three greens that do similar-looking work — dark
+canopy, mid olive blobs, bright speckled squares … the single biggest legibility problem."* The
+olive blobs are the camps, and it found only four of six and could not name them. On an earth floor
+the camps are no longer trodden ground against grass; they are a third green against a brown field.
+**Open, and mine** — the camps need re-siting in the ladder, one iteration, no designer input.
+
+### Where run 4 stands — not mine to close
+
+| | walkable vs blocking, by cold read |
+|---|---|
+| iter38/39 — stone blockers, green floor, tan roads | **certain** |
+| iter41 — canopy blockers, green floor, grey roads | **invisible** |
+| iter42 — + crown texture | **invisible** |
+| iter43 — + earth floor | **canopy reads as not-road**; residual canopy-vs-brush ambiguity |
+
+The designer's direction is **recoverable, but not on its own terms**: it costs the green floor. What
+they asked for was a green field with canopy blockers; what survives a cold reader is a forest with
+earth paths and stone roads. That is a third look, close to the reference's *jungle interior* but not
+to its overall figure-ground, and it is a design choice rather than a bug — so it goes back to them
+with three pictures: `.shots/ab-three-options.png`.
+
+Per this loop's oscillation rule, **the swinging stops here.** Two attempts and one recovery is
+enough to characterise the trade; a fourth would be self-grading with extra steps.

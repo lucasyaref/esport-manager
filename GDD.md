@@ -40,7 +40,9 @@ Each role has a distinct sim behavior profile — this is core, not polish.
 
 ## 6. Match simulation ✅ (architecture frozen)
 - Deterministic, tick-based (10 ticks/sim-second), seeded. Headless-capable.
-- Map: classic three lanes + jungle + river, two objective pits (Dragon-like: stacking team buff; Baron-like: pushing buff), towers per lane (outer/inner/base), nexus. Minion waves spawn periodically and push lanes.
+- Map: classic three lanes + jungle + river, two objective pits (Dragon-like: stacking team buff; Baron-like: pushing buff), towers per lane, nexus. Minion waves spawn periodically and push lanes.
+- ✅ **Two towers per lane, not three (designer decision, 2026-08-09).** `outer` near the river and `base` guarding the nexus mouth — 6 towers a side, 12 on the map, down from 9 and 18. The middle tier bought a third siege beat that read as a repeat of the first, and at overview scale nine structures a side is noise. **The tier list is data, not code**: `data/map.json` alone decides how many towers a lane has, the sim derives their order from the lane params, and adding a tier back is a two-line data edit. Two invariants are machine-checked — every tier must exist on both sides, and blue's param plus red's must sum to 1.0, because an uneven tower layout would poison blue-side win rate the same way an asymmetric terrain grid would.
+- ✅ **Two objective pits, not one (designer decision, 2026-08-09).** Simplifying to a single boss was considered and dropped: one pit can only sit at the map's centre without being permanently nearer one base, and an off-centre single objective is a structural side bias that no amount of tuning removes. The two pits mirror (`baron [31,55]`, `dragon [69,45]`) and each is nearer one team, which is what makes them cancel.
 - Phases: laning (0–14 sim-min) → mid game (rotations, objectives) → late game (grouped fights, Baron, closing). Average internal game length target: 25–35 sim-minutes.
 - Combat: stat + item/gold + level + mechanics + comp-modifier weighted resolution with seeded variance; ultimates as high-impact cooldown events in fights.
 - ✅ **Snowball philosophy (designer decision, 2026-07-19): comeback-friendly, but leads must matter.** Gold leads convert to win probability only through item/level power (roughly linear — no exponential runaway), like LoL's item gap. Comeback paths: shutdown bounties on kill-streak players, reduced worth on death streaks, and fight variance high enough that a behind-but-not-broken team can win a decisive objective fight. No artificial rubber-banding (no free gold for losing).
@@ -331,6 +333,16 @@ shipped game's map is that game's map, and the club fantasy it is carrying is ou
 So this section, not either picture, is the target. The pictures are evidence; these are the
 rules. **Where a reference image and this section disagree, this section wins.**
 
+**A third source arrived on 2026-08-09** — `terrain_moba_3.png`, top-down, pixel-art, and the
+first reference whose layout is actually a MOBA map. It replaced the painted illustration
+outright rather than joining it, because the fidelity critic globs the reference folder and two
+pictures in two hands are two contradictory targets. It re-directed **rules 3, 5 and 6** and
+added **6′**; the amendments are dated in place below. Note what did *not* move: the layout is
+still ours and still gate-checked for symmetry (the reference is not traced), and rule 1 still
+beats the reference on the value of the walls. This is the second time an image has overruled a
+written rule, and both times it was the designer's call and not the critic's — the critic had
+been reporting the same difference for six panels either way.
+
 **The eight rules.**
 
 1. **Dark by default.** The map's resting value is low. Anything a viewer must find is
@@ -351,9 +363,14 @@ rules. **Where a reference image and this section disagree, this section wins.**
 2. **One saturated thing.** Water is the only strongly saturated element on the map. Every
    other surface is desaturated. This is what stops a busy map turning to soup at overview
    scale, and it is why the river reads instantly even when tiny.
-3. **A small shape vocabulary — five kinds of thing, repeated.** Ground, stone mass, canopy,
-   water, brush. A viewer learns five shapes in the first ten seconds of their first match and
-   never has to learn another. Adding a sixth kind costs more than it looks like it costs.
+3. **A small shape vocabulary — five kinds of thing, repeated.** Ground, blocking canopy, built
+   stone, water, brush. A viewer learns five shapes in the first ten seconds of their first
+   match and never has to learn another. Adding a sixth kind costs more than it looks like it
+   costs.
+   **Re-cut on 2026-08-09** along the same line as rule 6′. The five used to be ground, *stone
+   mass*, canopy, water, brush — stone was the blocker and canopy was decoration. Now the split
+   is by **who made it**: canopy is the grown thing and it blocks, stone is the built thing and
+   you walk on it. Same count, and the vocabulary stays at five.
 4. **Big blocks, not fine detail.** Stone masses are chunky rectangles and Ls, sized so you
    could count them at full zoom-out. Per-cell noise is texture *within* a mass, never the
    thing that defines its shape. This is the single largest correction against the painted
@@ -362,16 +379,36 @@ rules. **Where a reference image and this section disagree, this section wins.**
 5. **Height is read from shadow, not hue.** Every raised mass carries a dark outline and casts
    onto the ground beside it. Run 1 proved this empirically — hue changes could not tell a cold
    reader which greens were walkable; a cast shadow could, in one iteration.
-6. **The road is the only warm hue.** Lanes are a warm sand-to-stone band against cold green.
-   They are the highest-value surface on the map and the eye follows them without being told to.
-   This is where the painted reference earns its place.
-   **Its cost is accepted on record, designer decision 2026-08-09.** This rule plus the ring
-   (§6.2) makes the road 602 cells against 296 of green, so ours is a tan map with green in it
-   where the reference is a green map with pale roads. The fidelity critic led with that twice —
-   *"reading the image by value alone it says pale desert floor with dark holes cut into it"* —
-   and the lever offered was narrowing the lane bands from 4.4 half-width to about 3.4. That is
-   gameplay space, not art, and the designer chose to keep it. The map is a **pitch being played
-   on**, and the road is the pitch.
+   **This rule became load-bearing on 2026-08-09.** While blocking mass was grey stone and the
+   ground was green, hue did most of the walkable/blocking work and shadow only confirmed it.
+   Now that the blockers are canopy (rule 6′), green sits on both sides of that line again and
+   **shadow, value and edge are the only things carrying it**. Every future change that touches
+   the cast shadow, the lit cap or the contact line is touching the map's single most important
+   distinction, and is worth measuring before and after.
+6. **Lanes are the highest-value surface, and the eye follows them.** Nothing on the map
+   outshines a lane. They are a continuous band read by its banks rather than its tiles, and
+   they are the first thing a viewer finds.
+   **Reversed on hue, designer decision 2026-08-09** (gauntlet run 4). This rule used to read
+   *"the road is the only warm hue"* — warm sand against cold green — and the warmth was
+   defended on record for six panels against the fidelity critic. The third reference
+   (`terrain_moba_3.png`) makes the lanes **cool paved stone** through a green field, the
+   designer chose it, and the warmth is dropped. What survives is the half the rule was
+   actually for: lanes hold the top of the value scale.
+   Two consequences, both paid for deliberately. The road is no longer separated from the
+   rampart and the pit rims by *hue*, so that separation has to be carried by value and edge —
+   this was panel 2's finding and it is now re-opened by choice rather than by accident. And
+   the map loses its only warm accent, so warmth is now available to rule 8's contested-ground
+   bias without competing with anything.
+6′. **Blocking mass is canopy, not stone.** The thing you cannot walk through is dark tree
+   cover; stone is a *built* material, reserved for what people made — the lanes, the pit
+   rims, the ramparts, the bases.
+   **Designer decision 2026-08-09**, and it reverses gauntlet iteration 32, which had made
+   blockers grey specifically so that blocking terrain would stop being green. That iteration
+   closed the oldest finding in the loop's log — *"I cannot tell which greens block"*, reported
+   by every panel from 1 to 7 — so this reversal knowingly re-opens it and takes on the debt.
+   The distinction now rides entirely on rule 5 and on value, and the loop is expected to prove
+   with a cold reader that it holds. If it does not, the honest options are to go back to stone
+   or to add a sixth shape, not to keep re-tinting two greens.
 7. **The ornament budget goes to five places.** Both bases, both pits, and the river. Detail,
    accent light and decoration live there and nowhere else, because those are the five places a
    match is won. Jungle is texture, not scenery. This buys the target's sparseness without

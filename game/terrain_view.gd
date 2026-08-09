@@ -41,8 +41,42 @@ const PALETTE := {
 	# terrain". A ratio is not a contrast. Now 0.223 — one step under the floor it
 	# stands in, which is where the reference puts it, and the height is carried by the
 	# lit cap and the cast shadow rather than by being dark.
-	Terrain.WALL:       Color("343a37"),
-	Terrain.OPEN:       Color("3c4f30"),
+	# Canopy, not stone — GDD §6.3 rule 6′, designer decision 2026-08-09. This
+	# reverses iteration 32, which made blockers grey precisely so that blocking
+	# terrain would stop being green, and which closed the oldest finding in the
+	# gauntlet log. Going back to green re-opens it knowingly, so the separation
+	# that hue used to provide has to be bought elsewhere:
+	#
+	#   canopy body   0.18   <- this
+	#   floor         0.285
+	#
+	# A 0.10 step, where grey-on-green never needed one because the hue did the
+	# work. Plus the two cues rule 5 names, both of which measured strong at panel
+	# 10 and neither of which is touched here: a lit cap on the north edge and a
+	# cast shadow on the ground south, a 51% drop.
+	Terrain.WALL:       Color("24331f"),
+	# Earth, not grass — and this is the answer to the question rule 6′ opened.
+	#
+	# Two cold panels in a row filed *"which green is walkable"* as **invisible**,
+	# where the grey-stone version of this map had it `certain`. Iteration 41 tried
+	# value (canopy 0.135 against floor 0.283, a wider gap than grey ever had) and
+	# iteration 42 tried structure (crowns, so a mass reads as trees). Neither moved
+	# it, and 42 made it worse in a way that named the real cause: once the masses
+	# read as forest, the *ground* was absorbed into the forest too.
+	#
+	# The cause is that rule 6′ and the layout are coupled. In the reference, green
+	# is the field and the tree clumps are objects standing on it, so "green =
+	# ground" is what a viewer assumes. Here the ratio is inverted — 48% canopy
+	# against 10% walkable floor — so "green = blocked" is what a viewer assumes,
+	# and the floor is the exception rather than the rule. Keeping the layout (the
+	# designer's call) while taking the reference's blockers means the ground cannot
+	# also be green.
+	#
+	# So the split goes back to being one of material, which is what was quietly
+	# doing the work when blockers were stone: **vegetation is green and earth is
+	# walkable.** Brush stays the one light green — walkable, but vegetation, which
+	# is exactly what brush is.
+	Terrain.OPEN:       Color("564a37"),
 	# Lighter than the floor it sits on, not darker. Run 1 drew brush as dark
 	# canopy, which put it in the same value band as rock — so at overview scale
 	# the map had two different dark-green blob families meaning "walk through
@@ -57,12 +91,20 @@ const PALETTE := {
 	# value to stay lighter than the jungle around it (rule 1) and gives up the rest
 	# to the tiers cut into it, which are what say bowl.
 	Terrain.PIT:        Color("51554e"),
-	# GDD §6.3 rule 6: the road is the *only* warm hue on the map, and the
-	# highest-value surface on it. Run 1 left it a cold green-grey, which is why
-	# three consecutive panels reported the road and the arena wall as "identical
-	# material, contradictory functions" — the fault was never the geometry that
-	# separates them, it was that they were the same colour.
-	Terrain.LANE:       Color("7a6e58"),
+	# GDD §6.3 rule 6, as reversed on hue by the designer on 2026-08-09: paved
+	# stone, cool, and still the highest-value surface on the map. The warm sand
+	# stood for six panels against a fidelity critic that asked for grey every
+	# time; the third reference made the lanes cool stone through a green field and
+	# the designer took it.
+	#
+	# What the warmth was doing is now done by value alone, and that is why this is
+	# 0.51 rather than the 0.44 the tan sat at. Hue was separating the road from the
+	# pit rims (0.43) and the base walls (0.43); with every one of them grey, a road
+	# at 0.44 would be three built surfaces at one value, which is panel 2's
+	# "identical material, contradictory functions" arriving by a different route.
+	# Rule 1 gives the top of the scale to the lanes, so the road takes the room it
+	# needs and the rims keep theirs.
+	Terrain.LANE:       Color("7e8385"),
 	# A clearing trodden into the jungle floor, not a landmark on it. §6.3 rule 7
 	# spends the ornament budget on the bases, the pits and the river; the jungle
 	# is texture. So a camp is ground, marked — the same *kind* of thing as the
@@ -110,13 +152,31 @@ const PALETTE := {
 ##
 ## Now 0.38, which clears the floor by a full step and still sits under the road at
 ## 0.43, so rule 1 keeps its promise that nothing outshines the lanes.
-const C_WALL_LIT := Color("5e625d")
+## Now sunlit leaf rather than bare rock (rule 6′), and the value is the whole
+## argument. It has to clear the floor it borders — iteration 31 proved a cap level
+## with the ground draws the mass a cell too small at the top — while staying under
+## the brush it can sit beside, or the map gains a third light green and rule 3's
+## vocabulary quietly grows a sixth item.
+##
+##   floor 0.285  <  cap 0.324  <  brush 0.352  <  brush rim 0.401  <  road 0.510
+##
+## That is a 0.039 clearance over the floor and 0.028 under the brush, which is
+## tighter than any other gap on the map and is the price of the reversal. What
+## keeps brush safe at that distance is that brush is read by its *silhouette*
+## since iteration 39, not by value alone.
+const C_WALL_LIT := Color("435a38")
 ## The arena's own wall: quarried stone, not canopy. It needs to be lighter than
 ## the rock inside the arena and darker than the road, or the boundary reads as
 ## either more jungle or a second lane — both of which the panels reported when
 ## the rampart shared the rock colour.
 const C_RAMPART := Color("3f4640")
 const C_WALL_SHADE := Color("101413")
+## The two tones a crown is made of. Both sit *below* the walkable floor (0.283),
+## which is the point: this texture must make the mass read as trees without ever
+## lifting a blocking cell into the floor's value band. Rule 1 is not being spent
+## here — the mass keeps its dark, and only gains a surface.
+const C_CANOPY_CROWN := Color("31452a")
+const C_CANOPY_UNDER := Color("16210f")
 ## Cast onto the ground south of a rock. Alpha, not a colour: it has to work
 ## over grass, over lane stone and over water without being retuned for each.
 ##
@@ -129,9 +189,11 @@ const C_ROCK_SHADOW := Color(0.0, 0.0, 0.0, 0.52)
 ## How far the shadow reaches into the cell south of the rock.
 const ROCK_SHADOW_DEPTH := 0.42
 ## The kerb where paving meets dirt. Darker than the road, so the road's shape is
-## carried by its banks rather than by a per-tile pattern. Warm, like the road —
-## a cold kerb reads as a grey line drawn *on* the sand rather than its edge.
-const C_LANE_EDGE := Color("463c2d")
+## carried by its banks rather than by a per-tile pattern. It used to be warm
+## because the road was — a cold kerb on warm sand read as a line drawn *on* the
+## surface rather than as its edge. With the road now cool stone (rule 6, reversed
+## 2026-08-09) the same argument runs the other way and the kerb goes cool with it.
+const C_LANE_EDGE := Color("363b3d")
 ## The carved stone lip of a pit. Cold stone, and deliberately a shade *under* the
 ## road: rule 1 says nothing competes with the lanes for brightness, and run 1 had
 ## this as the brightest thing on the map. It stays findable by being the lightest
@@ -164,7 +226,7 @@ const C_BASE_WALL := Color("6b736c")
 ## alpha, so the crossing reads as the lane continuing into the shallows rather
 ## than as a second kind of water — §6.3 rule 3 keeps the vocabulary at five, and a
 ## ford has to be a lane and a river doing something, never a sixth thing.
-const C_FORD := Color(0.478, 0.431, 0.345, 0.45)
+const C_FORD := Color(0.494, 0.514, 0.522, 0.45)
 ## How far a ford looks for paving. The mid lane is ~5 cells wide where it cuts the
 ## river, so anything less than that finds nothing.
 const FORD_REACH := 5
@@ -172,9 +234,12 @@ const C_RIVER_SHIMMER := Color("5b96ad")
 ## Scuffed earth where the camp is fought over. Run 1 took the painted reference
 ## at its word and put torch fire on all eight camps, which made the jungle the
 ## most decorated part of the map and gave the map two warm accents competing at
-## overview scale. Rule 6 gives the warm hue to the road alone, so this drops to a
-## near-neutral olive-brown that reads as bare ground at zoom and disappears into
-## texture at overview — which is what a camp should do to the eye.
+## overview scale. Rule 7 keeps the jungle as texture rather than scenery, so this
+## is a near-neutral olive-brown that reads as bare ground at zoom and disappears
+## into texture at overview — which is what a camp should do to the eye. (Rule 6
+## used to be the citation here, on the grounds that the road owned the map's only
+## warm hue; that clause was reversed on 2026-08-09 and rule 7 is what actually
+## holds the camps down.)
 const C_CAMP_MARK := Color("4c4a35")
 ## Foliage stipple *within* the brush patch — §6.3 rule 4's "noise lives inside a
 ## mass, never defining its shape". Only a shade off the patch itself: the patch
@@ -275,6 +340,8 @@ static func _base_color(kind: int) -> Color:
 ## square here is safe.
 static func _draw_rock_face(ci: CanvasItem, t: Terrain, c: int, r: int,
 		pos: Vector2, cell_px: float) -> void:
+	if t.wall_class(c, r) == Terrain.ROCK:
+		_draw_canopy_crowns(ci, c, r, pos, cell_px)
 	if t.kind_at_cell(c, r - 1) != Terrain.WALL:
 		ci.draw_rect(Rect2(pos, Vector2(cell_px, maxf(1.0, cell_px * 0.26))), C_WALL_LIT)
 	if t.kind_at_cell(c, r + 1) != Terrain.WALL:
@@ -291,6 +358,38 @@ static func _draw_rock_face(ci: CanvasItem, t: Terrain, c: int, r: int,
 		ci.draw_rect(Rect2(pos + Vector2(cell_px - e, 0.0), Vector2(e, cell_px)), C_WALL_SHADE)
 	if t.kind_at_cell(c, r + 1) != Terrain.WALL:
 		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px - e), Vector2(cell_px, e)), C_WALL_SHADE)
+
+
+## Foliage, drawn as crowns rather than as fill.
+##
+## Panel 11 is why this exists, and it is the clearest A/B the loop has run. One
+## variable changed between panels 10 and 11 — blocking mass went from grey stone
+## to canopy (rule 6′) — and the same cold reader's verdict on *"which of these can
+## I walk through"* went from "strong and unambiguous everywhere", filed `certain`,
+## to "I genuinely cannot tell which", filed **invisible**. Both critics described
+## the masses the same way: flat outlined polygons.
+##
+## The diagnosis is not contrast. Measured, canopy interior sits at 0.135 against a
+## floor of 0.283 — a wider value gap than grey-on-green ever had. What grey was
+## silently providing was not separation but *material*: a viewer knows stone blocks
+## and does not know what a green shape does. So the fix has to say **tree**, and a
+## tree is a round crown with shade under it, not a rectangle.
+##
+## Rule 4 is the constraint: noise lives inside a mass and never defines its shape.
+## So crowns are clipped to the cell, the mass's silhouette is still the grid's, and
+## the cap, contact line and cast shadow all draw over the top of this.
+static func _draw_canopy_crowns(ci: CanvasItem, c: int, r: int,
+		pos: Vector2, cell_px: float) -> void:
+	var h := _hash(c, r)
+	for i in 2:
+		var fx: float = 0.28 + float((h >> (i * 7)) % 45) / 100.0
+		var fy: float = 0.26 + float((h >> (i * 7 + 4)) % 45) / 100.0
+		var centre := pos + Vector2(fx, fy) * cell_px
+		var rad: float = cell_px * (0.20 + float((h >> (i * 3)) % 9) / 100.0)
+		# Shade under the crown before the crown itself, offset south: the same sun
+		# that lights every cap on this map from the north, applied one scale down.
+		ci.draw_circle(centre + Vector2(0.0, rad * 0.34), rad, C_CANOPY_UNDER)
+		ci.draw_circle(centre, rad, C_CANOPY_CROWN)
 
 
 static func _draw_shimmer(ci: CanvasItem, c: int, r: int, pos: Vector2, cell_px: float) -> void:
