@@ -83,12 +83,17 @@ const C_PIT_SHADOW := Color(0.0, 0.0, 0.0, 0.40)
 ## The masonry ring around a base precinct — stone, deliberately not team-tinted,
 ## so the wall reads as built and the tint stays a property of the floor.
 const C_BASE_WALL := Color("6b736c")
-## Water shallow enough to walk: laid over the *lane* where mid crosses the
-## river, so the channel reads as continuing under the road instead of being
-## erased by it. Alpha, not a flat colour — the paving has to stay visible.
-const C_FORD := Color(0.29, 0.60, 0.72, 0.42)
-## How far a ford looks for water. The mid lane is ~5 cells wide where it cuts
-## the river, so anything less than that finds nothing.
+## Shallow water with the road's paving showing through it, laid over the *river*
+## where mid crosses. The road stops at one bank and starts at the other, which is
+## true of the ground and useless to a viewer: two cold readers looking at the same
+## render could not tell whether the water could be crossed, and one of them could
+## not tell whether mid was one lane or two. This is the road's own hue at low
+## alpha, so the crossing reads as the lane continuing into the shallows rather
+## than as a second kind of water — §6.3 rule 3 keeps the vocabulary at five, and a
+## ford has to be a lane and a river doing something, never a sixth thing.
+const C_FORD := Color(0.478, 0.431, 0.345, 0.45)
+## How far a ford looks for paving. The mid lane is ~5 cells wide where it cuts the
+## river, so anything less than that finds nothing.
 const FORD_REACH := 5
 const C_RIVER_SHIMMER := Color("5b96ad")
 ## Scuffed earth where the camp is fought over. Run 1 took the painted reference
@@ -157,13 +162,16 @@ static func draw(ci: CanvasItem, t: Terrain, origin: Vector2, px_per_world: floa
 				Terrain.WALL:
 					_draw_rock_face(ci, t, c, r, pos, cell_px)
 				Terrain.RIVER:
+					# Paving first, shimmer over it: the dashes are the water's
+					# own cue and have to survive the crossing, or the ford reads
+					# as a gap in the river instead of a gap in the road.
+					if _is_ford(t, c, r):
+						ci.draw_rect(Rect2(pos, Vector2(cell_px, cell_px)), C_FORD)
 					_draw_shimmer(ci, c, r, pos, cell_px)
 				Terrain.PIT:
 					_draw_pit_rim(ci, t, c, r, pos, cell_px)
 				Terrain.LANE:
 					_draw_lane_edges(ci, t, c, r, pos, cell_px)
-					if _is_ford(t, c, r):
-						ci.draw_rect(Rect2(pos, Vector2(cell_px, cell_px)), C_FORD)
 				Terrain.CAMP:
 					ci.draw_circle(pos + Vector2(cell_px, cell_px) * 0.5,
 						cell_px * 0.22, C_CAMP_MARK)
@@ -292,37 +300,56 @@ static func _draw_rim(ci: CanvasItem, t: Terrain, c: int, r: int, pos: Vector2,
 		ci.draw_rect(Rect2(pos + Vector2(cell_px - w, 0.0), Vector2(w, cell_px)), col)
 
 
-## A lane cell is a ford if the river lies on *both* sides of it. Scanning
-## outward rather than testing neighbours is what makes this work at all: the
-## road is several cells wide at the crossing, so no single lane cell ever
-## touches water on two sides. A wall found first stops the scan, which keeps a
-## lane merely running alongside the river from flooding along its whole length.
+## A *river* cell is a ford if the road lies on both sides of it — the water the
+## road runs through, rather than the road the water runs under.
 ##
-## The diagonals are not optional. Mid and the river cross at 90° to each other
-## but at 45° to the grid, and the channel enters at (22,24) and leaves at
-## (27,25) — one row apart — so an axis-aligned test finds water on both sides of
-## precisely nothing. With the diagonals it selects 16 cells, all of them at the
-## centre crossing, and the selection is stable for any reach from 4 to 6.
+## The test used to run the other way round, on lane cells with water either side,
+## because the crossing cells used to be lane. They are river now: a ford is water
+## interrupting a road, so the paint tool stopped letting a lane band overwrite the
+## channel, and the river became one body instead of two. The consequence nobody
+## looked for is that this cue went **inert** — it was still asking lane cells a
+## question no lane cell could answer any more — and the next cold panel reported
+## exactly what that leaves behind: *"whether the river can be crossed, I cannot
+## tell"*, from both critics independently. A silent cue is worse than a missing
+## one, because the code that draws it is still there to read.
+##
+## Scanning outward rather than testing neighbours is what makes this work at all:
+## the road is several cells wide at the crossing, so no single cell in the channel
+## ever touches paving on two sides. A wall found first stops the scan, which keeps
+## water merely running alongside a road from reading as fordable down its length.
+##
+## The water has to continue on both sides as well, and that second test is not
+## bookkeeping. Paving on two sides alone lit up both *ends* of the river, where the
+## channel runs out into the corner of the ring road and is therefore surrounded by
+## it — three pale patches on the map, only one of them a crossing. A ford is a road
+## crossing a channel, so there has to be a channel: water ahead and water behind.
+##
+## The diagonals are not optional. Mid and the river cross at 90° to each other but
+## at 45° to the grid, so an axis-aligned test finds paving on both sides of
+## precisely nothing. Each entry is [direction the road runs, direction the water
+## runs], and the two are always perpendicular.
 const FORD_AXES: Array = [
-	[Vector2i(1, 0), Vector2i(-1, 0)],
-	[Vector2i(0, 1), Vector2i(0, -1)],
-	[Vector2i(1, 1), Vector2i(-1, -1)],
-	[Vector2i(1, -1), Vector2i(-1, 1)],
+	[Vector2i(1, 0), Vector2i(0, 1)],
+	[Vector2i(0, 1), Vector2i(1, 0)],
+	[Vector2i(1, 1), Vector2i(1, -1)],
+	[Vector2i(1, -1), Vector2i(1, 1)],
 ]
 
 static func _is_ford(t: Terrain, c: int, r: int) -> bool:
 	for axis in FORD_AXES:
-		var a: Vector2i = axis[0]
-		var b: Vector2i = axis[1]
-		if _sees_river(t, c, r, a.x, a.y) and _sees_river(t, c, r, b.x, b.y):
+		var road: Vector2i = axis[0]
+		var flow: Vector2i = axis[1]
+		if _sees(t, c, r, road, Terrain.LANE) and _sees(t, c, r, -road, Terrain.LANE) \
+				and _sees(t, c, r, flow, Terrain.RIVER) \
+				and _sees(t, c, r, -flow, Terrain.RIVER):
 			return true
 	return false
 
 
-static func _sees_river(t: Terrain, c: int, r: int, dx: int, dy: int) -> bool:
+static func _sees(t: Terrain, c: int, r: int, dir: Vector2i, kind: int) -> bool:
 	for i in range(1, FORD_REACH + 1):
-		var k: int = t.kind_at_cell(c + dx * i, r + dy * i)
-		if k == Terrain.RIVER:
+		var k: int = t.kind_at_cell(c + dir.x * i, r + dir.y * i)
+		if k == kind:
 			return true
 		if k == Terrain.WALL:
 			return false
@@ -331,8 +358,14 @@ static func _sees_river(t: Terrain, c: int, r: int, dx: int, dy: int) -> bool:
 
 ## Bases are paved too, so a lane meeting a base must not draw a bank across the
 ## mouth of it — that would fence each base off behind a dark line.
+## A ford counts as road here, and it has to. The kerb is drawn on every lane face
+## that does not meet more road, so without this the paving draws itself a bank
+## along the water and the road reads as stopping dead at the crossing — which is
+## the opposite of what the ford is for.
 static func _is_road(t: Terrain, c: int, r: int) -> bool:
 	var k: int = t.kind_at_cell(c, r)
+	if k == Terrain.RIVER:
+		return _is_ford(t, c, r)
 	return k == Terrain.LANE or k == Terrain.BASE_BLUE or k == Terrain.BASE_RED
 
 
