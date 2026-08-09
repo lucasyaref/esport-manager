@@ -50,6 +50,12 @@ const CAMP_RADIUS := 5.0
 const LANE_HALF := 4.4
 ## The river runs along x + y = size. Both pits sat exactly on it, which is why
 ## the water arrived at each bowl and started again on the far side.
+## Distance along the river, from its own midpoint. `_perp` says how far across the
+## water a cell is; this says how far down it.
+func _along(p: Vector2) -> float:
+	return (p.x - p.y) / sqrt(2.0)
+
+
 func _perp(p: Vector2, size: float) -> float:
 	return (p.x + p.y - size) / sqrt(2.0)
 
@@ -300,13 +306,54 @@ func _inset_bases(t: Terrain, map_data: Dictionary, k: int) -> int:
 ## erase deliberately does not touch base cells: a lane running into a base is the
 ## base's ground, and clearing it would wall the mouths shut — which is exactly how
 ## attempt 3 at iteration 11 failed.
+##
+## Ground a road vacates goes back to *rock*, not to open floor. Vacating to floor
+## was the first version, and it left the map's corners as featureless walkable
+## fields the width of the old road — 234 cells of them when the outer lanes were
+## bent inward. Rock is the honest default: everything that is not a feature is
+## wall, and the features carve themselves out of it.
+##
+## The one thing a vacated road can also become is river, when the cell falls inside
+## the water. That case exists because a road crossing water covers the water up, so
+## the erase has to be able to give it back — and it is *also* why river is protected
+## from the repaint below. A lane crossing the river is a ford, and a ford is drawn as
+## water interrupting the road, not as road interrupting the water. The earlier rule
+## said the opposite, which is how three lanes crossing the diagonal cut a single
+## river into four separate bodies.
+##
+## "Inside the water" needs two bounds, and the band is only one of them. The band
+## fixes the river's *width*, but it runs corner to corner, so restoring by band alone
+## flooded both neutral corners and cut the outer road with a lake. The second bound is
+## the water's *length*, and the banks that survived the erase already state it: no
+## road can have covered water further out than the furthest water still standing.
 func _paint_lanes(t: Terrain, map_data: Dictionary) -> int:
+	var size: float = map_data["size"]
 	var changed := 0
+	var vacated: Array[int] = []
 	for r in t.n:
 		for c in t.n:
-			if t.kind_at_cell(c, r) == Terrain.LANE:
-				t.cells[r * t.n + c] = Terrain.OPEN
-				changed += 1
+			if t.kind_at_cell(c, r) != Terrain.LANE:
+				continue
+			t.cells[r * t.n + c] = Terrain.WALL
+			if absf(_perp(t.center_of(c, r), size)) <= RIVER_HALF:
+				vacated.append(r * t.n + c)
+			changed += 1
+	var lo := INF
+	var hi := -INF
+	for r in t.n:
+		for c in t.n:
+			if t.kind_at_cell(c, r) != Terrain.RIVER:
+				continue
+			var a := _along(t.center_of(c, r))
+			lo = minf(lo, a)
+			hi = maxf(hi, a)
+	for i in vacated:
+		var c := i % t.n
+		@warning_ignore("integer_division")  # exact: i is a row-major cell index
+		var r := i / t.n
+		var a := _along(t.center_of(c, r))
+		if a >= lo and a <= hi:
+			t.cells[i] = Terrain.RIVER
 	var lanes: Dictionary = map_data["lanes"]
 	for lane: String in lanes:
 		var path: Array = lanes[lane]["path"]
@@ -316,14 +363,12 @@ func _paint_lanes(t: Terrain, map_data: Dictionary) -> int:
 			for r in t.n:
 				for c in t.n:
 					var kind: int = t.kind_at_cell(c, r)
-					# A road does not run through a base, a camp, an objective pit
-					# or a bush patch; where the band meets one, the other feature
-					# keeps its cells and the lane edge takes the notch. River is
-					# deliberately *not* protected — mid crossing the water is the
-					# ford, and those cells are lane with water drawn over them.
+					# A road does not run through a base, a camp, an objective pit,
+					# a bush patch or the river; where the band meets one, the other
+					# feature keeps its cells and the lane edge takes the notch.
 					if kind == Terrain.BASE_BLUE or kind == Terrain.BASE_RED \
 							or kind == Terrain.CAMP or kind == Terrain.PIT \
-							or kind == Terrain.BRUSH:
+							or kind == Terrain.BRUSH or kind == Terrain.RIVER:
 						continue
 					if _dist_to_segment(t.center_of(c, r), a, b) > LANE_HALF:
 						continue
