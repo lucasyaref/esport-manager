@@ -287,6 +287,17 @@ between them, camps in their own pockets, the two pits on the river. It is autho
 open it in any text editor, see the map, and move a wall by typing. The sim compiles that grid
 once at load; the ASCII file is the source of truth and the only thing anyone edits.
 
+**The outer lanes form a closed ring, and that is deliberate** (designer direction, 2026-08-09).
+Top and bot run the perimeter and meet at both corners, so the two of them are one continuous
+racetrack around the square. Summoner's Rift is a diamond and its side lanes meet only at the
+bases; two cold critic panels independently reported ours as *"the outer ring"* rather than as two
+lanes, and a bent-lane version was built and rendered so the two could be compared as pictures
+(`.shots/ab-ring-vs-bent.png`). The designer chose the ring. Breaking it would have cost 12% of
+outer lane length, 5 points of walkable area, and both neutral corners — which fall off-map once the
+road that reached them is gone, turning the square into a bevelled diamond. **Consequence to hold
+onto:** a viewer cannot tell top from bot by shape, only by which towers are near, so anything that
+distinguishes the two lanes has to be carried by colour, towers or labels rather than by layout.
+
 **Cell kinds**, and what each one means to the sim:
 
 - **Open** — walkable, visible.

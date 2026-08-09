@@ -519,3 +519,14 @@ border-connected and more than `RAMPART_DEPTH` from walkable ground is VOID; so 
 go off-map and the playable field becomes a bevelled diamond rather than a square. That is a
 consequence of the bend and not a separate decision, and it is most of what the eye sees in the
 comparison. Flagged to the designer as such.
+
+**Answer 3: keep the ring** (designer, 2026-08-09). Chosen from the two pictures. The mock is not
+committed; its polylines are recorded above so it can be rebuilt in one command if the call is ever
+revisited. GDD §6.2 now records the ring as deliberate, with the consequence spelled out: a viewer
+cannot tell top from bot by shape, so anything distinguishing the two lanes has to be carried by
+colour, towers or labels.
+
+All three blocking questions are now answered, which clears the last thing standing between the loop
+and its exit criteria. The geometry has moved a long way since panel 5 — both pits, both bases, every
+lane path end, and the river — so the exit has to be re-tested by a fresh cold panel on `iter28`,
+not inherited from panel 5.
