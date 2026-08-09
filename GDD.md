@@ -335,6 +335,19 @@ rules. **Where a reference image and this section disagree, this section wins.**
 
 1. **Dark by default.** The map's resting value is low. Anything a viewer must find is
    *lighter* than what surrounds it, and nothing competes with the lanes for brightness.
+   **Upheld against the reference, designer decision 2026-08-09.** The painted illustration
+   inverts this — its rock is pale boulders on dark grass, lighter than the ground it stands
+   in — and the fidelity critic reported ours as *"pits punched through the ground"* twice.
+   The legibility critic, on the same image, read the walls as *"unmistakably walls or rock,
+   immediately"* at zero effort. Two critics giving opposite answers is a design decision, and
+   the decision is that rule 1 stands: the one measuring whether a viewer can read the map is
+   the one this PoC is built to satisfy. A corollary the loop had to learn twice: *lighter or
+   darker* both count, and a feature with **no** value separation from its surroundings is
+   invisible however small it is. Camps sat at 0.286 against grass at 0.283 for twenty
+   iterations on the strength of rule 7, and no cold reader ever found one.
+   **A second corollary, and the more expensive one: a ratio is not a contrast.** Down at the
+   bottom of the range, three times the luminance is still two blacks. Check value decisions
+   against an eye, not only against a number — measuring is how you check a *claim*.
 2. **One saturated thing.** Water is the only strongly saturated element on the map. Every
    other surface is desaturated. This is what stops a busy map turning to soup at overview
    scale, and it is why the river reads instantly even when tiny.
@@ -352,6 +365,13 @@ rules. **Where a reference image and this section disagree, this section wins.**
 6. **The road is the only warm hue.** Lanes are a warm sand-to-stone band against cold green.
    They are the highest-value surface on the map and the eye follows them without being told to.
    This is where the painted reference earns its place.
+   **Its cost is accepted on record, designer decision 2026-08-09.** This rule plus the ring
+   (§6.2) makes the road 602 cells against 296 of green, so ours is a tan map with green in it
+   where the reference is a green map with pale roads. The fidelity critic led with that twice —
+   *"reading the image by value alone it says pale desert floor with dark holes cut into it"* —
+   and the lever offered was narrowing the lane bands from 4.4 half-width to about 3.4. That is
+   gameplay space, not art, and the designer chose to keep it. The map is a **pitch being played
+   on**, and the road is the pitch.
 7. **The ornament budget goes to five places.** Both bases, both pits, and the river. Detail,
    accent light and decoration live there and nowhere else, because those are the five places a
    match is won. Jungle is texture, not scenery. This buys the target's sparseness without

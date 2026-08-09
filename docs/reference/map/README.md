@@ -62,6 +62,9 @@ inside a thick rampart with jungle between the two. That was decided as a gamepl
 | Ornament spread evenly over the whole map | GDD §6.3 rule 7 — the ornament budget goes to the bases, the two pits and the river, and the jungle is texture. |
 | Fine-grained detail defining the shape of a rock mass | §6.3 rule 4 — masses are big and chunky, noise lives *inside* a mass. |
 | Rich overall saturation | §6.3 rule 2 — water is the only strongly saturated thing on the map. |
+| Rock lighter than the ground it stands in — pale boulders on dark grass | §6.3 rule 1, upheld by designer decision 2026-08-09. Reported twice as *"pits punched through the ground"*; the legibility critic read the same walls as *"unmistakably walls, immediately"*. Two critics disagreeing is a design decision, and it was decided for the reader. |
+| Green as the dominant field, with narrow stone roads through it | §6.3 rule 6 plus the ring (§6.2). Ours is 602 road cells to 296 green and that is deliberate — the lever was narrowing the lane bands, which is gameplay space, and the designer kept it 2026-08-09. |
+| Two visually distinct objective sites (one teal basin, one red-cored amphitheatre) | Needs an icon layer. Both pits are identical by construction; dragon versus baron is an icon, not a terrain colour. Out of scope for M6-T1. |
 
 A cold critic cannot know any of the above, so it will keep reporting them. That is the critic
 working correctly — the orchestrator files them as `out-of-scope` (unreachable by any knob) or

@@ -732,3 +732,43 @@ here. Three things bear on the designer's call:
 Every remaining in-scope finding is `by-design` against a numbered rule, out of reach of a tile
 renderer, or a question for the designer. The full disposition is in
 `REPORTS/M6-T1-gauntlet-run3.md`.
+
+## Exit — gauntlet loop 1 closed, designer sign-off 2026-08-09
+
+Both open questions were put to the designer with the final render beside the reference
+(`.shots/final-vs-reference.png`) and both came back **leave it**:
+
+- **The road keeps its share of the map.** Rule 6 plus the ring make tan the dominant field; the
+  lever was lane width, which is gameplay space. Recorded in GDD §6.3 rule 6.
+- **Rule 1 stands, and the walls stay dark.** The two critics gave opposite answers on the same
+  image, and the decision went to the one measuring whether a cold viewer can read the map.
+  Recorded in GDD §6.3 rule 1 and in the reference README's deliberate-differences table.
+
+**Exit criteria at close:**
+
+| | |
+|---|---|
+| Gate: zero problems | ✅ |
+| Overlay agrees with `map.json` | ✅ |
+| Legibility: every real feature identified, nothing invented | ✅ |
+| No in-scope fidelity finding above `cosmetic` | ✅ by disposition — every remaining finding is `by-design` against a numbered rule or out of reach of a tile renderer, and both contested ones are now designer decisions on record |
+| **Designer sign-off — the real exit** | ✅ 2026-08-09 |
+
+**Nine panels, zero confabulated coordinates.** Every position a legibility critic ever claimed
+verified against the grid. The two failures were of a different kind and both worth remembering: an
+invented *proportion* at panel 5 (*"essentially no walkable floor"*, measured within 3 points of the
+grid's own walkable fraction), and a *category merge* at panel 9, where four camps were offered as
+possible brush. Neither is a coordinate error, and the rubric's coordinate check catches neither —
+value and category claims need the same treatment positions get.
+
+### What this loop is for, in one line each
+
+- **A passing gate is not a working change.** Chunkify at threshold 3 passed every rail and erased
+  two-thirds of the jungle's chokepoints.
+- **A cue that goes quiet is worse than one never written.** The ford marker was switched off by a
+  commit that changed a cell's kind, and every automated check passed for two panels.
+- **A ratio is not a contrast.** Rock at three times the void's luminance was still two blacks.
+- **"Absent" and "inaudible" are the same sentence in a cold report,** want opposite fixes, and only
+  measuring separates them.
+- **Two critics disagreeing is a design decision.** It happened twice, and both times the answer
+  was the designer's, not another iteration.
