@@ -48,6 +48,15 @@ I took that redirect without asking, because it serves the goal you named and is
 constant. If you would rather have the jungle grown for real at the cost of open ground, say so and it
 goes back on the table — but it is now a hand edit to the map's rooms, not a knob.
 
+## Answered — both, 2026-08-09, and they close the loop
+
+> **1. The bases → hold for M6-D.** Scope moved in `BACKLOG.md`; the fidelity finding is accepted
+> and deferred, not fixed.
+> **2. Jungle density → dropped.** Closed by measurement rather than by an edit.
+>
+> Gauntlet loop 1 therefore exits **without** passing its stopping rule, deliberately: both surviving
+> findings are scheduled rather than unsolved. The questions as they were put are kept below.
+
 ## Open — two, and the first is a designer call
 
 1. **The bases.** The fidelity critic's top finding, new and unprompted: *"both bases read as flat

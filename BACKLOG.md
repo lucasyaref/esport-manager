@@ -102,9 +102,11 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
   2026-08-09 after 37 iterations and 9 panels (narrative in `CHANGELOG.md`), then **re-opened the
   same day by designer direction** and carried through runs 4 and 5 — **51 iterations, 17 panels**,
   reports `REPORTS/M6-T1-gauntlet-run2.md`, `-run3.md`, `-run5.md`, loop log `docs/gauntlet-map.md`.
-  **Two designer calls open** (`REPORTS/M6-T1-gauntlet-run5.md` §Open): whether to build the base
-  floors now or hold them for M6-D's sprites, and whether jungle density is still wanted now that it
-  costs walkable ground rather than paint.
+  **Closed 2026-08-09** on both open calls: the **base floors move to M6-D** (a plaza under
+  placeholder squares fixes half a picture), and **jungle density is dropped** — green already
+  measures the reference's share, and the only remaining way to buy more costs walkable ground.
+  Gauntlet loop 1 exits with one accepted-and-deferred fidelity finding (the bases) rather than a
+  clean stopping rule, by decision and on the record.
   **T2** movement
   routes around walls (precomputed per-destination flow, no runtime search), with a batch delta on
   gank connect rate, escape rate and rotation cost; **T3** brush hides bodies and walls block sight,
@@ -113,7 +115,15 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
 - **M6-A — Highlight scoring (headless, no view) — done** (2026-08-01, `REPORTS/M6-A.md`). `sim/highlights.gd` + `data/highlights.json` + `tools/reel.gd`, measured in batch: **8.0 moments per reel** over 400 sims, deterministic, floor/spacing/diversity/cap all live. **The designer gate is still open**: read a reel or three (`tools/reel.gd -- --seed=N`) and say whether those are the moments you would want to watch.
 - **M6-B — The camera.** `MapView`'s world→screen transform becomes a camera (centre, **continuous zoom**, smoothing, follow-a-point); overview is the camera fitted to the world, so nothing changes visually on day one. Zoom-aware sizing for everything currently clamped in pixels. Manual zoom in/out controls, click-or-hotkey to follow a player (TFM2 binds F1–F10), and — because zooming in loses the map — a **minimap** with player dots, the viewport rectangle and objective timers. The minimap is a requirement of this phase, not polish.
 - **M6-C — Real speed + the director.** A sub-1x playback speed (today's 1x is already **4× sim-time**; real speed is 0.25× of it), visual lifetimes rescaled below the current 4× cap, snapshot cadence raised to one per tick for viewer runs. An **auto-camera director** consumes M6-A's scored moments: it pushes the camera in and drops the speed for pre-roll (the approach) + action + aftermath, then pulls back out. Auto-camera is a toggle — manual camera always available. On-screen framing (what this highlight is, who it's about) and a skip control. Both pacing modes fall out of the same machinery: **full match** (highlights add ~3.5 min on top) and **highlights-only** (jump between moments, ~4–5 min a match). Transport to match the reference: skip-to-start / rewind / skip-to-end over the existing slider, which makes **"replay that highlight"** nearly free.
-- **M6-D — Close-up actors.** Characters read as characters at 4× zoom: animation states (idle / run / attack / cast / hurt / die / recall), wind-up telegraphs, facing **reported by the sim** rather than inferred by the viewer. ✅ **Unblocked 2026-08-02: pixel sprite sheets** (designer answer (b), GDD §7.3). The actor is built around a sprite-sheet contract from the start — a 16–32 px animated body per role, shared placeholder set, per-character `sprite` field overriding it with no code change. Same pixel art direction as the M6-T terrain.
+- **M6-D — Close-up actors, and the bases they stand in.** ➕ **Scope added 2026-08-09** (designer
+  call closing gauntlet run 5): the **base floors** ship here rather than in M6-T1. Gauntlet loop 1's
+  last unclosed fidelity finding is *"both bases read as flat tinted rectangles, not built ground —
+  no floor material, no perimeter wall, no structure silhouette"*, filed `breaks-immersion`. It is
+  held to this phase because the towers and nexus standing on that floor are this phase's sprites,
+  and paving a plaza under placeholder squares would only fix half the picture. GDD §6.3 rule 7
+  already allots the ornament budget to both bases, so no new rule is needed — build the floor and
+  the things on it together, then re-run the fidelity critic on the result.
+  Characters read as characters at 4× zoom: animation states (idle / run / attack / cast / hurt / die / recall), wind-up telegraphs, facing **reported by the sim** rather than inferred by the viewer. ✅ **Unblocked 2026-08-02: pixel sprite sheets** (designer answer (b), GDD §7.3). The actor is built around a sprite-sheet contract from the start — a 16–32 px animated body per role, shared placeholder set, per-character `sprite` field overriding it with no code change. Same pixel art direction as the M6-T terrain.
 - **M6-E — Spell effects at close range.** Per effect family, at the ability's real radius and real cast time: telegraph → cast → impact → aftermath. The overview's M5.5-C shapes stay as the far-view version of the same event.
 - **M6-G — The broadcast header** (designer direction 2026-08-02, GDD §7.4). One top strip that reads like a LoL broadcast: team names, kills either side of the clock, **dragon pips** per team, baron with its remaining duration, turret counts, team gold with the delta marked on the leader only (`+1.7k`). Replaces today's scattered clock / score / gold bar. Permanently on screen at every zoom, because a zoomed camera has lost the map and must still say who is winning. Everything in it is a read of the sim's own output — the HUD counts nothing the sim did not report. Ships with the **full-width kill banner** (both portraits) from the reference target; the side feed stays as narration.
 - **M6-F — Pacing, modes & sign-off.** Measure the real minutes a watched match costs in each mode against the designer's **(a)** answer (target ~11–12 min for a full watched match; ~4–5 for highlights-only), tune the selection floor, `REPORTS/M6.md`, playtest gate.

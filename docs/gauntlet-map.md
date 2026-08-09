@@ -1247,3 +1247,22 @@ described the masses as *"dark-green lumpy blobs with raised pale outlines that 
 walls"* and listed them under what is not walkable — then filed the inference itself as `guessing` in
 its verdict. That is panel 16's position holding, not improving: the escarpment is carrying the read,
 and it is carrying it on inference rather than on certainty.
+
+### The designer closes run 5, 2026-08-09
+
+Both open calls answered, and together they close gauntlet loop 1.
+
+- **The bases: hold for M6-D.** Building a plaza under placeholder squares fixes half a picture, so
+  the base floor ships with the pixel sprites that stand on it. The fidelity critic's
+  `breaks-immersion` finding is therefore **accepted and deferred, not fixed** — it is the one item
+  the loop is exiting with open, and it is open by decision.
+- **Jungle density: dropped.** Green is at the reference's share; the picture no longer needs it, and
+  the only remaining way to buy it costs walkable ground. The question that ran from panel 14 to
+  panel 17 is closed by measurement rather than by an edit.
+
+**The loop stops here.** It does not pass its own stopping rule — see the two clauses above and the
+canopy read still filed as inference — and it is exiting anyway, deliberately, because both surviving
+findings are now scheduled rather than unsolved. That is what the rule is for: it made the loop say
+out loud what it was leaving behind instead of declaring itself done.
+
+**Final state:** `.shots/iter51.png`. 51 iterations, 17 cold panels, gate clean.
