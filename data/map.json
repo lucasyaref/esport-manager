@@ -167,12 +167,10 @@
  "towers": {
   "blue": {
    "base": 0.08,
-   "inner": 0.18,
    "outer": 0.3
   },
   "red": {
    "base": 0.92,
-   "inner": 0.82,
    "outer": 0.7
   }
  }

@@ -1010,3 +1010,83 @@ with three pictures: `.shots/ab-three-options.png`.
 
 Per this loop's oscillation rule, **the swinging stops here.** Two attempts and one recovery is
 enough to characterise the trade; a fourth would be self-grading with extra steps.
+
+### The designer takes question A, 2026-08-09: *"green becomes the field"*
+
+Chosen from the three pictures, explicitly as the option that gets the reference's figure-ground.
+This is layout, so it moves gameplay numbers, and `tools/terrain_paint.gd` grew the levers for it:
+`--lane-half=W` (lane width was a constant; it is now the argument that decides whether the map is a
+road with green in it or a green field with roads through it), `--vacated=rock|floor` (iteration 28
+chose rock, which is right when re-rasterising in place and exactly wrong when narrowing), and
+`--erode=N`. `Terrain.invalidate_wall_classes()` came with it — the wall-class cache is documented as
+never needing invalidation because a loaded Terrain is immutable, which is true of every reader in
+the game and false of the editing tools that mutate `cells` and keep asking questions.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 44 | Lanes narrowed 4.4 → 3.0 half-width, vacated road to floor; canopy eroded one pass; floor back to grass green. Canopy 48%→40%, road 24%→20%, **green 10%→22%**. | **pass** | **panel 14** ↓ | Figure-ground inverted as intended, and the jungle was destroyed doing it. |
+
+### Panel 14 — on `iter44`: the ratio moved and the map got worse
+
+Both critics, independently. Legibility: *"**Any wall, cliff or impassable terrain inside the play
+area. There is none I can see.** The playfield reads as one continuous open surface with decorative
+variation."* It read the canopy clumps as **cover**, not obstruction. Fidelity: *"jungle quadrants
+are open green fields with scattered stamps."*
+
+**Erosion was the wrong instrument, and measuring the masses said why.** A one-cell rim off every
+mass does not shrink a jungle proportionally — it *deletes* every mass two cells wide or thinner and
+halves the rest. Chunkify afterwards made it worse, taking pinch from 50 cells to 24.
+
+**And the measurement that should have come first exposed a bad number I had given the designer.**
+Decomposing the canopy into connected masses:
+
+| | cells |
+|---|---|
+| border wall (one connected blob, the arena's frame) | **886** |
+| interior jungle masses (12 of them, largest 48) | **304** |
+
+The map's headline *"rock is 48%"* — the figure that framed question A in the first place — is 35%
+frame and **12% actual in-play blocking terrain**. Green never had to beat 48% of anything. Eroding
+186 cells took roughly a third of the real jungle, which is why one pass was catastrophic where the
+census made it look modest.
+
+**Method note, and it is the sharpest one this loop has produced.** *A census counts cells; it does
+not know what a shape is.* Every number I reported about this map for two sessions — 48% rock, the
+green/road ratio, the whole framing of question A — was computed over cells with no notion of
+connectivity, and it hid an 886-cell object in plain sight. The pinch metric was doing the same
+thing from the other side: it went **up** (28 → 50) on the change that erased the jungle, because
+more walkable area with fewer walls still produces more wall-adjacent cells.
+
+| # | Change | Gate | Panel | Read |
+|---|---|---|---|---|
+| 45 | Erosion and chunkify reverted; **lane narrowing kept**. Interior masses back to 12, largest 48; pinch 54; green 14%; grass now exists outside the lane ring, which panel 11's fidelity critic had asked for. | **pass** | **panel 15** ↓ | The layout half of question A, in the form that survives. |
+
+### Panel 15 — on `iter45`, and where run 4 actually stands
+
+Suite green, gate clean, and the same sentence for the fourth panel running: *"Whether the dark-green
+tree masses are walkable jungle or impassable wall. **This is the single biggest gap.**"*
+
+**Rule 6′ has now been tested four ways and failed three of them.**
+
+| Blockers | Floor | Layout | Cold read on walkable vs blocking |
+|---|---|---|---|
+| grey stone | green | original | **certain** — *"strong and unambiguous everywhere"* |
+| canopy | green | original | **invisible** |
+| canopy + crown texture | green | original | **invisible** |
+| canopy + crowns | **earth** | original | **passes** — *"canopy reads as blocked, grey and brown read as traversable"* |
+| canopy + crowns | green | **narrowed lanes** | **invisible** |
+
+The ratio was not the variable. The only thing that has ever separated walkable from blocking on this
+map is **material** — stone against green, or green against earth. Two greens have failed every time,
+at every ratio, with and without texture, which is precisely what §6.3 rule 6′ was written to find
+out. Its falsification clause names the honest options: go back to stone, or take the sixth shape.
+Re-tinting two greens a fifth time is the one thing it rules out, so the loop stops and the choice
+goes back to the designer.
+
+**Kept regardless of that choice**, because none of it depends on the answer: the narrowed lanes and
+the grass outside the ring (iteration 45), the brush silhouette (39, confirmed 8/8 by a cold reader),
+the cool stone roads (40), and the crown texture (42, which is a fidelity gain in every variant).
+
+**Still open and mine:** the camps. Panel 13 found four of six and could not name them; panel 15 filed
+them *"guessing"*. They have been re-sited twice under two different floors and want one iteration
+once the floor stops moving.

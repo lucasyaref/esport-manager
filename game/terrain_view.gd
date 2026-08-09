@@ -55,28 +55,26 @@ const PALETTE := {
 	# 10 and neither of which is touched here: a lit cap on the north edge and a
 	# cast shadow on the ground south, a 51% drop.
 	Terrain.WALL:       Color("24331f"),
-	# Earth, not grass — and this is the answer to the question rule 6′ opened.
+	# Grass, and green again — the designer took gauntlet question A on 2026-08-09
+	# and the layout moved underneath this decision.
 	#
-	# Two cold panels in a row filed *"which green is walkable"* as **invisible**,
-	# where the grey-stone version of this map had it `certain`. Iteration 41 tried
-	# value (canopy 0.135 against floor 0.283, a wider gap than grey ever had) and
-	# iteration 42 tried structure (crowns, so a mass reads as trees). Neither moved
-	# it, and 42 made it worse in a way that named the real cause: once the masses
-	# read as forest, the *ground* was absorbed into the forest too.
+	# Iteration 43 made this earth for a good reason that has since expired. Two cold
+	# panels had filed *"which green is walkable"* as **invisible**, and the cause was
+	# neither tone nor texture: green meant "blocked" 48% of the map and "walk here"
+	# 10% of it, so the floor was the exception rather than the rule and no amount of
+	# separation between two greens could fix which one a viewer assumed. Earth
+	# sidestepped it by leaving the green family altogether.
 	#
-	# The cause is that rule 6′ and the layout are coupled. In the reference, green
-	# is the field and the tree clumps are objects standing on it, so "green =
-	# ground" is what a viewer assumes. Here the ratio is inverted — 48% canopy
-	# against 10% walkable floor — so "green = blocked" is what a viewer assumes,
-	# and the floor is the exception rather than the rule. Keeping the layout (the
-	# designer's call) while taking the reference's blockers means the ground cannot
-	# also be green.
+	# The layout pass removes the reason. Canopy 48% -> 40%, road 24% -> 20%, walkable
+	# green 10% -> 22%: green ground now outweighs the roads, and the field can carry
+	# the meaning the reference gives it. Whether that is *enough* is a cold reader's
+	# call and not mine — this is the third attempt at one question and the two before
+	# it were both wrong.
 	#
-	# So the split goes back to being one of material, which is what was quietly
-	# doing the work when blockers were stone: **vegetation is green and earth is
-	# walkable.** Brush stays the one light green — walkable, but vegetation, which
-	# is exactly what brush is.
-	Terrain.OPEN:       Color("564a37"),
+	# Kept under the brush it borders, 0.317 against 0.358. Brush is the one light
+	# green and has had its own silhouette since iteration 39; the floor must not
+	# climb into it.
+	Terrain.OPEN:       Color("415838"),
 	# Lighter than the floor it sits on, not darker. Run 1 drew brush as dark
 	# canopy, which put it in the same value band as rock — so at overview scale
 	# the map had two different dark-green blob families meaning "walk through

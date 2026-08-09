@@ -24,7 +24,14 @@ extends SceneTree
 ##   --bases=K   pull both base footprints, their nexus and their lane mouths K
 ##               cells in from the map edge.
 ##   --lanes     re-rasterise the lane bands from the polylines in map.json.
+##   --erode=N   shrink every interior canopy mass by N cells, handing the cells to
+##               the jungle floor.
 ##   --write     apply. Without it, a dry run that reports what would change.
+##
+## Modifiers for --lanes:
+##   --lane-half=W   half-width of the band, in world units. Default 4.4.
+##   --vacated=K     what a cell that stops being road becomes: "rock" (default,
+##                   iteration 28's choice) or "floor".
 ##
 ## Every mode re-reads what it wrote and re-runs the full guard rails, and prints
 ## the river's connected-component sizes, which is the thing --pits exists to fix.
@@ -43,11 +50,17 @@ const PIT_RADIUS := 7.0
 ## eight camps average 6 cells each, so this only has to be wide enough to gather
 ## one cluster and narrow enough not to reach its neighbour.
 const CAMP_RADIUS := 5.0
-## Half-width of a lane band. 4.4 rather than iteration 11's nominal 3.6: the
-## hand-authored band was wider than its own spec in places, and re-rasterising at
-## 3.6 shed 78 lane cells, thinning every road and leaving a green fringe where the
-## drawn lane used to reach. 4.4 reproduces the original weight.
-const LANE_HALF := 4.4
+## Default half-width of a lane band. 4.4 rather than iteration 11's nominal 3.6:
+## the hand-authored band was wider than its own spec in places, and re-rasterising
+## at 3.6 shed 78 lane cells, thinning every road and leaving a green fringe where
+## the drawn lane used to reach. 4.4 reproduces the original weight.
+##
+## It is a *default* rather than a constant since 2026-08-09: the designer took
+## gauntlet question A, which makes lane width the lever that decides whether the
+## map is a road with green in it or a green field with roads through it. That is a
+## gameplay number, so it belongs on the command line and in the log where it can be
+## seen and changed, not in a constant where it can only be discovered.
+const LANE_HALF_DEFAULT := 4.4
 ## The river runs along x + y = size. Both pits sat exactly on it, which is why
 ## the water arrived at each bowl and started again on the far side.
 ## Distance along the river, from its own midpoint. `_perp` says how far across the
@@ -92,9 +105,26 @@ func _initialize() -> void:
 	elif args.has("bases"):
 		changed = _inset_bases(terrain, map_data, int(str(args["bases"])))
 	elif args.has("lanes"):
-		changed = _paint_lanes(terrain, map_data)
+		var lane_half: float = LANE_HALF_DEFAULT
+		if args.has("lane-half"):
+			lane_half = float(str(args["lane-half"]))
+		var vacated_kind: int = Terrain.WALL
+		var vacated_name: String = str(args.get("vacated", "rock"))
+		match vacated_name:
+			"rock":
+				vacated_kind = Terrain.WALL
+			"floor":
+				vacated_kind = Terrain.OPEN
+			_:
+				print("ERROR: --vacated must be \"rock\" or \"floor\"")
+				quit(1)
+				return
+		print("lanes: half-width %.2f, vacated road -> %s" % [lane_half, vacated_name])
+		changed = _paint_lanes(terrain, map_data, lane_half, vacated_kind)
+	elif args.has("erode"):
+		changed = _erode_rock(terrain, int(str(args["erode"])))
 	else:
-		print("ERROR: need one of --pits=D, --bases=K, --lanes")
+		print("ERROR: need one of --pits=D, --bases=K, --lanes, --erode=N")
 		quit(1)
 		return
 
@@ -326,7 +356,8 @@ func _inset_bases(t: Terrain, map_data: Dictionary, k: int) -> int:
 ## flooded both neutral corners and cut the outer road with a lake. The second bound is
 ## the water's *length*, and the banks that survived the erase already state it: no
 ## road can have covered water further out than the furthest water still standing.
-func _paint_lanes(t: Terrain, map_data: Dictionary) -> int:
+func _paint_lanes(t: Terrain, map_data: Dictionary, lane_half: float,
+		vacated_kind: int) -> int:
 	var size: float = map_data["size"]
 	var changed := 0
 	var vacated: Array[int] = []
@@ -334,7 +365,7 @@ func _paint_lanes(t: Terrain, map_data: Dictionary) -> int:
 		for c in t.n:
 			if t.kind_at_cell(c, r) != Terrain.LANE:
 				continue
-			t.cells[r * t.n + c] = Terrain.WALL
+			t.cells[r * t.n + c] = vacated_kind
 			if absf(_perp(t.center_of(c, r), size)) <= RIVER_HALF:
 				vacated.append(r * t.n + c)
 			changed += 1
@@ -370,10 +401,67 @@ func _paint_lanes(t: Terrain, map_data: Dictionary) -> int:
 							or kind == Terrain.CAMP or kind == Terrain.PIT \
 							or kind == Terrain.BRUSH or kind == Terrain.RIVER:
 						continue
-					if _dist_to_segment(t.center_of(c, r), a, b) > LANE_HALF:
+					if _dist_to_segment(t.center_of(c, r), a, b) > lane_half:
 						continue
 					t.cells[r * t.n + c] = Terrain.LANE
 					changed += 1
+	return changed
+
+
+## Shrink every interior canopy mass by one cell per pass, handing what it gives up
+## to the jungle floor.
+##
+## This is the other half of the designer's answer to gauntlet question A, and it is
+## the half that lane width cannot reach: narrowing the roads frees cells along the
+## roads, but the map's 48% canopy is what actually makes green read as "blocked"
+## rather than as the field. Erosion is the operation that shrinks a mass without
+## restyling it — the silhouette stays where the author put it and only its edge
+## moves, so rule 4's chunkiness survives where a smaller redraw would not.
+##
+## Three properties this relies on, none of them accidental:
+##
+## - **Symmetric by construction.** The decision is a pure function of a cell's
+##   4-neighbourhood, so a grid that is 180°-symmetric in stays symmetric out and no
+##   mirror pass is needed. Same argument as --chunkify.
+## - **Reachability can only improve**, because the pass only ever turns wall into
+##   floor. The guard rail still runs, but it cannot newly fail on this.
+## - **The arena's edge is not eroded.** Only cells whose wall_class is ROCK are
+##   eligible; the rampart and the void are the map's boundary rather than terrain
+##   in it, and eating them would march the playable area outward one pass at a time.
+##
+## Passes are computed against a snapshot, so within one pass a cell that becomes
+## floor does not immediately expose its neighbour — otherwise "erode by 2" would
+## eat a thin mass entirely rather than trimming it twice.
+func _erode_rock(t: Terrain, passes: int) -> int:
+	var changed := 0
+	for _pass in passes:
+		var was := t.cells.duplicate()
+		var eligible: Array[int] = []
+		for r in t.n:
+			for c in t.n:
+				if was[r * t.n + c] != Terrain.WALL:
+					continue
+				if t.wall_class(c, r) != Terrain.ROCK:
+					continue
+				var exposed := false
+				for d: Vector2i in [Vector2i(0, -1), Vector2i(0, 1),
+						Vector2i(-1, 0), Vector2i(1, 0)]:
+					var cc: int = c + d.x
+					var rr: int = r + d.y
+					if cc < 0 or rr < 0 or cc >= t.n or rr >= t.n:
+						continue
+					var k: int = was[rr * t.n + cc]
+					if k != Terrain.WALL:
+						exposed = true
+						break
+				if exposed:
+					eligible.append(r * t.n + c)
+		for i in eligible:
+			t.cells[i] = Terrain.OPEN
+			changed += 1
+		# wall_class caches off the grid it was built from; the next pass has to see
+		# the cells this one opened or it will re-derive the rampart from stale data.
+		t.invalidate_wall_classes()
 	return changed
 
 

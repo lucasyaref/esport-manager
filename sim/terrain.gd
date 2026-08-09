@@ -147,8 +147,21 @@ func wall_class(col: int, row: int) -> int:
 	return _void[row * n + col]
 
 
-## Built once, on the first query, and never invalidated — a Terrain's cells are
-## fixed at construction.
+## Drop the cached wall classification, so the next query rebuilds it.
+##
+## Nothing in the sim or the viewer needs this: a Terrain loaded from disk is
+## immutable for its whole life, which is why the cache has no invalidation of its
+## own. The editing tools in `tools/` are the exception — they mutate `cells` in
+## place and then keep asking questions about the result — and an eroding pass in
+## particular *must* see the boundary it moved on the previous pass, or it re-derives
+## the rampart from a grid that no longer exists.
+func invalidate_wall_classes() -> void:
+	_void = PackedByteArray()
+
+
+## Built lazily, on the first query. A Terrain's cells are fixed at construction
+## for every reader in the game; the tools that do edit them call
+## `invalidate_wall_classes()` afterwards.
 func _build_void() -> void:
 	_void.resize(n * n)
 	# Pass 1: wall reachable from the map border through wall. Everything outside
