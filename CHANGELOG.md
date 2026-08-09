@@ -140,3 +140,110 @@ judged**, and must emit findings in a fixed format with a severity and a categor
 on them — is kept, and is the shape of the map gauntlet's critics (`docs/gauntlet-map.md`). If sim-macro
 review is ever wanted again, build Part A first; a critic reading prose is a critic reading our own
 opinion of the numbers.
+
+## M6-T1 — The map: authored terrain, compiled and rendered — done 2026-08-09
+
+Reports: `REPORTS/M6-terrain-scoping.md` (scoping), `REPORTS/M6-T1-gauntlet-run2.md`,
+`REPORTS/M6-T1-gauntlet-run3.md`. Loop procedure and full iteration log: `docs/gauntlet-map.md`.
+Design truth: GDD §6.2 (layout model) and §6.3 (the eight look rules).
+
+A real Summoner's-Rift-shaped map, authored as a **human-readable ASCII grid** the designer can open
+in any text editor and edit by typing — one character per cell, 50×50 over the 100×100 world. Loaded
+and validated by `sim/terrain.gd`, drawn by `game/terrain_view.gd`, which the match viewer and the
+still-frame capture rig **both** call, so the loop grades exactly the pixels the game shows.
+
+### The guard rails, and the two defects they did not catch
+
+`Terrain.validate` checks grid shape and legal characters, 180° rotational symmetry (a balance
+requirement, not taste — blue-side win rate is a tracked metric), anchors standing on walkable ground,
+and 4-connected reachability from both bases. Draft 1 arrived 143 cell-pairs asymmetric and was
+mirrored into compliance.
+
+Two defects passed every rail and were found by other means:
+
+- **Four camps were not 180° symmetric**, drifted 3.6 world units. The rails checked that the *grid*
+  mirrors and that anchors stand on walkable ground; nothing checked that anchor *positions* mirror
+  each other. `Terrain._check_anchor_symmetry` now does, and caught all four on its first run.
+- **`VIEWER SELFTEST: FAIL — a nexus fell with no minions drawn hitting it.`** `SIEGE_REACH` is 9.0
+  and bot lane's doorstep landed 9.4 world units out. Pre-existing — bot was always ~9.7 out — and it
+  survived only because it depended on which lane won, so insetting the bases changed seed 42's
+  outcome and exposed it. Fixed structurally: every lane path now *ends on the nexus*, where minions
+  spawn. All six doorsteps are 1.5–2.1.
+
+### Tools built
+
+- `tools/terrain_tool.gd` — `--mirror` (repair symmetry), `--chunkify=N` (snap rock masses to an
+  N×N block grid for §6.3 rule 4). Chunkify is safe by construction: the block grid is invariant
+  under the 180° rotation because n is even, and while every cell in a block votes, only plain floor
+  and interior rock are ever rewritten — lanes, river, pits, camps, brush, bases and the rampart hold
+  their ground, so no `map.json` anchor is ever built over.
+- `tools/terrain_paint.gd` — moves a feature and repaints around it, editing `data/map.json` and
+  `data/terrain.txt` in one pass. `--pits=D` mirrors the offset onto the second pit rather than
+  applying it twice, and camps tangent to a bowl travel with it. `--bases=K` preserves footprint area
+  exactly and snaps lane path ends onto the nexus. `--lanes` re-rasterises every band from its
+  polyline.
+- `tools/gauntlet.sh` — gate, render, overlay in one command.
+
+**Terrain and `map.json` agree by construction** since iteration 11: both derive from the same
+polylines, which is what makes the `--overlay` check meaningful rather than decorative.
+
+### The gauntlet loop — 37 iterations, 9 critic panels, 3 runs
+
+The look was iterated against designer reference images under a loop that splits the roles on purpose:
+the orchestrator runs iterations and holds the stopping rule, two **cold subagent critics** grade the
+render — one against the reference, one against nothing at all — and neither is ever told what changed
+or what it is supposed to see. The split exists because you cannot grade your own picture.
+
+Run 1 graded against a picture. **Run 2 changed the target to GDD §6.3's eight written rules**, with
+the reference demoted to palette and mood; where they disagree, §6.3 wins and the difference is logged
+`by-design` against a numbered rule. Run 3 applied the designer's answers and ran four more panels.
+
+**What the loop actually fixed**, each traceable to a finding:
+
+- **The road is the only warm hue** (rule 6). Three panels running had reported the road and the arena
+  wall as *"identical material, contradictory functions"*. It was read as geometry twice and two
+  layout attempts failed. It was hue. One palette line closed it.
+- **The river is one body of water.** It was four: both pits sat centred *on* the diagonal, and mid
+  crossed it. The pits moved off the centreline (designer call) and river was made to outrank lane in
+  the paint tool, because a ford is water interrupting a road, not the reverse.
+- **Blocking terrain stopped being green.** Every panel ever run said a cold reader could not tell
+  which greens block; two iterations attacked it as contrast and both were wrong. The reader could
+  always *see* the two greens — it could not know which meant "walk here". Green became ground you can
+  stand on, and blocking mass became stone.
+- **The pits became objectives.** Cut in tiers, lit as hollows — dark at the top, light at the
+  bottom, the inverse of the rock convention. The tiers are measured off the grid, not read from
+  `map.json`: depth inside the pit has exactly one maximum in each bowl, and it is the cell the
+  objective already stands on, so the shape names its own centre.
+- **Camps, brush, height cue, ford, base tint** — each one iteration, each one finding.
+
+### Designer decisions taken during the loop, all recorded in the GDD
+
+| Call | Where |
+|---|---|
+| Pits nudged off the river's centreline | applied |
+| Bases inset inside the boundary wall | applied |
+| The outer lanes stay a closed ring | GDD §6.2, with the consequence: top and bot are one shape, so telling them apart is colour, towers or labels, never layout |
+| The road keeps its share of the map | GDD §6.3 rule 6 |
+| Rule 1 stands — the walls stay dark | GDD §6.3 rule 1 |
+
+The last two were put to the designer because the loop's two critics gave **opposite answers on the
+same image**, which is a design decision and not a bug to fix.
+
+### What the loop taught, kept because it will recur
+
+- **A passing gate is not a working change.** Chunkify at threshold 3 passed every guard rail and
+  quietly erased two-thirds of the jungle's chokepoints. A cold critic caught it as *"nothing
+  narrows"*.
+- **A cue that goes quiet is worse than one never written.** The ford marker was switched off by a
+  commit that changed a cell's kind, and every automated check passed for two panels. When a cell's
+  kind changes, grep for every cue keyed on the old kind.
+- **A ratio is not a contrast.** Rock at three times the void's luminance was still two blacks.
+  Measuring is how you check a *claim*, not how you check a design.
+- **"The cue is absent" and "the cue is inaudible" are the same sentence in a cold report,** want
+  opposite fixes, and only measuring separates them. Three panels reported a missing height cue on
+  renders that measurably had one — and twice the measurement turned up the real defect underneath,
+  which no critic had named.
+- **Cold critics confabulate in more ways than one.** Nine panels produced zero invented
+  *coordinates*, but one invented *proportion* and one *category merge* (four camps offered as
+  possible brush). The rubric's coordinate check catches neither; value and category claims need the
+  same treatment positions get.

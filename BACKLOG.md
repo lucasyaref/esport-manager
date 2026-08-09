@@ -98,25 +98,10 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
   GDD §6.2, working method `REPORTS/M6-terrain-scoping.md`). A real SR-shaped map authored as a
   human-readable ASCII grid (`data/terrain.txt`) the designer can read and edit directly; compiled
   at load into a navigation grid. Sub-phases, each measured before the next: **T1** author + compile
-  + render the terrain (cosmetic, sim untouched — a runnable look-at-it build) — **rig built
-  2026-08-08**: the loader and its guard rails (`sim/terrain.gd`), the renderer shared with the match
-  viewer (`game/terrain_view.gd`), and the capture/repair tools (`tools/shot.sh`,
-  `tools/terrain_tool.gd`). Draft 1 was 143 cell-pairs asymmetric; mirrored, and the map now passes
-  every guard rail. The look is being iterated against designer reference images under **gauntlet
-  loop 1** — protocol, rubric and log in `docs/gauntlet-map.md`, references in
-  `docs/reference/map/`. **Run 2 (2026-08-08, `REPORTS/M6-T1-gauntlet-run2.md`) is graded against
-  GDD §6.3's eight rules rather than a picture** and ended on three designer questions, all three
-  since answered (2026-08-09): pits nudged off the river's centreline, bases inset inside the wall,
-  and the outer ring **kept on purpose** — recorded in GDD §6.2 with its consequence, that top and
-  bot are one shape and can only be told apart by colour, towers or labels. **Run 3 (2026-08-09,
-  `REPORTS/M6-T1-gauntlet-run3.md`) applied those answers and ran four more panels.** The river is
-  one body of water for the first time; blocking terrain stopped being green and became stone, which
-  closed the loop's oldest finding — a cold reader now reads wall, road and water as unambiguous at
-  zero effort. **Awaiting designer sign-off on two calls**: whether the road should take less of the
-  map (rule 6 plus the ring make tan the dominant field where the reference is green — the lever is
-  lane width, which is gameplay space), and the walls, where the two critics now give opposite
-  answers and §6.3 rule 1 already sides with the render. Everything else still open is `by-design`
-  against a numbered rule or out of reach of a tile renderer. **T2** movement
+  + render the terrain (cosmetic, sim untouched — a runnable look-at-it build) — **done 2026-08-09,
+  designer sign-off, narrative in `CHANGELOG.md`** (37 gauntlet iterations, 9 cold critic panels,
+  reports `REPORTS/M6-T1-gauntlet-run2.md` and `-run3.md`, loop log `docs/gauntlet-map.md`).
+  **T2** movement
   routes around walls (precomputed per-destination flow, no runtime search), with a batch delta on
   gank connect rate, escape rate and rotation cost; **T3** brush hides bodies and walls block sight,
   gated on its own batch measurement; **T4** camps and pits moved into their real pockets, sign-off.

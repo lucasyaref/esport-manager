@@ -139,3 +139,25 @@ solved:
   icon, not a terrain colour.
 
 Both are yours to settle by watching a match, which is the next thing to do anyway.
+
+---
+
+## Answers, 2026-08-09 — both "leave it", and the loop is closed
+
+**1. The road keeps its share of the map.** Recorded in GDD §6.3 rule 6, with its cost stated: this
+rule plus the ring makes ours a tan map with green in it where the reference is a green map with pale
+roads, and the lever offered — narrowing the lane bands — was gameplay space, not art.
+
+**2. Rule 1 stands and the walls stay dark.** Recorded in GDD §6.3 rule 1 and in the reference
+README's deliberate-differences table, because a cold critic cannot know either and will keep
+reporting them. Rule 1 also picked up the two corollaries this loop paid for: a feature with *no*
+value separation from its surroundings is invisible however small it is, and a ratio is not a
+contrast.
+
+**Gauntlet loop 1 is closed.** All four exit criteria met, designer sign-off given. M6-T1 is done;
+the narrative moved to `CHANGELOG.md` and `BACKLOG.md` keeps a one-line status.
+
+**What is still true and unanswered, and why it is not a defect:** a still frame cannot say which
+green conceals, and cannot say which pit is dragon and which is baron. The first is §6.3 rule 3's own
+claim about *watching a match*; the second needs an icon layer. Both are answered by playing one, not
+by another iteration — which makes T2 (movement routing around walls) the next thing to build.
