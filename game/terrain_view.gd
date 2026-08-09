@@ -124,6 +124,9 @@ const C_PIT_SHADOW := Color(0.0, 0.0, 0.0, 0.40)
 ## one flat disc with a lip around it is a thing with an edge, and an edge is what a
 ## boulder has.
 const C_PIT_BASIN := Color(0.0, 0.0, 0.0, 0.14)
+## The shaded inside of a bowl's northern wall — the surface that faces away from
+## the light. Alpha, so one value works on both tiers.
+const C_PIT_WALL_SHADE := Color(0.0, 0.0, 0.0, 0.34)
 ## The dais at the pit's eye — the one cell the objective stands on, and the
 ## lightest thing inside the bowl. Kept a shade under the road: rule 1 gives peak
 ## brightness to the lanes, and this earns its read by being one bright cell in a
@@ -317,15 +320,8 @@ static func _draw_pit_rim(ci: CanvasItem, t: Terrain, c: int, r: int,
 	var depth := _pit_depth(t, c, r)
 	if depth >= 2:
 		ci.draw_rect(Rect2(pos, Vector2(cell_px, cell_px)), C_PIT_BASIN)
-		# The step's lip, on its north face only. Lighting this step from all four
-		# sides was iteration 30's mistake: the inner tier of an octagon is a plus,
-		# so outlining every face of it drew a four-spoked wheel, and panel 7 read
-		# both pits as "grey machinery" and "a cross/cog silhouette". Everything else
-		# raised on this map — every rock mass — catches light on its north face and
-		# nowhere else. A step in a bowl is the same kind of thing and obeys the same
-		# sun; it was the only feature here inventing its own.
-		if _pit_depth(t, c, r - 1) < 2:
-			ci.draw_rect(Rect2(pos, Vector2(cell_px, maxf(1.0, cell_px * 0.2))), C_PIT_RIM)
+		_draw_hollow_walls(ci, pos, cell_px,
+			_pit_depth(t, c, r - 1) < 2, _pit_depth(t, c, r + 1) < 2)
 	if depth >= 3:
 		ci.draw_circle(pos + Vector2(cell_px, cell_px) * 0.5, cell_px * 0.34, C_PIT_EYE)
 	var d: float = maxf(1.0, cell_px * 0.22)
@@ -343,7 +339,32 @@ static func _draw_pit_rim(ci: CanvasItem, t: Terrain, c: int, r: int,
 		else:
 			band.position.x -= d
 		ci.draw_rect(band, C_PIT_SHADOW)
-	_draw_rim(ci, t, c, r, pos, cell_px, [Terrain.PIT], C_PIT_RIM, 0.3)
+	_draw_hollow_walls(ci, pos, cell_px,
+		t.kind_at_cell(c, r - 1) != Terrain.PIT, t.kind_at_cell(c, r + 1) != Terrain.PIT)
+
+
+## The inside faces of a hollow, lit by the same northern sun as everything else —
+## and therefore lit the other way round.
+##
+## Every raised thing on this map catches light on its north face and casts shadow
+## south. A hollow is the same sun and the opposite surface: standing at the north
+## edge of a bowl, the wall descending in front of you faces *away* from the light
+## and is shaded, while the far wall at the south edge faces into it and is lit. So
+## a hole is a dark band at the top and a light band at the bottom, which is exactly
+## the inverse of the rock convention.
+##
+## Getting this backwards is what made both critics at panel 8 call the pits "raised
+## bright pads" and "raised plazas or podiums, not sunken pits" — iteration 33 had
+## fixed their *shape* by putting them under the map's lighting rule, and put them
+## under the rule for the wrong kind of object. The tell was there in the same
+## reports: the reference's objectives are "recessed ... sunk into the terrain".
+static func _draw_hollow_walls(ci: CanvasItem, pos: Vector2, cell_px: float,
+		north_open: bool, south_open: bool) -> void:
+	var w: float = maxf(1.0, cell_px * 0.2)
+	if north_open:
+		ci.draw_rect(Rect2(pos, Vector2(cell_px, w)), C_PIT_WALL_SHADE)
+	if south_open:
+		ci.draw_rect(Rect2(pos + Vector2(0.0, cell_px - w), Vector2(cell_px, w)), C_PIT_RIM)
 
 
 ## How far inside a pit a cell sits: 0 for anything that is not pit, 1 on the lip,
