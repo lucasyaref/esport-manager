@@ -25,7 +25,7 @@ func _init(match_ref: SimMatch) -> void:
 		towers[team] = {}
 		for lane in SimMap.LANES:
 			var standing: Array = []
-			for tier in ["outer", "inner", "base"]:
+			for tier: String in m.map.tier_order[team]:
 				standing.append({
 					"tier": tier, "hp": float(bal.towers.hp),
 					"pos": m.map.pos_on_lane(lane, float(m.map.towers[team][tier])),

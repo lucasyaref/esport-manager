@@ -258,12 +258,38 @@ static func _validate_map(map: Dictionary, errors: Array[String]) -> void:
 		for pt in path:
 			if not _is_point(pt):
 				errors.append("map/lanes/%s: bad point %s" % [lane, str(pt)])
+	# Tower tiers are whatever map.json says they are — the count per lane is a
+	# design lever (it went 3 -> 2 on 2026-08-09), so nothing here hardcodes a list.
+	# What is *not* optional is that both sides get the same tiers in mirrored
+	# places: blue-side win rate is a tracked balance metric, so an uneven tower
+	# layout would poison it exactly the way an asymmetric terrain grid would. Same
+	# rule as the terrain gate, applied to the structures.
+	var blue_towers: Dictionary = map.get("towers", {}).get("blue", {})
+	var red_towers: Dictionary = map.get("towers", {}).get("red", {})
 	for team in ["blue", "red"]:
 		var towers: Dictionary = map.get("towers", {}).get(team, {})
-		for tier in ["outer", "inner", "base"]:
-			var t: Variant = towers.get(tier)
+		if towers.is_empty():
+			errors.append("map/towers/%s: needs at least one tier" % team)
+		if not towers.has("outer"):
+			# `outer` is named in the sim: SimMap clamps the lane front to it, and
+			# Objectives.outer_down cues the bot-lane rotation off it.
+			errors.append("map/towers/%s: needs an \"outer\" tier" % team)
+		for tier: String in towers:
+			var t: Variant = towers[tier]
 			if not _is_number(t) or t <= 0.0 or t >= 1.0:
 				errors.append("map/towers/%s/%s: needs lane param in (0, 1)" % [team, tier])
+	for tier: String in blue_towers:
+		if not red_towers.has(tier):
+			errors.append("map/towers: \"%s\" exists for blue but not red" % tier)
+		elif _is_number(blue_towers[tier]) and _is_number(red_towers[tier]):
+			# Mirrored about the lane midpoint: blue at t sits where red sits at 1 - t.
+			var mirror: float = float(blue_towers[tier]) + float(red_towers[tier])
+			if absf(mirror - 1.0) > 0.001:
+				errors.append("map/towers/%s: blue %s + red %s = %s, must sum to 1.0 (mirrored)"
+					% [tier, blue_towers[tier], red_towers[tier], mirror])
+	for tier: String in red_towers:
+		if not blue_towers.has(tier):
+			errors.append("map/towers: \"%s\" exists for red but not blue" % tier)
 	for pit in ["dragon", "baron"]:
 		if not _is_point(map.get("pits", {}).get(pit)):
 			errors.append("map/pits: missing [x, y] for \"%s\"" % pit)

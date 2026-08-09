@@ -942,7 +942,7 @@ func _build_structures() -> void:
 	struct_at.clear()
 	for team: String in SimMap.TEAMS:
 		for lane: String in SimMap.LANES:
-			for tier: String in ["outer", "inner", "base"]:
+			for tier: String in smap.tier_order[team]:
 				struct_at["%s_%s_%s" % [team, lane, tier]] = {
 					"pos": smap.pos_on_lane(lane, float(smap.towers[team][tier])),
 					"team": team,

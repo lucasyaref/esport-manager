@@ -16,7 +16,8 @@ var size: float
 var bases: Dictionary = {}        # team -> Vector2
 var lane_paths: Dictionary = {}   # lane -> PackedVector2Array
 var lane_lengths: Dictionary = {} # lane -> float
-var towers: Dictionary = {}       # team -> {outer/inner/base: lane param}
+var towers: Dictionary = {}       # team -> {tier name: lane param}
+var tier_order: Dictionary = {}   # team -> [tier names], outermost first
 var pits: Dictionary = {}         # dragon/baron -> Vector2
 var camps: Array[Dictionary] = [] # copies of camp defs with pos as Vector2
 
@@ -26,6 +27,8 @@ func _init(map_data: Dictionary) -> void:
 	for team in TEAMS:
 		bases[team] = _vec(map_data.bases[team])
 	towers = map_data.towers
+	for team in TEAMS:
+		tier_order[team] = _tiers_outermost_first(team)
 	for lane in LANES:
 		var path := PackedVector2Array()
 		for pt in map_data.lanes[lane].path:
@@ -41,6 +44,22 @@ func _init(map_data: Dictionary) -> void:
 		var c := camp.duplicate()
 		c.pos = _vec(camp.pos)
 		camps.append(c)
+
+
+## A team's tower tiers, outermost first — derived from the lane params rather
+## than hardcoded, so `data/map.json` alone decides how many towers a lane has.
+## Lane param 0 is the blue end and 1 the red end, so "furthest from home" is the
+## largest param for blue and the smallest for red. Sorting by name would be a
+## trap: the names are labels, and a designer adding a "mid" tier between two
+## others must not have to think about alphabetical order to place it.
+func _tiers_outermost_first(team: String) -> Array:
+	var tiers: Array = towers[team].keys()
+	tiers.sort()  # stable, deterministic starting order before the param sort
+	tiers.sort_custom(func(a: String, b: String) -> bool:
+		var pa := float(towers[team][a])
+		var pb := float(towers[team][b])
+		return pa > pb if team == "blue" else pa < pb)
+	return tiers
 
 
 ## Position at lane param t (0 = blue end, 1 = red end).

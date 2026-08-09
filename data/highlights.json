@@ -14,6 +14,12 @@
     "the whole score by game clock: 0.6 means a moment at the last minute is",
     "worth 1.6x the same moment at minute zero.",
     "",
+    "The tower_* keys follow the tiers in data/map.json, which is the only place",
+    "that decides how many towers a lane has. tower_inner is kept but currently",
+    "dead: the middle tier was removed on 2026-08-09. An unlisted kind scores 0,",
+    "so adding a tier back to map.json only needs a weight here if you want the",
+    "reel to notice it.",
+    "",
     "select.*: the reel. floor is absolute — a boring match gets a SHORT reel,",
     "it never gets padded. min_spacing_s stops five clips of one long brawl.",
     "max_per_kind is variety. The nexus is exempt from all of it."
