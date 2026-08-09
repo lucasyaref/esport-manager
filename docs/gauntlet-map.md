@@ -530,3 +530,121 @@ All three blocking questions are now answered, which clears the last thing stand
 and its exit criteria. The geometry has moved a long way since panel 5 — both pits, both bases, every
 lane path end, and the river — so the exit has to be re-tested by a fresh cold panel on `iter28`,
 not inherited from panel 5.
+
+## Run 2, continued — panels 6 and 7, iterations 29–33
+
+### Panel 6 (on `iter28`) — coordinate check
+
+| Claim | Verified against `data/terrain.txt` |
+|---|---|
+| 6 camp positions (brown-dot clusters) | **6/6 exact.** Every one lands on a `c` cell. |
+| 2 pit centres | **2/2 exact** — (15,22) and (34,27). |
+| Mid's road stops at ~(0.48,0.54), resumes ~(0.53,0.45) | **True.** Both cells are river; the resume cell is lane. |
+| 8 brush patches | **5/8.** Two landed on solid rock and on river caustics. Self-flagged weak by the critic, which is the right call. |
+
+Two findings arrived from both critics independently, which is the signal worth acting on:
+the pits reading as impassable rock, and nothing on the map saying whether the river can be
+crossed.
+
+### Iteration 29 — the ford had gone inert
+
+The map already had a ford cue. Iteration 28 had switched it off one commit earlier. The test
+asked *lane* cells whether water lay either side, which was right while the crossing cells were
+lane; making the river outrank the lane turned them into river, so the test went on asking a
+question no lane cell could answer and drew nothing.
+
+**A cue that has gone quiet is worse than one never written, because the code that draws it is
+still there to read.** Nothing failed. The gate passed, the suite passed, and the only thing that
+noticed was a cold reader.
+
+Inverted: a *river* cell is a ford when road lies on both sides. Two things fell out — requiring
+water ahead and behind as well, because paving alone lit both river *mouths* where the channel
+runs into the ring road; and teaching the kerb that a ford counts as road, or the paving drew
+itself a bank and the road still stopped dead at the water. 22 cells at the crossing, 8 at each
+mouth, the mouths left alone as a true thing to say.
+
+**Panel 7 confirmed it:** *"the water is noticeably lighter — probable that this is a shallow ford
+where the diagonal road crosses"*, and mid read as one lane crossing water rather than two stubs.
+
+### Iteration 30 — the bowls get cut in tiers
+
+A lip is an edge, and an edge is what a boulder has. The tiers are measured off the grid, not read
+from `map.json`: depth inside the pit, taken in eight directions, has **exactly one maximum in
+each bowl** — (15,22) and (34,27), which is where the dragon and baron anchors already are. The
+shape names its own centre, so there is no second copy of the pit positions to fall out of step.
+
+Panel 7 moved from *"I would plausibly have called them terrain obstacles"* to *"pale grey masonry
+… read as built structures"*.
+
+### Iteration 31 — a measurement that refuted its own finding and found a real one
+
+Panel 6 and panel 7 both reported no height cue. Measured off the render:
+
+| | luminance |
+|---|---|
+| plain jungle floor | 0.283 |
+| floor shadowed by rock | 0.137 |
+| rock's lit north cap | 0.306 |
+| rock body | 0.117 |
+
+The cast shadow is a 52% drop — the cue is there, as it was at iteration 20 when the same report
+came in. But the cap sat 0.023 above the floor, so **the top edge of every mass was the same value
+as walkable ground, and the shadow below it was the same value as the rock.** The mass read a cell
+too small at the top, a cell too big at the bottom, and its true boundary was drawn nowhere. Cap
+raised to 0.381.
+
+Method note, twice earned: *"the cue is absent"* and *"the cue is inaudible"* are the same
+sentence in a cold report and want opposite fixes. Only measuring separates them — and this time
+measuring found the actual defect, which neither critic named.
+
+### Iteration 32 — the oldest finding in the loop, closed
+
+Every panel this loop has run has said a cold reader cannot tell which greens block. Iterations 20
+and 31 both treated it as contrast. Panel 7 said what it actually was:
+
+> *"Mid-green grass and dark-green blobs occupy comparable areas and are both green, so the map's
+> largest surface is ambiguous terrain."*
+
+The reader could always **see** the two greens. It could not know which one meant "walk here", and
+no amount of separation between two members of one family answers that. Fidelity said the same
+from the other side — *"nothing anywhere reads as a rock face"* — and §6.3 rule 3 lists ground and
+stone mass as two of its five shapes, which this renderer had been drawing as one material.
+
+So the family changed. **Green is ground you can stand on; blocking mass is stone.** The grid has
+one kind of wall, so the distinction is carried by material rather than by data.
+
+First pass took the stone almost to black and traded one collision for another — the masses read
+as holes and crowded the off-map void. The ladder as it stands:
+
+| surface | luminance |
+|---|---|
+| void | 0.061 |
+| rock | 0.184 |
+| rampart | 0.243 |
+| floor | 0.284 |
+| pit | 0.309 |
+| brush | 0.343 |
+| road | 0.438 |
+
+Monotone, and every green surface on the map is walkable.
+
+### Iteration 33 — the bowls stop being machinery
+
+Iteration 30 overshot. Panel 7: *"grey machinery"*, *"a cross/cog silhouette"*, *"the brightest,
+highest-contrast shapes on the map"*. Not oscillation — the direction held across both panels and
+only the magnitude was wrong — but worth naming as the loop's standing hazard.
+
+The cog was a lighting mistake, not decoration. The inner tier of an octagon is a plus, and
+iteration 30 lit every face of it. Everything else raised on this map catches light on its north
+face and nowhere else; the step in a bowl was the only feature inventing its own sun.
+
+### Standing `by-design` after panel 7
+
+| Finding | Rule |
+|---|---|
+| *"Lanes are warm tan, not cool grey stone"* — five panels running | **6**, on record |
+| *"The map reads as a sand frame around a green core"* | Consequence of the ring, chosen by the designer 2026-08-09 (GDD §6.2) |
+| *"Bases are flat team-coloured rectangles"* | Team identity is what a manager's map is for; the reference is a player's map |
+| *"Towers are UI squares, not stone platforms"* | Out of scope — no prop layer in M6-T1 |
+| *"No torch pools, no glows"* | **7**, and out of scope twice over |
+| *"What the grey structures actually **are**"* | Genuinely unanswerable by terrain. Needs an icon layer. |
