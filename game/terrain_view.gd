@@ -19,7 +19,20 @@ extends RefCounted
 ## (rock, floor, lane) onto the reference's hues and, more importantly, onto its
 ## contrast ordering — lane lightest, floor mid, rock dark, void darkest.
 const PALETTE := {
-	Terrain.WALL:       Color("16261a"),
+	# Stone, not canopy — changed at iteration 32, and it is the answer to the
+	# oldest finding in this loop. Every panel since the first has said a cold reader
+	# cannot tell which greens block, and iterations 20 and 31 both attacked it as a
+	# contrast problem. Panel 7 finally said what the problem actually is: *"mid-green
+	# grass and dark-green blobs occupy comparable areas and are both green, so the
+	# map's largest surface is ambiguous terrain"*. The reader could always see the
+	# two greens. It could not know which one meant "walk here", and no amount of
+	# separation between two members of the same family answers that question.
+	#
+	# So the family changes. Green is ground you can stand on — floor and brush — and
+	# blocking mass is stone. §6.3 rule 3 names ground and stone mass as two of its
+	# five shapes and this renderer had been drawing them as one; the grid only has
+	# one kind of wall, so the distinction has to be carried by material.
+	Terrain.WALL:       Color("2b302d"),
 	Terrain.OPEN:       Color("3c4f30"),
 	# Lighter than the floor it sits on, not darker. Run 1 drew brush as dark
 	# canopy, which put it in the same value band as rock — so at overview scale
@@ -67,13 +80,13 @@ const PALETTE := {
 ##
 ## Now 0.38, which clears the floor by a full step and still sits under the road at
 ## 0.43, so rule 1 keeps its promise that nothing outshines the lanes.
-const C_WALL_LIT := Color("5a6459")
+const C_WALL_LIT := Color("5e625d")
 ## The arena's own wall: quarried stone, not canopy. It needs to be lighter than
 ## the rock inside the arena and darker than the road, or the boundary reads as
 ## either more jungle or a second lane — both of which the panels reported when
 ## the rampart shared the rock colour.
 const C_RAMPART := Color("3a4038")
-const C_WALL_SHADE := Color("0d150f")
+const C_WALL_SHADE := Color("101413")
 ## Cast onto the ground south of a rock. Alpha, not a colour: it has to work
 ## over grass, over lane stone and over water without being retuned for each.
 ##
