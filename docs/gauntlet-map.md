@@ -435,3 +435,87 @@ the outer lanes and both base footprints inward to leave a band of jungle and ra
 edge — which changes lane length, jungle volume, and the tower and lane-polyline coordinates in
 `data/map.json`. Those are gameplay numbers, not art, so it is the designer's call and not mine.
 See `REPORTS/` for the question as posed.
+
+## Run 2, continued — the designer's three answers
+
+The designer answered all three blocking questions. Answers 1 and 2 were applied and committed;
+answer 3 asked for a mock before anything was committed, and that mock is below.
+
+### Iterations 24–27 — pits off the centreline, bases inside the wall
+
+**Answer 1: nudge the pits off the river's centreline.** `tools/terrain_paint.gd --pits=D` moves one
+pit and *mirrors* the offset onto the other, because 180° symmetry is a balance guard rail and
+rounding each pit independently is how that quietly stops being true. Camps tangent to a bowl travel
+with it — the first attempt left them behind and the pit came out notched and a quarter smaller,
+because painting correctly refuses to take a camp's cells. River went from 4 components to 2.
+
+**Answer 2: inset the bases too.** `--bases=K` translates each footprint (area preserved exactly) and
+snaps each lane path end onto the nexus.
+
+Two latent defects surfaced, neither caused by these changes:
+
+- **Four camps were not 180° symmetric**, drifted 3.6 world units, and every guard rail passed them.
+  The rails check that the *grid* is symmetric and that anchors stand on walkable ground; nothing
+  checked that anchor *positions* mirror each other. `Terrain._check_anchor_symmetry` now does, and
+  caught all four on its first run.
+- **`VIEWER SELFTEST: FAIL — a nexus fell with no minions drawn hitting it.`** `SIEGE_REACH` is 9.0
+  and bot lane's doorstep landed 9.4 world units from the nexus. Pre-existing: bot was always ~9.7
+  out, and it survived only because it depended on which lane won, so moving the bases changed seed
+  42's outcome and exposed it. Fixed structurally — every lane path now ends *on* the nexus, where
+  minions spawn. All six doorsteps are 1.5–2.1.
+
+### Iteration 28 — the ford, and the last cut in the river
+
+Answers 1 and 2 left the river at 2 components. The last cut was mid crossing it, and it was a rule,
+not geometry: river was deliberately *not* protected from a lane band, on the reasoning that mid
+crossing the water is a ford and those cells are road with water drawn over them. The renderer draws
+one surface per cell, so what that produced was road.
+
+A ford is water interrupting a road. River now outranks lane, and the erase hands a vacated road cell
+back to the water it covered up. Doing that needs two bounds: the band gives the river's **width**,
+but it runs corner to corner, so bounding by band alone flooded both neutral corners and cut the outer
+road with a lake — which is what the first version did. The **length** bound comes free from the banks
+that survived the erase: no road can have covered water further along than the furthest water still
+standing. 32 cells come back, all of them mid's crossing.
+
+**River: 1 component, 196 cells.** Gate clean, full suite green. `.shots/iter28.png`.
+
+Vacated road also stops becoming open floor and becomes rock. It changes nothing on this geometry —
+the bands are repainted where they were — and it is what makes the mock below viable.
+
+### The bent-lane mock — answer 3, for the designer
+
+Two attempts. The first moved only the neutral corner vertex of each outer lane; with one vertex the
+segment to the far base swung across the middle, the ring vanished and the lanes flooded the river.
+The bend needs an anchor on each edge run so it stays local to the corner. Second attempt, with `bot`
+generated as the exact 180° mirror of `top` so symmetry is structural:
+
+```
+top: [[15,15], [14,34], [26,76], [66,86], [85,85]]
+bot: [[15,15], [34,14], [74,24], [86,66], [85,85]]
+```
+
+Gate clean, full suite green, river still 1 component. `.shots/mock-bent2.png`; side by side against
+iteration 28 in `.shots/ab-ring-vs-bent.png`.
+
+| | ring (iter28) | bent (mock) |
+|---|---|---|
+| top / bot lane length | 140.1 | 123.0 |
+| mid lane length | 99.0 | 99.0 |
+| lane cells | 602 | 484 |
+| rock cells | 1190 | 1326 |
+| walkable | 52% | 47% |
+| river components | 1 | 1 |
+
+**The mock was built twice for a reason worth recording.** The first version of it, on the old paint
+rules, was unfair to its own idea: the outer lanes clipped each river arm and orphaned a 6-cell pool
+at each end (4 components again), and 234 cells of vacated road became featureless walkable field, so
+the corners read as empty green rather than as jungle. Both were artefacts of the tool, not of the
+bend. A mock that loses on its own artefacts answers the wrong question, so the tool was fixed first
+— that fix is iteration 28 — and the mock rebuilt on top of it.
+
+**The bend changes the silhouette, not just the lanes.** Vacated road becomes rock; rock that is
+border-connected and more than `RAMPART_DEPTH` from walkable ground is VOID; so both neutral corners
+go off-map and the playable field becomes a bevelled diamond rather than a square. That is a
+consequence of the bend and not a separate decision, and it is most of what the eye sees in the
+comparison. Flagged to the designer as such.
