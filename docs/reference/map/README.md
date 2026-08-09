@@ -25,51 +25,74 @@ the rubric, and I will otherwise assume an image is aiming at both.
 
 ## What is in here now
 
-### `terrain_moba_2.png` — **palette and mood only** (designer, 2026-08-08)
+### `terrain_moba_3.png` — the only reference (designer, 2026-08-09)
 
-> **Demoted the same day it arrived** (designer direction, 2026-08-08). It was briefly the whole
-> look target; it is now one of two sources, and the smaller one. The direction is toward a
-> sparser, darker, chunkier map than this — see GDD §6.3 rules 1–4 — with this image supplying
-> the **warmth**: warm stone, the sand-coloured road, accent light at the bases and pits.
-> Its density and its ornament are *not* the target. Findings that push the render toward
-> "more painted, more decorated, more lit" are `by-design` refusals, not work.
+The third and best. `terrain_moba_2.png` and the crop before it were both **deleted** — the
+folder is globbed, so two pictures in two different hands are two contradictory targets and a
+broken instrument. One picture, one answer.
 
-Supersedes the earlier `Pixel_art_MOBA_arena_map_…jpeg`, which was the same artwork at a
-tighter crop; this version shows the full rampart and the corners, so it says more about the
-map's edge. The old crop was deleted rather than kept — two versions of one picture is two
-answers to the same question.
+Why this one supersedes the paintings: it is genuinely **top-down**, so nothing has to be
+translated out of a 3/4 projection, and it is the first reference whose layout is actually a
+MOBA map — three readable lanes, a diagonal river running correctly against the base diagonal,
+bases in opposite corners, brush as tall grass, towers standing on lanes. It is also closer to
+pixel art than to painting, which is what a tile renderer can actually reach.
 
-**This image fixes the look. `data/terrain.txt` and `data/map.json` fix the layout.**
+**It is still not the layout.** `data/terrain.txt` and `data/map.json` own that, and they are
+gate-checked for 180° symmetry, which no generated image is. Do not trace it.
 
-It is an illustration, not a playable map, and its geometry cannot be adopted: it is 4:3
-against a square 100×100 world, its lanes are a perimeter ring with no readable mid, and it
-has no tower positions. Judge palette, value structure, contrast relationships, surface
-texture and edge treatment against it. Do **not** move a lane, a pit or a base to match it.
-
-The one layout lesson already taken from it is the **arena margin** — its outer road sits well
-inside a thick rampart with jungle between the two. That was decided as a gameplay call
-(iteration 11), not read off the picture as art.
+One layout fact it *confirms* rather than dictates: the designer restored the second river
+alcove on 2026-08-09 so the two objective pits mirror each other. Measured from the image, the
+midpoint of the two pit centres lands within ~1% of the image centre — they are proper 180°
+mirrors. That matches `map.json` (`baron [31,55]`, `dragon [69,45]`) and settles the
+one-boss question: **two pits stay.**
 
 **Deliberate differences — present in the reference, not wanted in the map:**
 
 | In the reference | Why we are not chasing it |
 |---|---|
-| Statues, torches, braziers, rune glyphs, per-object props | Authored art on a bitmap. The map is a tile renderer; these need a decal/sprite layer, which is not M6-T1. |
-| Painted lighting — torch bloom, cast glow, soft gradients | Same reason. Value *hierarchy* is in scope; painted light is not. |
-| Vignette and the dark framing border | It is a framed illustration; the map is a viewport that pans and zooms. If we want one it belongs in the viewer as a screen-space overlay, never baked into the terrain. |
-| 4:3 aspect and the outer glow around the arena | Artefacts of the frame, not features of the map. |
-| The two sparkles, lower right | Generator watermark. Not a map feature. |
-| Ornament spread evenly over the whole map | GDD §6.3 rule 7 — the ornament budget goes to the bases, the two pits and the river, and the jungle is texture. |
-| Fine-grained detail defining the shape of a rock mass | §6.3 rule 4 — masses are big and chunky, noise lives *inside* a mass. |
+| Statues, torches, braziers, tower and nexus sprites, per-object props | Authored art on a bitmap. The terrain layer is a tile painter; props need a decal/sprite layer, which is not M6-T1. Towers and the nexus *are* drawn by `game/map_view.gd` over the terrain — that is the structures layer, not this one. |
+| Crystal glow, torch bloom, soft cast light | Value *hierarchy* is in scope; painted light is not. |
+| The dark tree border framing the arena | A vignette by another name. It is a framed picture; our map pans and zooms, so a baked-in dark edge would slide across the world. Screen-space overlay in the viewer if ever wanted. |
+| 4:3 aspect | Artefact of the frame. The world is square 100×100. |
+| Stray white sparkles | Generator residue. Not a map feature. |
+| Ornament spread evenly over the whole map | GDD §6.3 rule 7 — the budget goes to the bases, the two pits and the river; jungle is texture. |
+| Fine-grained detail defining the shape of a mass | §6.3 rule 4 — masses are big and chunky, noise lives *inside* a mass. |
 | Rich overall saturation | §6.3 rule 2 — water is the only strongly saturated thing on the map. |
-| Rock lighter than the ground it stands in — pale boulders on dark grass | §6.3 rule 1, upheld by designer decision 2026-08-09. Reported twice as *"pits punched through the ground"*; the legibility critic read the same walls as *"unmistakably walls, immediately"*. Two critics disagreeing is a design decision, and it was decided for the reader. |
-| Green as the dominant field, with narrow stone roads through it | §6.3 rule 6 plus the ring (§6.2). Ours is 602 road cells to 296 green and that is deliberate — the lever was narrowing the lane bands, which is gameplay space, and the designer kept it 2026-08-09. |
-| Two visually distinct objective sites (one teal basin, one red-cored amphitheatre) | Needs an icon layer. Both pits are identical by construction; dragon versus baron is an icon, not a terrain colour. Out of scope for M6-T1. |
+| Stone lighter than the ground it stands in — pale walls on dark green | §6.3 rule 1, upheld by designer decision 2026-08-09. Reported twice as *"pits punched through the ground"*; the legibility critic read the same walls as *"unmistakably walls, immediately"*. Two critics disagreeing is a design decision, and it was decided for the reader. |
+| Two visually distinct objective sites (a dry grey basin, a glowing teal one) | Needs an icon layer. Both pits are identical by construction; dragon versus baron is an icon, not a terrain colour. Out of scope for M6-T1. |
 
-A cold critic cannot know any of the above, so it will keep reporting them. That is the critic
-working correctly — the orchestrator files them as `out-of-scope` (unreachable by any knob) or
-`by-design` (reachable, and refused), and neither blocks the exit. See `docs/gauntlet-map.md`.
+**Manual-edit artefacts — the designer's own note, 2026-08-09.** The image was photoshopped to
+restore the second alcove, and some marks survived. They are damage, not design, and no critic
+finding that points at them is real:
 
-**Still missing, and worth having:** a close crop of one jungle quadrant. Without it the panel
-judges texture by comparing a 1452 px painting against a 1024 px render, which inflates every
-texture finding it makes.
+| Artefact | Where |
+|---|---|
+| A disconnected stub of river | Bottom-right corner, outside the arena, not joined to the main channel. The most misleading of the three — it invites *"the river forks"*, which would be a genuine finding against a map where it does not. |
+| An orphan gate structure connected to nothing | Top-left corner. |
+| Free-standing stone arches in open jungle | Mid-left and mid-right. These read as ruins and are plausibly deliberate scenery; listed for completeness, not as a defect to chase. |
+
+The riverside wall remnant reported on 2026-08-09 is **fixed** — restoring the alcove removed it.
+
+### Open — the two reversals, not yet decided
+
+Two things in this image contradict decisions taken during gauntlet run 3 and signed off on
+2026-08-09. They are recorded here as **open**, deliberately *not* filed as `by-design`
+refusals, because the designer may be re-directing rather than disagreeing:
+
+1. **Green as the dominant field, with narrower stone roads through it.** The shipped map is
+   602 road cells to 296 green — tan road is the field. That ratio was raised as a finding and
+   kept on 2026-08-09, but it was kept against a *different* reference.
+2. **Trees as the blocking terrain.** In this image the thing you cannot walk through is dark
+   canopy. In the shipped map it is grey rock, and *"blocking terrain stops being green"* was a
+   whole iteration closing the oldest finding in the log.
+
+Until the designer answers, the shipped look stands and these two do not block anything.
+If the answer is "re-direct", it is **gauntlet run 4** and it reopens M6-T1's look.
+
+**Still missing, and worth having:** a close crop of one jungle quadrant, at zoom. The designer
+showed a six-panel detail sheet on 2026-08-09 but it was never saved here. Two caveats if it
+lands: it is drawn in 3/4, not top-down, so take the shading recipe (lit top face, dark side,
+cast shadow) and refuse the projection; and four of its six panels are ornament-budget places,
+so its jungle and river panels will pull toward a density §6.3 rule 7 refuses. Note also that
+the render rig has no crop option yet — comparing a whole-map render against a close crop
+inflates every texture finding, so that is a prerequisite, not an afterthought.
