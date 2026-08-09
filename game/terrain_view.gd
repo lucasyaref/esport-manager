@@ -32,7 +32,16 @@ const PALETTE := {
 	# blocking mass is stone. §6.3 rule 3 names ground and stone mass as two of its
 	# five shapes and this renderer had been drawing them as one; the grid only has
 	# one kind of wall, so the distinction has to be carried by material.
-	Terrain.WALL:       Color("2b302d"),
+	#
+	# Raised again at iteration 34, and this is what "monotone and legible" costs when
+	# it is checked against a number instead of an eye. Stone at 0.184 measures three
+	# times the void's 0.061 and reads as the same black: panel 8 called the masses
+	# "black holes ... like cut-out voids", and the second critic, cold and separately,
+	# said masses touching the edge "look like the frame intruding rather than in-play
+	# terrain". A ratio is not a contrast. Now 0.223 — one step under the floor it
+	# stands in, which is where the reference puts it, and the height is carried by the
+	# lit cap and the cast shadow rather than by being dark.
+	Terrain.WALL:       Color("343a37"),
 	Terrain.OPEN:       Color("3c4f30"),
 	# Lighter than the floor it sits on, not darker. Run 1 drew brush as dark
 	# canopy, which put it in the same value band as rock — so at overview scale
@@ -85,7 +94,7 @@ const C_WALL_LIT := Color("5e625d")
 ## the rock inside the arena and darker than the road, or the boundary reads as
 ## either more jungle or a second lane — both of which the panels reported when
 ## the rampart shared the rock colour.
-const C_RAMPART := Color("3a4038")
+const C_RAMPART := Color("3f4640")
 const C_WALL_SHADE := Color("101413")
 ## Cast onto the ground south of a rock. Alpha, not a colour: it has to work
 ## over grass, over lane stone and over water without being retuned for each.
