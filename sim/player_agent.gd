@@ -84,6 +84,7 @@ var _tempo_lane := ""             # lane to press after a play landed (M5-E)
 var _tempo_until := 0
 var _play_pos := Vector2.ZERO     # committed multi-man play destination (M5-F2)
 var _play_until := 0
+var _play_hub := ""               # nav hub nearest the play target (M6-T2)
 var _speed_per_tick: float
 var _map: SimMap                 # static geometry only — no cycle back to us
 
@@ -142,11 +143,11 @@ func update(t: int, m: SimMatch) -> void:
 	var play := play_pos(t)
 	if play != Vector2.ZERO and state in [State.TO_LANE, State.FARMING, State.TO_CAMP,
 			State.WAITING_CAMP, State.GROUPING, State.HOLDING]:
-		_move_toward(play)
+		_move_toward(play, _play_hub)
 		return
 	match state:
 		State.TO_LANE:
-			if _move_toward(m.lane_stand_pos(lane, team, lane_stance)):
+			if _move_toward(m.lane_stand_pos(lane, team, lane_stance), "lane_" + lane):
 				state = State.FARMING
 		State.FARMING:
 			# A laner that shoved its wave and heard a gank call rotates to it —
@@ -154,20 +155,20 @@ func update(t: int, m: SimMatch) -> void:
 			var roam: String = m.brains[team].gank_call_lane(t, idx)
 			var press := tempo_pos(t, m)
 			if roam != "" and roam != lane:
-				_move_toward(m.lane_stand_pos(roam, team, "trade"))
+				_move_toward(m.lane_stand_pos(roam, team, "trade"), "lane_" + roam)
 			elif press != Vector2.ZERO:
 				# A play landed on that lane and it is briefly free: spend the
 				# window on it rather than walking home to farm.
-				_move_toward(press)
+				_move_toward(press, "lane_" + _tempo_lane)
 			else:
-				_move_toward(m.lane_stand_pos(lane, team, lane_stance))
+				_move_toward(m.lane_stand_pos(lane, team, lane_stance), "lane_" + lane)
 			_maybe_recall(t, m)
 		State.TO_CAMP, State.WAITING_CAMP:
 			# A jungler whose gank just landed presses the lane it opened instead
 			# of walking straight back to a camp — the tempo half of the play.
 			var press := tempo_pos(t, m)
 			if press != Vector2.ZERO:
-				_move_toward(press)
+				_move_toward(press, "lane_" + _tempo_lane)
 				return
 			if role == "jungle" and m.try_gank(self, t):
 				return
@@ -181,16 +182,17 @@ func update(t: int, m: SimMatch) -> void:
 			# Walk to the lane and let proximity do the rest — the fight, if
 			# there is one, is resolved by the combat engine like any other.
 			# A sandwich walks to its cut-off point instead: behind the victim,
-			# on the road home, so the victim is between us and our laner.
+			# on the road home, so the victim is between us and our laner. Both
+			# sit on/near _gank_lane, so that lane is the right hub either way.
 			var gank_target: Vector2 = _gank_cut if _gank_cut != Vector2.ZERO \
 				else m.lane_stand_pos(_gank_lane, "red" if team == "blue" else "blue")
-			if _move_toward(gank_target) or t - _last_gank_t > m.gank_timeout_ticks():
+			if _move_toward(gank_target, "lane_" + _gank_lane) or t - _last_gank_t > m.gank_timeout_ticks():
 				m.gank_arrived(self, _gank_lane, t)
 		State.GROUPING:
-			if _move_toward(m.rally_pos(team)):
+			if _move_toward(m.rally_pos(team), m.rally_hub(team)):
 				state = State.HOLDING
 		State.HOLDING:
-			_move_toward(m.rally_pos(team))
+			_move_toward(m.rally_pos(team), m.rally_hub(team))
 		State.RECALLING:
 			if t >= _state_until:
 				_finish_recall(t, m)
@@ -343,15 +345,21 @@ func set_tempo(lane_name: String, until: int) -> void:
 ## Committed to a multi-man play until `until` (M5-F2). Like set_tempo this is a
 ## destination, not a state: the agent keeps its FSM state, so combat still takes
 ## over the moment a fight starts and a camp clear in progress still finishes.
-func set_play(p: Vector2, until: int) -> void:
+## `hub` (M6-T2) is the nav hub nearest the target, resolved once by the
+## caller (TeamBrain._consider_play) when the play is called rather than
+## re-derived every tick: a live enemy position has no hub of its own, so
+## this is the one destination that needs NavGrid.nearest_hub at all.
+func set_play(p: Vector2, until: int, hub: String = "") -> void:
 	_play_pos = p
 	_play_until = until
+	_play_hub = hub
 
 
 ## Where the play wants this body, or ZERO once the window has shut.
 func play_pos(t: int) -> Vector2:
 	if _play_pos == Vector2.ZERO or t >= _play_until:
 		_play_pos = Vector2.ZERO
+		_play_hub = ""
 		return Vector2.ZERO
 	return _play_pos
 
@@ -438,12 +446,34 @@ func _regen(t: int, m: SimMatch) -> void:
 	hp = minf(hp + max_hp * pct / SimMatch.TICKS_PER_SECOND, max_hp)
 
 
-func _move_toward(target: Vector2) -> bool:
+## `hub` names which NavGrid flow field (M6-T2) covers this destination —
+## "lane_top", "camp_b_camp_top", "pit_dragon", etc. — so a body more than a
+## glance from its target routes around walls instead of through them. Leave
+## it "" when the map has no terrain/nav yet (degrades to the pre-T2 straight
+## line) or when the caller has no natural hub for this target.
+func _move_toward(target: Vector2, hub: String = "") -> bool:
 	var dist := pos.distance_to(target)
 	if dist <= ARRIVE_DIST:
 		return true
-	move_to(pos.move_toward(target, _move_step))
+	move_to(_step_toward(target, hub))
 	return false
+
+
+## Where to step this tick: straight at the target when nothing blocks the
+## line (the common case — most of the map is open ground), otherwise the
+## next cell of `hub`'s precomputed flow field. Falls back to the straight
+## line if `hub` is empty, unknown, or its field has nothing left to say
+## (already inside the hub's own region) — always a safe default, never a
+## stall. Combat's own steering (desired_pos) never calls this: a fight's
+## stand position is a few units away in the open pocket the fight is
+## already standing in, not through rock (REPORTS/M6-terrain-scoping.md §4).
+func _step_toward(target: Vector2, hub: String) -> Vector2:
+	var nav: NavGrid = _map.nav
+	if nav != null and hub != "" and not nav.has_los(pos, target):
+		var step := nav.next_point(hub, pos)
+		if step != pos:
+			return pos.move_toward(step, _move_step)
+	return pos.move_toward(target, _move_step)
 
 
 func _buy_threshold(m: SimMatch) -> float:
@@ -505,7 +535,7 @@ func _jungle_step(t: int, m: SimMatch) -> void:
 	if _camp_index < 0:
 		return
 	var camp: Dictionary = m.camps[_camp_index]
-	if _move_toward(camp.def.pos):
+	if _move_toward(camp.def.pos, "camp_%s" % camp.def.id):
 		if camp.alive:
 			var jungle_bal: Dictionary = m.balance.jungle
 			var jitter: int = m.rng.randi_range(

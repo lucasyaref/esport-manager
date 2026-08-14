@@ -152,6 +152,31 @@ func _initialize() -> void:
 	var lead_decided := 0
 	var lead_won := 0
 	var lead_gaps: Array[float] = []
+	# --- side breakdown (diagnostic: why does one side win more than the other) ---
+	# Everything above already separates team strength from side (setup alternates
+	# who plays blue), so a side-level split isolates *where* a side edge lives —
+	# kills, deaths by role, objectives, towers, named-play connect rate, fight
+	# wins, or the gold curve — rather than just confirming the win rate moved.
+	var kills_side := {"blue": 0, "red": 0}
+	var deaths_role_side := {}   # "blue_top" -> count, etc.
+	var fb_side := {"blue": 0, "red": 0}
+	var dragons_side := {"blue": 0, "red": 0}
+	var barons_side := {"blue": 0, "red": 0}
+	var towers_lost_side := {"blue": 0, "red": 0}
+	var fights_won_side := {"blue": 0, "red": 0}
+	var fights_decided := 0
+	var calls_side := {"blue": 0, "red": 0}
+	var calls_hit_side := {"blue": 0, "red": 0}
+	# Gold differential (blue - red) at every snapshot checkpoint (every
+	# `snapshot_every`, here 15 sim-min), not just the single @15min leader stat
+	# above — this is what shows *when in the match* a side's edge shows up.
+	var gold_diff_by_snap: Array[float] = []
+	var gold_diff_samples: Array[int] = []
+	# Max single-team dragon stacks reached, per match (diagnostic for whether
+	# dragon_soul_stacks is reachable given how contested dragon actually is).
+	var matches_reached_3_stacks := 0
+	var matches_reached_4_stacks := 0
+	var max_stacks_seen := 0
 
 	var t_start := Time.get_ticks_msec()
 	for i in range(sims):
@@ -186,6 +211,17 @@ func _initialize() -> void:
 				lead_gaps.append(absf(gold.blue - gold.red))
 				if leader == result.winner:
 					lead_won += 1
+		# Gold differential at every checkpoint (not just @15min), to see when in
+		# the match a side's edge shows up rather than just that it exists.
+		for si in range(result.snapshots.size()):
+			var snap_gold := {"blue": 0.0, "red": 0.0}
+			for row: Array in result.snapshots[si].players:
+				snap_gold[team_of[row[0]]] += row[4]
+			while gold_diff_by_snap.size() <= si:
+				gold_diff_by_snap.append(0.0)
+				gold_diff_samples.append(0)
+			gold_diff_by_snap[si] += snap_gold.blue - snap_gold.red
+			gold_diff_samples[si] += 1
 		var minutes: float = result.ticks / (60.0 * SimMatch.TICKS_PER_SECOND)
 		lengths.append(minutes)
 		total_minutes += minutes
@@ -205,14 +241,25 @@ func _initialize() -> void:
 		var open_calls: Array = []   # {team, until, hit} for the connect-rate metric
 		var open_tempo: Array = []   # {team, lane, until} for the tempo-conversion metric
 		var open_plays: Array = []   # {team, until, hit} for the multi-man play metric
+		var match_max_stacks := {"blue": 0, "red": 0}
 		for ev: Dictionary in result.events:
 			match ev.type:
 				"kill":
 					kills += 1
 					band_kills[mini(int(ev.t / (60.0 * BAND_MIN * SimMatch.TICKS_PER_SECOND)),
 						BAND_COUNT - 1)] += 1.0
+					var victim_team: String = String(ev.data.get("victim_team", ""))
+					var scoring_side := "red" if victim_team == "blue" else "blue"
+					if victim_team in ["blue", "red"]:
+						kills_side[scoring_side] += 1
+						var victim_role: String = String(role_of.get(ev.data.victim, ""))
+						if victim_role != "":
+							var key := "%s_%s" % [victim_team, victim_role]
+							deaths_role_side[key] = int(deaths_role_side.get(key, 0)) + 1
 					if fb < 0:
 						fb = ev.t / (60.0 * SimMatch.TICKS_PER_SECOND)
+						if victim_team in ["blue", "red"]:
+							fb_side[scoring_side] += 1
 					if ev.data.assists.is_empty() and ev.data.get("killer", "") != "":
 						solo_kills += 1
 					if ev.data.get("source", "player") == "tower":
@@ -245,6 +292,10 @@ func _initialize() -> void:
 					for why: String in ev.data.declines:
 						decline_hist[why] = int(decline_hist.get(why, 0)) \
 							+ int(ev.data.declines[why])
+					var fwinner: String = String(ev.data.get("winner", ""))
+					if fwinner in ["blue", "red"]:
+						fights_decided += 1
+						fights_won_side[fwinner] += 1
 				"gank_call":
 					var is_sandwich: bool = String(ev.data.get("kind", "gank")) == "sandwich"
 					gank_calls += 1
@@ -272,12 +323,21 @@ func _initialize() -> void:
 				"lane_swap":
 					swaps_this += 1
 				"objective_taken":
+					var oteam: String = String(ev.data.get("team", ""))
 					if ev.data.objective == "dragon":
 						dragons += 1
+						if oteam in ["blue", "red"]:
+							dragons_side[oteam] += 1
+							match_max_stacks[oteam] = maxi(match_max_stacks[oteam], int(ev.data.get("stacks", 0)))
 					else:
 						barons += 1
+						if oteam in ["blue", "red"]:
+							barons_side[oteam] += 1
 				"tower_destroyed":
 					towers += 1
+					var defender: String = String(ev.data.get("team", ""))
+					if defender in ["blue", "red"]:
+						towers_lost_side[defender] += 1
 					for tp: Dictionary in open_tempo:
 						if tp.lane == ev.data.lane and tp.team != ev.data.team \
 								and ev.t <= int(tp.until):
@@ -287,6 +347,12 @@ func _initialize() -> void:
 						first_tower_t = int(ev.t)
 						first_tower_lane[ev.data.lane] += 1
 		kill_totals.append(kills)
+		var match_top_stacks := maxi(match_max_stacks.blue, match_max_stacks.red)
+		max_stacks_seen = maxi(max_stacks_seen, match_top_stacks)
+		if match_top_stacks >= 3:
+			matches_reached_3_stacks += 1
+		if match_top_stacks >= 4:
+			matches_reached_4_stacks += 1
 		biggest_fight.append(match_peak)
 		# The reel, scored the same way the viewer will score it (M6-A).
 		var moms := Highlights.moments(result.events, result.ticks, hl_cfg)
@@ -301,6 +367,11 @@ func _initialize() -> void:
 			reel_kinds[mom.kind] = int(reel_kinds.get(mom.kind, 0)) + 1
 			reel_thirds[mini(2, int(3.0 * float(mom.start) / maxf(1.0, result.ticks)))] += 1
 		for c: Dictionary in open_calls:
+			var cteam: String = String(c.get("team", ""))
+			if cteam in ["blue", "red"]:
+				calls_side[cteam] += 1
+				if c.hit:
+					calls_hit_side[cteam] += 1
 			if c.hit:
 				connect_hits += 1
 				if bool(c.get("sandwich", false)):
@@ -455,6 +526,63 @@ func _initialize() -> void:
 		print("| First tower is %s | %.0f%% |" % [lane, 100.0 * first_tower_lane[lane] / maxi(ft_total, 1)])
 	print("| Lane swap rate (team-games) | %.0f%% |" % (100.0 * swap_events / maxi(2 * sims, 1)))
 	print("| Both teams swapped (mirror) | %.0f%% |" % (100.0 * both_swapped / sims))
+
+	print("")
+	print("| Dragon stacks | Value |")
+	print("|---|---|")
+	print("| Highest single-team stack count seen | %d |" % max_stacks_seen)
+	print("| Matches where a team reached 3+ stacks | %.0f%% |" % (100.0 * matches_reached_3_stacks / sims))
+	print("| Matches where a team reached 4+ stacks | %.0f%% |" % (100.0 * matches_reached_4_stacks / sims))
+
+	# Side breakdown (diagnostic): where does a side's win-rate edge actually
+	# live, isolated from which named team happens to be playing that side
+	# (already randomised above). Everything here is symmetric by construction
+	# if the map and the sim treat both sides identically; a lopsided share is
+	# the signal, not the raw number.
+	print("")
+	print("| Side breakdown | blue | red |")
+	print("|---|---|---|")
+	var side_kills_total := maxi(kills_side.blue + kills_side.red, 1)
+	print("| Kills | %.0f%% | %.0f%% |" % [
+		100.0 * kills_side.blue / side_kills_total, 100.0 * kills_side.red / side_kills_total])
+	var fb_total := maxi(fb_side.blue + fb_side.red, 1)
+	print("| First blood taken | %.0f%% | %.0f%% |" % [
+		100.0 * fb_side.blue / fb_total, 100.0 * fb_side.red / fb_total])
+	var drag_total := maxi(dragons_side.blue + dragons_side.red, 1)
+	print("| Dragons taken | %.0f%% | %.0f%% |" % [
+		100.0 * dragons_side.blue / drag_total, 100.0 * dragons_side.red / drag_total])
+	var baron_total := maxi(barons_side.blue + barons_side.red, 1)
+	print("| Barons taken | %.0f%% | %.0f%% |" % [
+		100.0 * barons_side.blue / baron_total, 100.0 * barons_side.red / baron_total])
+	var towers_total := maxi(towers_lost_side.blue + towers_lost_side.red, 1)
+	print("| Towers lost | %.0f%% | %.0f%% |" % [
+		100.0 * towers_lost_side.blue / towers_total, 100.0 * towers_lost_side.red / towers_total])
+	if fights_decided > 0:
+		print("| Fights won (decided only) | %.0f%% | %.0f%% |" % [
+			100.0 * fights_won_side.blue / fights_decided,
+			100.0 * fights_won_side.red / fights_decided])
+	print("| Gank/sandwich calls made | %.0f%% | %.0f%% |" % [
+		100.0 * calls_side.blue / maxi(calls_side.blue + calls_side.red, 1),
+		100.0 * calls_side.red / maxi(calls_side.blue + calls_side.red, 1)])
+	print("| ...connect rate of those calls | %.0f%% | %.0f%% |" % [
+		100.0 * calls_hit_side.blue / maxi(calls_side.blue, 1),
+		100.0 * calls_hit_side.red / maxi(calls_side.red, 1)])
+	print("")
+	print("| Deaths by role | blue | red |")
+	print("|---|---|---|")
+	for role in DataLoader.ROLES:
+		var bd := int(deaths_role_side.get("blue_%s" % role, 0))
+		var rd := int(deaths_role_side.get("red_%s" % role, 0))
+		print("| %s | %.1f/match | %.1f/match |" % [role, float(bd) / sims, float(rd) / sims])
+	print("")
+	print("| Gold diff (blue - red) over time | Value |")
+	print("|---|---|")
+	for si in range(gold_diff_by_snap.size()):
+		if gold_diff_samples[si] == 0:
+			continue
+		var mins := si * (LEAD_TICK / (60.0 * SimMatch.TICKS_PER_SECOND))
+		print("| %d min (%d samples) | %+.0f |" % [
+			int(mins), gold_diff_samples[si], gold_diff_by_snap[si] / gold_diff_samples[si]])
 
 	print("")
 	if oob == 0 and squad_oob == 0:

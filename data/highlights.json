@@ -22,7 +22,17 @@
     "",
     "select.*: the reel. floor is absolute — a boring match gets a SHORT reel,",
     "it never gets padded. min_spacing_s stops five clips of one long brawl.",
-    "max_per_kind is variety. The nexus is exempt from all of it."
+    "max_per_kind is variety. The nexus is exempt from all of it.",
+    "",
+    "director.*: M6-C, read by game/main.gd (not sim/highlights.gd — these are new",
+    "top-level keys the loader just passes through). preroll_s/aftermath_s pad each",
+    "moment's [start, end] into the window the camera treats as \"inside this",
+    "highlight\" — REPORTS/M6-scoping.md measured fights at 6.3s mean/8s p90, so a",
+    "few seconds either side comfortably covers the approach and the comedown",
+    "without reaching into the next moment. zoom is the camera's close-up zoom",
+    "level while a highlight is active (same 1.0-4.0 range as MapView.ZOOM_MIN/MAX).",
+    "rewind_s is the transport rewind button's step. Precise minute-budget tuning",
+    "against the designer's ~11-12 / ~4-5 min targets is M6-F, not this file."
   ],
 
   "merge_window_s": 15.0,
@@ -55,5 +65,12 @@
     "floor": 30.0,
     "min_spacing_s": 45.0,
     "max_per_kind": 4
+  },
+
+  "director": {
+    "preroll_s": 3.0,
+    "aftermath_s": 4.0,
+    "zoom": 3.2,
+    "rewind_s": 8.0
   }
 }

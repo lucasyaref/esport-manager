@@ -9,7 +9,8 @@ Everything the sim knows about characters, players and teams lives in these JSON
 | `role` | `top`, `jungle`, `mid`, `carry`, `support`. Exactly 3 characters per role. |
 | `model` | The LoL champion this character is modeled on — anchors kit fantasy and sim behavior. Documentation only; never shown in-game. |
 | `intent` | One-line design intent — documentation only, sim ignores it. |
-| `sprite` | Sprite path. All share one placeholder for now; per-character art later = just change this path. |
+| `sprite` | Sprite path fallback, used only when `sprite_by_side` is absent. The hook a true future per-character replacement (one path, no team variants) drops into with no code change. |
+| `sprite_by_side` | `{"blue": path, "red": path}` — which team-coloured sheet to draw, since M6-D2's art bakes team colour into the file rather than tinting it at draw time. All characters sharing a `role` currently point at the same pair of files (one look per role, not per character yet — see BACKLOG's character-art follow-up for the long-term per-character intent). Regenerate with `tools/fetch_lpc_sprites.mjs`. |
 | `curve` | Power curve: `early` (strong before ~14:00, falls off), `balanced`, `late` (weak early, monster after ~22:00). Multipliers defined in comp_rules.json. |
 | `base` | Level-1 stats: `hp`, `damage`, `armor`, `speed`. |
 | `growth` | Stat gain per level (levels 1→18, linear): `hp`, `damage`, `armor`. Speed doesn't grow. |
@@ -30,7 +31,7 @@ Ultimate effect types: `aoe_cc` (stun/fear/knockup/slow an area), `single_cc` (s
 `mood` is **not** stored here: per GDD it's a per-match modifier chosen in match setup.
 
 ## teams.json — the 2 PoC teams
-`roster` maps each role to a player id. `color` tints the shared sprite in the viewer. `identity` is documentation.
+`roster` maps each role to a player id. `color` drives the viewer's team-colour UI (ring outline, HP bar, badges, minimap dots) and picks which side of a character's `sprite_by_side` to draw; it no longer tints the character body itself (M6-D2 — that art bakes team colour into the file). `identity` is documentation.
 
 ## map.json — the map
 Logical 100×100 map, blue base bottom-left. `lanes` are waypoint paths (blue end → red end); `towers` sit at fractions along each lane (0 = blue nexus, 1 = red nexus); `camps` are the jungle camps with their gold/XP/clear-time values; `pits` are the Dragon/Baron locations (used from M3).

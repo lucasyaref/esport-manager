@@ -16,11 +16,11 @@ Full rationale, diagnostics and batch numbers behind completed work live in `CHA
 | M4.5 — Sim depth: space, health, agency | done |
 | M5 — Macro play: cross-map coordination | done 2026-08-01 (report: REPORTS/M5.md; A–G in CHANGELOG.md) |
 | M5.5 — Viewer v2: combat readability & juice | done (playtest gate passed 2026-07-26; A–H in CHANGELOG.md) |
-| **M6 — Highlights & the close-up view** | **in-progress — A done (shipped with M5-G); T next, B–G to-do**; reordered ahead of the draft screen 2026-07-31 — the scene should look good before draft |
+| **M6 — Highlights & the close-up view** | **in-progress — A done (shipped with M5-G); T built (T1–T4 done, guard rails clean); B done 2026-08-12 (`REPORTS/M6-B.md`); C done 2026-08-12 (`REPORTS/M6-C.md`); D done 2026-08-14 (`REPORTS/M6-D.md`); D2 done 2026-08-14 (`REPORTS/M6-D2.md`); F/G next**; reordered ahead of the draft screen 2026-07-31 — the scene should look good before draft |
 | M7 — PoC polish pass | to-do (scope: match + highlight view; draft screen not yet in scope, see below) |
 | Draft screen | **deferred** — decision point after M7: go to draft, or keep the designer's focus on the sim/viewer |
 
-## Now — M6: the close-up view (phase **T** next — terrain)
+## Now — M6: the close-up view (phase **D**/**D2** done — F, G next)
 
 **Designer decisions, 2026-08-02** (answers to `REPORTS/M6-scoping.md` §Questions):
 1. *Ordering* — already settled 2026-07-31: the view goes before the draft screen.
@@ -36,6 +36,16 @@ Full rationale, diagnostics and batch numbers behind completed work live in `CHA
 5. *Terrain* — **build it, jointly.** Promoted out of the parking lot into phase **M6-T**,
    scheduled next. Design model: GDD §6.2. Working method and the first draft map:
    `REPORTS/M6-terrain-scoping.md`.
+6. *Baron/dragon value parity* (`REPORTS/M6-T-diagnosis.md` §7–13), 2026-08-12 — **it's a numbers
+   question**, split out of M6-T into its own balance phase, not blocking M6. The designer's first
+   pick — buff dragon (a "Soul" spike at 4 stacks) instead of nerfing baron — measured **inert**: 0
+   of 300 games ever had a team reach 4 dragon stacks (this sim only sees ~2.1 dragons taken *in
+   total* per match; real LoL: 4–6). Kept in the data anyway (harmless), and the low-uptake cause is
+   parked as its own unscoped follow-up. The `baron_siege_mult` sweep that followed **found the fix**:
+   3.0 (shipped) → 61.3% blue; 2.0 → 53.0%; **1.5 → 50.3%**, on target, with no red-side overshoot.
+   `data/balance.json` is currently back at 3.0, uncommitted — **designer sign-off open** on shipping
+   1.5 (`REPORTS/M6-T-diagnosis.md` §12–13). M6-T's terrain scope (T1–T4) is otherwise complete; the
+   milestone continues on **M6-B/C** without waiting on this.
 
 
 **M5 is done** (2026-08-01, `REPORTS/M5.md`). The macro win-vector target is **met**: the macro
@@ -82,7 +92,7 @@ are in **Now**, above.
 Standing guardrails, unchanged and still binding: pure-GDScript `sim/`, determinism, `tools/check.sh`,
 headless batch, data-driven (new tunables → `data/balance.json`). GDD §6.1 has the macro model.
 
-### M6 — Highlights & the close-up view — in-progress (A done, B next)
+### M6 — Highlights & the close-up view — in-progress (A, T, B, C, D, D2 done; F, G next)
 
 Designer direction, 2026-07-25: a **second view**. The overview stays what it is (accelerated, whole map, silhouettes); 5–10 times a match the viewer drops into a **highlight** — zoomed on the action, characters as real sprites with animations and spell effects, played at **real speed** for ~30 s max. Ganks that turn into kills, teamfights, big fights. Actions are scored, the top 5–10 are selected, and anything under an absolute threshold is dropped even if it made the top 10. Full scoping, measurements and open questions: `REPORTS/M6-scoping.md`. Design model: GDD §7.2.
 
@@ -107,23 +117,124 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
   measures the reference's share, and the only remaining way to buy more costs walkable ground.
   Gauntlet loop 1 exits with one accepted-and-deferred fidelity finding (the bases) rather than a
   clean stopping rule, by decision and on the record.
-  **T2** movement
-  routes around walls (precomputed per-destination flow, no runtime search), with a batch delta on
-  gank connect rate, escape rate and rotation cost; **T3** brush hides bodies and walls block sight,
-  gated on its own batch measurement; **T4** camps and pits moved into their real pockets, sign-off.
+  **T2 — movement routes around walls — shipped 2026-08-11** (`sim/nav_grid.gd`, `REPORTS/M6-T2.md`).
+  Precomputed flow fields to every destination a body walks (lanes/camps/pits), built once at load,
+  no per-agent runtime search — determinism holds. Batch delta (300 sims): gank/sandwich/multi-man
+  connect rates all fall 3–6 pts as designed, kills/min moves toward pro (1.11→0.96 against ~0.85),
+  and the **macro win-vector lands on M5's ~43% target as a side effect** (32.3%→42.3%), unplanned.
+  Two open watch items, both traced to the same known T4 cause (camps sitting inside the dragon/baron
+  pits): blue-side win rate moved 49.7%→55.0%, and first-tower's lane split shifted bot↔mid. Designer
+  gate open: keep as measured, and pick T3 vs. pulling T4 forward — `REPORTS/M6-T2.md` §7.
+  **T3 — brush hides bodies, walls block sight — built and measured 2026-08-11**
+  (`sim/combat.gd:_can_see`, `sim/terrain.gd:has_sight`, `REPORTS/M6-T3.md`). Every hostile
+  perception check in combat now runs through one gate: a wall blocks sight outright, a body in
+  brush is invisible past 3.5 units (vs. the normal 9.0), asymmetric by design — the mechanism the
+  scoping report called "the most fun mechanic" here. Batch delta (300 sims, vs. T2): the ambush
+  effect is real and outweighs T2's travel-cost effect — gank/sandwich/multi-man connect rates all
+  rise (24→28%, 32→41%, 28→34%, the last two above their pre-T2 numbers), kills/min reverts to
+  1.11 (pre-T2 level, away from pro's ~0.85), the macro win vector overshoots to 51.0% (target
+  ~43%), and blue-side win rate worsens again (55.0%→57.7%). Unlike T2, **not called "keep as
+  measured"** — flagged `brush_reveal_radius` (3.5, unmeasured guess) as the lever to tune first.
+  **Follow-up sweep (3.5/4.5/5.5, `REPORTS/M6-T3.md` §6) ruled that out**: every metric held flat
+  across a 57% wider reveal window, so the radius isn't the lever — concealment reads as roughly
+  binary, not a dial. Open question moved from "what radius" to "keep the mechanic as-is, or does
+  it need a structural change (e.g. only concealing a stationary body)" — `REPORTS/M6-T3.md` §8.
+  **T4 — camps separated from their pits — built 2026-08-11**
+  (`tools/terrain_paint.gd --camps=D`, `REPORTS/M6-T4.md`). The four camps that sat cell-touching
+  the dragon/baron pits now have a real ~7–8 unit gap. Guard rails clean. Batch delta (300 sims, vs.
+  T3): **the working theory was wrong.** Every metric T2/T3 had traced to this overlap held flat
+  (macro win vector 51.0→50.7%, connect rates, lane split) — separating camp from pit fixed none of
+  it — and blue-side win rate got *worse* (57.7%→61.3%), the third phase running to push it further
+  from the ~50% target (49.7%→55.0%→57.7%→61.3% across T1-baseline→T2→T3→T4).
+  **Diagnosis pass — cause found 2026-08-11** (`tools/batch_run.gd`'s new per-side breakdown,
+  `REPORTS/M6-T-diagnosis.md`). Every proximate combat number is even (kills, gold, deaths, fight
+  wins, gank connect rate all ~50/50) — but **barons taken is 61% blue**, almost exactly matching
+  the 61.3% win-rate split. Cause: `data/map.json`'s pits never moved all milestone, and blue's base
+  sits 43.1 units from baron vs. red's 61.8 (the map's exact 180° mirror of red being closer to
+  dragon) — fair *if the two objectives are worth the same*. They aren't:
+  `data/balance.json`'s baron carries a **3.0× siege damage multiplier** and 3× dragon's gold, dragon
+  is a small stacking buff with no siege component. Blue drew the stronger half of a
+  geometrically-fair map. T2/T3/T4's working theory (camp/pit overlap) is now formally ruled out —
+  it never touched this lever. Why it only appeared at T2: pre-T2 movement ignored walls, so the
+  proximity gap was a small constant a whole game could wash out; T2 made real path cost matter, and
+  T3/T4 both then landed changes in baron's own neighbourhood without touching the actual cause.
+  **Terrain scope (T1–T4) done 2026-08-12.** The balance fix this diagnosis pass recommended is
+  **split out into its own phase, run by the designer in parallel** (decision above, §Now item 6) —
+  it doesn't block M6 moving on to the camera.
   Ships before the camera because every later phase draws on top of it.
+  **Scoping M6-B found one more thing to fix first, filed here since it's the same file:** despite
+  the CHANGELOG's M6-T1 entry saying `game/terrain_view.gd` is "drawn by... the match viewer and the
+  still-frame capture rig, both" — it is not. `game/map_view.gd`'s `_draw_field()` still flat-fills a
+  solid background; `TerrainView.draw()` is only ever called from the offline capture rig
+  (`tools/shoot_map.gd`). 51 gauntlet iterations of terrain art are invisible in the actual game. Not
+  a new phase — folded into M6-B as its first task, since the camera is pointless to build against a
+  flat grey map and both touch the same draw path.
 - **M6-A — Highlight scoring (headless, no view) — done** (2026-08-01, `REPORTS/M6-A.md`). `sim/highlights.gd` + `data/highlights.json` + `tools/reel.gd`, measured in batch: **8.0 moments per reel** over 400 sims, deterministic, floor/spacing/diversity/cap all live. **The designer gate is still open**: read a reel or three (`tools/reel.gd -- --seed=N`) and say whether those are the moments you would want to watch.
-- **M6-B — The camera.** `MapView`'s world→screen transform becomes a camera (centre, **continuous zoom**, smoothing, follow-a-point); overview is the camera fitted to the world, so nothing changes visually on day one. Zoom-aware sizing for everything currently clamped in pixels. Manual zoom in/out controls, click-or-hotkey to follow a player (TFM2 binds F1–F10), and — because zooming in loses the map — a **minimap** with player dots, the viewport rectangle and objective timers. The minimap is a requirement of this phase, not polish.
-- **M6-C — Real speed + the director.** A sub-1x playback speed (today's 1x is already **4× sim-time**; real speed is 0.25× of it), visual lifetimes rescaled below the current 4× cap, snapshot cadence raised to one per tick for viewer runs. An **auto-camera director** consumes M6-A's scored moments: it pushes the camera in and drops the speed for pre-roll (the approach) + action + aftermath, then pulls back out. Auto-camera is a toggle — manual camera always available. On-screen framing (what this highlight is, who it's about) and a skip control. Both pacing modes fall out of the same machinery: **full match** (highlights add ~3.5 min on top) and **highlights-only** (jump between moments, ~4–5 min a match). Transport to match the reference: skip-to-start / rewind / skip-to-end over the existing slider, which makes **"replay that highlight"** nearly free.
-- **M6-D — Close-up actors, and the bases they stand in.** ➕ **Scope added 2026-08-09** (designer
-  call closing gauntlet run 5): the **base floors** ship here rather than in M6-T1. Gauntlet loop 1's
-  last unclosed fidelity finding is *"both bases read as flat tinted rectangles, not built ground —
-  no floor material, no perimeter wall, no structure silhouette"*, filed `breaks-immersion`. It is
-  held to this phase because the towers and nexus standing on that floor are this phase's sprites,
-  and paving a plaza under placeholder squares would only fix half the picture. GDD §6.3 rule 7
-  already allots the ornament budget to both bases, so no new rule is needed — build the floor and
-  the things on it together, then re-run the fidelity critic on the result.
-  Characters read as characters at 4× zoom: animation states (idle / run / attack / cast / hurt / die / recall), wind-up telegraphs, facing **reported by the sim** rather than inferred by the viewer. ✅ **Unblocked 2026-08-02: pixel sprite sheets** (designer answer (b), GDD §7.3). The actor is built around a sprite-sheet contract from the start — a 16–32 px animated body per role, shared placeholder set, per-character `sprite` field overriding it with no code change. Same pixel art direction as the M6-T terrain.
+- **M6-B — The camera — done 2026-08-12** (`REPORTS/M6-B.md`). Fixed a wiring bug found while
+  scoping this phase: `TerrainView.draw()` (M6-T's terrain art) was never actually called from the
+  live match viewer, only from the offline capture rig — every match played to date ran on a flat
+  background. Wired it into `map_view.gd`'s `_draw_field()`, through the camera's own scale so it
+  pans/zooms with everything else. Then the camera itself: `MapView`'s fixed world→screen transform
+  replaced by `cam_center`/`cam_zoom`, eased toward a target (not snapped); `ZOOM_MIN` reproduces
+  the old fit-the-world transform exactly, so a match at rest looks the same as before plus terrain
+  now visible. Zoom-aware sizing for every flat-pixel element (turret glyphs, bars, fonts, badges —
+  up to 3× their overview size at max zoom). Manual zoom (mouse wheel, `Zoom −`/`Zoom +` buttons).
+  Follow-a-player: F1–F10 (TFM2's own binding, GDD §7.3) or click a champion body, released via
+  Escape or clicking empty map. A minimap (bottom-left, appears only once zoomed in) with
+  team-coloured player dots, the camera's own viewport rectangle, and dragon/baron up/down pips —
+  no numeric spawn countdown yet, the sim doesn't report one, flagged as a follow-up. `tools/check.sh`
+  green (sim untouched, as expected); verified visually via an independent screenshot check
+  (screenshots local-only, git-ignored). Public camera API (`set_target`/`follow_player`/etc.) built
+  so **M6-C**'s auto-camera director can drive it without new input plumbing.
+- **M6-C — Real speed + the director — done 2026-08-12** (`REPORTS/M6-C.md`). A fourth playback tier,
+  0.25x — true 1:1 real time against the sim clock — alongside 1x/4x/16x; fixed `_time_scale()`'s
+  `mini()`-truncates-a-fraction-to-zero bug on the way in (`minf()` now), which would otherwise have
+  zeroed every effect lifetime at real speed. Snapshot cadence raised 2→1 tick. An **auto-camera
+  director** computes the match's highlight reel once (`sim/highlights.gd`, read-only, same as
+  `tools/reel.gd`) and, while playing, pushes the camera to zoom 3.2 and drops to real-speed for each
+  moment's pre-roll (3s) + action + aftermath (4s), then restores the exact prior camera/speed state
+  on exit — all four numbers live in `data/highlights.json`'s new `director` block, unmeasured
+  "feels right" values left for a later tuning pass. Auto-camera is a toggle; manual camera input
+  (wheel zoom, click, F1–F10) always takes the camera back for the current highlight without the
+  director fighting it, and resumes normally on the next one. An on-screen banner names the moment
+  and the players in it (`Highlights.describe()` + resolved names) with Replay/Skip controls, plus a
+  new Rewind transport button — all timeline jumps reuse the existing `_seek()` primitive, no second
+  mechanism. Both pacing modes share this machinery: **Full** (default, camera dips in/out
+  continuously) and **Highlights** (jumps straight between moments, skipping the dead time — verified
+  live, one frame skipped ~192 sim-seconds between two highlights). `tools/check.sh` green
+  (sim untouched, as expected — `--selftest` now also asserts the director engages whenever the reel
+  is non-empty, checked across 6 seeds); verified visually via an independent screenshot check
+  (screenshots local-only, git-ignored) covering all of the above plus exact state restoration on
+  exit. One pre-existing, non-blocking issue noted, not introduced here: player name/level labels can
+  crowd/clip at high zoom near the map edge (an M6-B-era label-density gap).
+- **M6-D — Close-up actors, and the bases they stand in — done 2026-08-14** (`REPORTS/M6-D.md`).
+  ➕ **Scope added 2026-08-09** (designer call closing gauntlet run 5): the **base floors** ship
+  here rather than in M6-T1. Gauntlet loop 1's last unclosed fidelity finding is *"both bases read
+  as flat tinted rectangles, not built ground — no floor material, no perimeter wall, no structure
+  silhouette"*, filed `breaks-immersion`. Two of the three turned out to already be shipped, in
+  later M6-T1 iterations (paved base floor colour, `_draw_base_wall`'s masonry ring); the remaining
+  piece, structure silhouette, ships here as a tower/nexus sprite sheet (tiered plinth + spire;
+  faceted crystal) layered under the existing HP-drain/bar/flash/rubble drawing.
+  Characters now read as characters at zoom: a shared, generated (`tools/make_sprites.gd`) pixel
+  sprite sheet — `game/assets/characters/placeholder.png`, 24px frames, idle / run / attack / cast
+  / hurt / die / recall — replaces the procedural silhouette that every match had silently drawn
+  since M1 (`data/characters.json`'s `sprite` field pointed at this path all along; the file just
+  never existed). ✅ **Unblocked 2026-08-02: pixel sprite sheets** (designer answer (b), GDD §7.3),
+  shipped as an "authored here" placeholder per that same section, since no CC0 set was vendored
+  and there's no image-generation tool in this environment. Animation state is derived client-side
+  each frame from flags the sim already reports (combat/disengage/CC/recall flags, last-swing tick,
+  facing, alive, HP-diff flinch) — **no new sim plumbing needed**, same pattern M6-B already used
+  for `casting`. The per-character `sprite` field still overrides the shared sheet with real art
+  and no code change. Two legibility issues found by the first tester pass (role-letter badge
+  occluded by the level badge; tower silhouette fusing into a blob at full HP) were fixed and
+  re-verified live — see the report for both. `tools/check.sh` green throughout (sim untouched, as
+  expected).
+- **M6-D2 — Character art: LPC role sprites, both team colors — done 2026-08-14**
+  (`REPORTS/M6-D2.md`). Role-level pixel art (one look × 5 roles × 2 team colors) replaces the
+  procedural placeholder; `sprite_by_side` resolves per character+team. One follow-up flagged, not
+  fixed: level/role corner badges read oversized against the new (visually smaller) bodies at high
+  zoom. **Long-term intent, still on record and unstarted: one real sprite per character** — see the
+  parking lot below.
 - **M6-E — Spell effects at close range.** Per effect family, at the ability's real radius and real cast time: telegraph → cast → impact → aftermath. The overview's M5.5-C shapes stay as the far-view version of the same event.
 - **M6-G — The broadcast header** (designer direction 2026-08-02, GDD §7.4). One top strip that reads like a LoL broadcast: team names, kills either side of the clock, **dragon pips** per team, baron with its remaining duration, turret counts, team gold with the delta marked on the leader only (`+1.7k`). Replaces today's scattered clock / score / gold bar. Permanently on screen at every zoom, because a zoomed camera has lost the map and must still say who is winning. Everything in it is a read of the sim's own output — the HUD counts nothing the sim did not report. Ships with the **full-width kill banner** (both portraits) from the reference target; the side feed stays as narration.
 - **M6-F — Pacing, modes & sign-off.** Measure the real minutes a watched match costs in each mode against the designer's **(a)** answer (target ~11–12 min for a full watched match; ~4–5 for highlights-only), tune the selection floor, `REPORTS/M6.md`, playtest gate.
@@ -133,10 +244,13 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
 - ✅ **Jungle walls / terrain / chokepoints** — resolved 2026-08-02: build it. Now phase **M6-T**, above.
 
 **Already-shipped work that M6 modifies** (none of it a rewrite):
-- `game/map_view.gd` — `_scale()` / `_w2s()` replaced by the camera (M6-B); `CHAMP_R_MIN/MAX`, `TOWER_R`, `PIT_R`, `PAD` and font sizes are clamped for the fit-the-world assumption and must become zoom-aware.
+- ✅ `game/map_view.gd` — `_scale()` / `_w2s()` replaced by the camera; `CHAMP_R_MIN/MAX`, `TOWER_R`, `PIT_R` and font sizes are now zoom-aware. Done in M6-B, `REPORTS/M6-B.md`.
 - `game/main.gd` — `SPEEDS` gains a sub-1 entry; `BASE_TPS_1X` stays the 1x anchor; the visual-stretch helper (`min(SPEEDS[i], 4)`, ~line 711) must open downward or every M5.5 effect lingers 4× too long in the close-up. All the `*_TTL` / `*_TICKS` constants were tuned against the 4×-sim-time assumption and need re-checking at real speed.
 - `SNAP := 2` (5 keyframes per sim-second) → 1 for viewer runs; measure the memory cost.
-- **Snapshot contract** — the close-up needs things the viewer currently infers: facing (`_resolve_facing`), cast start/wind-up, hit vs. miss. Per Pillar 3 the sim reports them; a small snapshot extension exactly like M5.5-B's.
+- **Snapshot contract** — ✅ resolved 2026-08-14, without a new extension: M6-D found facing,
+  combat/disengage/CC/recall flags, the last-swing tick and HP-diffs already sufficient to derive
+  every animation state client-side (same pattern M6-B used for `casting`), so this item closes
+  without touching `sim/`.
 - ✅ `fight_end` — now carries the participant lists, the gold swing, `peak` (largest either side got at once) and `present`/`declines` (bodies that could be swinging and are not, and why). Done in M6-A/M5-G.
 - `--selftest` + `tools/check.sh` — assert the reel is non-empty, spaced, within budget, and that entering/leaving a highlight doesn't drop frames.
 - GDD §7 (playback speeds) and §7.2 (new).
@@ -155,7 +269,7 @@ Reordered out of the near-term plan by designer direction (2026-07-31): the matc
 No work should start on this until that checkpoint.
 
 ## Parking lot (PoC+, do not start)
-Club creation · league calendar + standings + headless league sims · match history · budget/mercato · coaching staff system · marketing · per-character sprites.
+Club creation · league calendar + standings + headless league sims · match history · budget/mercato · coaching staff system · marketing · per-character sprites (**confirmed designer long-term intent, 2026-08-14** — see M6-D2, `REPORTS/M6-D2.md`; still parked, the PoC step shipped role-level art, not per-character).
 
 **Wanted by the designer, deliberately deferred** (revisit after M4.5 lands, before M7):
 - ~~**Jungle walls, terrain and chokepoints**~~ — deferred at M4.5-C, promoted 2026-07-25, and

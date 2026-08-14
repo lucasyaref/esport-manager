@@ -149,8 +149,12 @@ Design truth: GDD §6.2 (layout model) and §6.3 (the eight look rules).
 
 A real Summoner's-Rift-shaped map, authored as a **human-readable ASCII grid** the designer can open
 in any text editor and edit by typing — one character per cell, 50×50 over the 100×100 world. Loaded
-and validated by `sim/terrain.gd`, drawn by `game/terrain_view.gd`, which the match viewer and the
-still-frame capture rig **both** call, so the loop grades exactly the pixels the game shows.
+and validated by `sim/terrain.gd`, drawn by `game/terrain_view.gd` — written so that the match viewer
+and the still-frame capture rig **could both** call it and the loop would grade exactly the pixels the
+game shows. That claim did not hold until M6-B: `game/map_view.gd` only ever flat-filled a background
+colour, so `TerrainView.draw()` ran solely inside the offline capture rig (`tools/shoot_map.gd`) and
+none of this milestone's terrain art was visible in an actual match. M6-B wired `TerrainView.draw()`
+into `map_view.gd`'s `_draw_field()`, which is when the claim in this paragraph became true.
 
 ### The guard rails, and the two defects they did not catch
 

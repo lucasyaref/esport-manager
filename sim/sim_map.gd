@@ -20,6 +20,11 @@ var towers: Dictionary = {}       # team -> {tier name: lane param}
 var tier_order: Dictionary = {}   # team -> [tier names], outermost first
 var pits: Dictionary = {}         # dragon/baron -> Vector2
 var camps: Array[Dictionary] = [] # copies of camp defs with pos as Vector2
+## Both null until DataLoader.load_all attaches them (M6-T2). Built once, from
+## data/terrain.txt, and shared by every SimMap constructed from the same map
+## data — never rebuilt per match, let alone per agent or per tick.
+var terrain: Terrain = null
+var nav: NavGrid = null
 
 
 func _init(map_data: Dictionary) -> void:
@@ -128,3 +133,26 @@ func clamp_front(t: float) -> float:
 
 static func _vec(pt: Array) -> Vector2:
 	return Vector2(float(pt[0]), float(pt[1]))
+
+
+## Builds the flow-field navigation for every destination a body actually
+## walks to (M6-T2): each lane treated as one region (every cell its
+## polyline crosses, so "walk to top" routes to the nearest point ON that
+## lane), each camp and each pit as a single cell. Called once, from
+## DataLoader.load_all, and shared by every SimMap built from the same map
+## data — see NavGrid's own doc comment for why that matters.
+func build_nav(p_terrain: Terrain) -> NavGrid:
+	var hubs: Dictionary = {}
+	for lane in LANES:
+		var seeds: Array[Vector2i] = []
+		# Dense enough to hit every cell a 2-unit-per-cell polyline crosses;
+		# duplicate seeds just re-mark the same cell at distance 0, harmless.
+		var samples: int = maxi(p_terrain.n * 2, 64)
+		for k in samples:
+			seeds.append(p_terrain.cell_of(pos_on_lane(lane, float(k) / float(samples - 1))))
+		hubs["lane_" + lane] = seeds
+	for pit: String in pits:
+		hubs["pit_" + pit] = [p_terrain.cell_of(pits[pit]) as Vector2i] as Array[Vector2i]
+	for camp: Dictionary in camps:
+		hubs["camp_%s" % camp.id] = [p_terrain.cell_of(camp.pos) as Vector2i] as Array[Vector2i]
+	return NavGrid.new(p_terrain, hubs)

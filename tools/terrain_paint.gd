@@ -21,6 +21,10 @@ extends SceneTree
 ##
 ##   --pits=D    slide both pits D world units along the river's perpendicular, so
 ##               the channel runs past them instead of into them.
+##   --camps=D   push every camp that flanks the baron bowl D world units further
+##               away from it, along the line from the bowl's centre through the
+##               camp's, then mirror the same two edits 180 degrees onto their
+##               dragon-side counterparts.
 ##   --bases=K   pull both base footprints, their nexus and their lane mouths K
 ##               cells in from the map edge.
 ##   --lanes     re-rasterise the lane bands from the polylines in map.json.
@@ -103,6 +107,8 @@ func _initialize() -> void:
 	var changed := 0
 	if args.has("pits"):
 		changed = _move_pits(terrain, map_data, float(str(args["pits"])))
+	elif args.has("camps"):
+		changed = _move_camps(terrain, map_data, float(str(args["camps"])))
 	elif args.has("bases"):
 		changed = _inset_bases(terrain, map_data, int(str(args["bases"])))
 	elif args.has("lanes"):
@@ -127,7 +133,7 @@ func _initialize() -> void:
 	elif args.has("dilate"):
 		changed = _dilate_rock(terrain, int(str(args["dilate"])))
 	else:
-		print("ERROR: need one of --pits=D, --bases=K, --lanes, --erode=N, --dilate=N")
+		print("ERROR: need one of --pits=D, --camps=D, --bases=K, --lanes, --erode=N, --dilate=N")
 		quit(1)
 		return
 
@@ -257,6 +263,112 @@ func _move_pits(t: Terrain, map_data: Dictionary, delta: float) -> int:
 			continue
 		t.cells[r * t.n + c] = Terrain.CAMP
 		changed += 1
+	return changed
+
+
+## Pushes every camp that flanks the baron bowl D world units further away from
+## it, then mirrors the identical edit onto their dragon-side counterparts.
+##
+## Translates the camp's existing cells rather than vacating them and
+## rasterising a fresh disc — the same choice _move_pits makes for a
+## travelling camp, and for the same reason: the shape was hand-authored at
+## 4-6 cells, well under a CAMP_RADIUS disc's own footprint, and two camps as
+## close as b_camp_top and its own buff camp (8.5 world units apart, inside
+## the 12-unit reach two 5-unit gather radii imply) means a rasterised disc at
+## the new spot reaches into the neighbour's cells and fuses two distinct
+## pockets into one blob — found by inspecting the first attempt's output, not
+## by reasoning about it in advance. A translation carries only the camp's own
+## cells, so it cannot touch a neighbour it wasn't already touching.
+##
+## Only baron's neighbours are ever pushed directly. The two problem camps at
+## dragon are not found and pushed off dragon on their own terms; they are
+## whichever camp sits at each pushed camp's 180-degree opposite, and they
+## receive the exact mirrored position. Same reasoning as _move_pits mirroring
+## the bowl instead of computing both independently: baron and dragon are
+## already each other's rotated image, so two separate roundings of what
+## should be one symmetric picture is how a pair quietly stops matching.
+##
+## A camp pairs with its opposite by *position*, not by id -- map.json does not
+## record which camp is which one's mirror, so the search below is the same
+## "closest to the 180-degree point" test _check_anchor_symmetry uses.
+func _move_camps(t: Terrain, map_data: Dictionary, delta: float) -> int:
+	var size: float = map_data["size"]
+	var pits: Dictionary = map_data["pits"]
+	var baron := Vector2(pits["baron"][0], pits["baron"][1])
+	var camps: Array = map_data["camps"]
+
+	# old world pos -> [world shift, camp dict], one entry per camp this mode
+	# ends up moving -- the two that flank baron directly, plus the two their
+	# mirror step below finds at dragon.
+	var moves := {}
+	for camp: Dictionary in camps:
+		var p := Vector2(camp["pos"][0], camp["pos"][1])
+		var dist := p.distance_to(baron)
+		if dist > PIT_RADIUS + CAMP_RADIUS:
+			continue
+		var dir := (p - baron).normalized()
+		# Rounded to whole cells rather than whole world units, so the shift
+		# applied to map.json exactly matches the shift applied to the grid
+		# below -- an off-grid remainder would leave the anchor a fraction of
+		# a cell away from the cells that actually moved.
+		var shift := ((dir * delta) / t.cell_size).round() * t.cell_size
+		var new_p := p + shift
+		moves[p] = [shift, camp]
+		print("camps: %s pushed off baron, %s -> %s (dist %.2f -> %.2f)"
+			% [camp["id"], str(camp["pos"]), str(new_p), dist, new_p.distance_to(baron)])
+		camp["pos"] = [new_p.x, new_p.y]
+
+	for old_p: Vector2 in moves.keys().duplicate():
+		var shift: Vector2 = moves[old_p][0]
+		var mirror_old := Vector2(size, size) - old_p
+		# The mirrored camp travels by the opposite shift: it sits at baron's
+		# rotated image (dragon), so "further from its own pit" points the
+		# other way in world space.
+		var mirror_shift := -shift
+		var found := false
+		for camp: Dictionary in camps:
+			var cp := Vector2(camp["pos"][0], camp["pos"][1])
+			if cp.distance_to(mirror_old) <= t.cell_size * 0.5:
+				var mirror_new: Vector2 = cp + mirror_shift
+				print("camps: %s mirrored, %s -> %s"
+					% [camp["id"], str(camp["pos"]), str(mirror_new)])
+				camp["pos"] = [mirror_new.x, mirror_new.y]
+				moves[mirror_old] = [mirror_shift, camp]
+				found = true
+				break
+		if not found:
+			print("camps: WARNING no camp found at mirror of %s" % str(old_p))
+
+	var changed := 0
+
+	# Gather each camp's own cells at its old position, translate every one by
+	# its world shift (converted to whole cells), then vacate the old cell to
+	# whatever ground naturally belongs there -- same rule _move_pits uses:
+	# river if the cell lies in the channel, jungle floor otherwise.
+	for old_p: Vector2 in moves:
+		var shift: Vector2 = moves[old_p][0]
+		var dc := int(shift.x / t.cell_size)
+		# Row 0 is the top of the map, so +y in world is -1 in row.
+		var dr := -int(shift.y / t.cell_size)
+		var here_cells: Array[Vector2i] = []
+		for r in t.n:
+			for c in t.n:
+				if t.kind_at_cell(c, r) != Terrain.CAMP:
+					continue
+				if t.center_of(c, r).distance_to(old_p) > CAMP_RADIUS:
+					continue
+				here_cells.append(Vector2i(c, r))
+		for cell in here_cells:
+			var here := t.center_of(cell.x, cell.y)
+			t.cells[cell.y * t.n + cell.x] = Terrain.RIVER \
+				if absf(_perp(here, size)) <= RIVER_HALF else Terrain.OPEN
+			changed += 1
+			var nc: int = cell.x + dc
+			var nr: int = cell.y + dr
+			if nc < 0 or nr < 0 or nc >= t.n or nr >= t.n:
+				continue
+			t.cells[nr * t.n + nc] = Terrain.CAMP
+			changed += 1
 	return changed
 
 

@@ -121,6 +121,39 @@ func blocks_sight_cell(col: int, row: int) -> bool:
 	return kind_at_cell(col, row) == WALL
 
 
+## Whether a straight line between two world points never crosses a
+## sight-blocking cell (M6-T3). Same bounded Bresenham walk as
+## `NavGrid.has_los`, checking `blocks_sight_cell` instead of walkability —
+## a wall stops sight the same way it stops a body, brush does not.
+func has_sight(a: Vector2, b: Vector2) -> bool:
+	var ca := cell_of(a)
+	var cb := cell_of(b)
+	var x0 := ca.x
+	var y0 := ca.y
+	var x1 := cb.x
+	var y1 := cb.y
+	var dx := absi(x1 - x0)
+	var dy := -absi(y1 - y0)
+	var sx := 1 if x0 < x1 else -1
+	var sy := 1 if y0 < y1 else -1
+	var err := dx + dy
+	var x := x0
+	var y := y0
+	for _step in n * 2 + 2:
+		if blocks_sight_cell(x, y):
+			return false
+		if x == x1 and y == y1:
+			return true
+		var e2 := 2 * err
+		if e2 >= dy:
+			err += dy
+			x += sx
+		if e2 <= dx:
+			err += dx
+			y += sy
+	return true
+
+
 ## How deep into the border wall the arena's rampart reaches. Beyond this the
 ## map has simply ended.
 const RAMPART_DEPTH := 2

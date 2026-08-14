@@ -1,0 +1,9 @@
+{
+  "name": "esport-manager-tools",
+  "private": true,
+  "description": "Node-side asset tooling (currently just fetch_lpc_sprites.mjs). Everything else in this project is GDScript/Godot — this exists only because that script drives a headless browser.",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "^1.62.1"
+  }
+}

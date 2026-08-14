@@ -53,9 +53,19 @@ func lane_bounds(lane: String) -> Dictionary:
 	}
 
 
+## Dragon's payoff, mirroring how a real MOBA's dragon stacking works: a small
+## per-stack trickle that becomes a real power spike once a team holds enough
+## of them (the "soul" threshold) — a discrete step, not more of the same
+## linear buff, and permanent for the rest of the game like baron's is not.
+## The counterpart to baron's siege multiplier is deliberately *not* here: the
+## soul is a champion-power buff, same shape as real dragon souls, and any
+## siege edge it gives a team is earned by winning fights with it, not granted
+## directly the way baron's is.
 func team_buff(team: String) -> float:
 	var bal: Dictionary = m.balance.objectives
 	var buff: float = dragon.stacks[team] * float(bal.dragon_buff_per_stack)
+	if dragon.stacks[team] >= int(bal.dragon_soul_stacks):
+		buff += float(bal.dragon_soul_power)
 	if baron.buff_until[team] >= 0 and m.now <= baron.buff_until[team]:
 		buff += float(bal.baron_buff_power)
 	return buff

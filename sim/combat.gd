@@ -217,9 +217,29 @@ func _near(agent: PlayerAgent, radius: float, hostile: bool) -> Array:
 			continue
 		if (other.team != agent.team) != hostile:
 			continue
-		if agent.pos.distance_to(other.pos) <= radius:
-			out.append(other)
+		if agent.pos.distance_to(other.pos) > radius:
+			continue
+		if hostile and not _can_see(agent, other):
+			continue
+		out.append(other)
 	return out
+
+
+## Whether `observer` can perceive `target` at all (M6-T3): a wall in the way
+## blocks it outright, brush hides it beyond a short reveal radius, open
+## ground hides nothing. Only gates hostile perception — team-mates aren't
+## fogged from each other, that's not what brush/walls model here. Asymmetric
+## by design: the body standing in brush sees out further than it is seen,
+## which is what makes it worth standing in for a gank.
+func _can_see(observer: PlayerAgent, target: PlayerAgent) -> bool:
+	var terrain: Terrain = m.map.terrain
+	if terrain == null:
+		return true
+	if not terrain.has_sight(observer.pos, target.pos):
+		return false
+	if terrain.kind_at(target.pos) == Terrain.BRUSH:
+		return observer.pos.distance_to(target.pos) <= float(m.balance.fight.brush_reveal_radius)
+	return true
 
 
 ## Commit decision: worth fighting only if my side's live power stands up to

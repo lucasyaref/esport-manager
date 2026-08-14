@@ -57,6 +57,8 @@ func _init(setup: Dictionary, data: Dictionary) -> void:
 	_snapshot_every = int(setup.get("snapshot_every", 1))
 	_moods = setup.get("moods", {})
 	map = SimMap.new(data.map)
+	map.terrain = data.get("terrain")
+	map.nav = data.get("nav")
 	balance = data.balance
 	comp_rules = data.comp_rules
 	for lane in SimMap.LANES:
@@ -174,6 +176,12 @@ func mood_mult(player_id: String) -> float:
 
 func rally_pos(team: String) -> Vector2:
 	return brains[team].rally
+
+
+## Which nav hub (M6-T2) `rally_pos` sits on — a lane or an objective pit, so
+## GROUPING/HOLDING can route around walls to reach it like everything else.
+func rally_hub(team: String) -> String:
+	return brains[team].rally_hub
 
 
 ## Where a laner of `team` stands on `lane`, given its Laning stance. A holding

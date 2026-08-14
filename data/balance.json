@@ -173,7 +173,9 @@
     "decision_interval_s": 10,
     "take_channel_s": 15,
     "dragon_xp_per_player": 150,
-    "baron_xp_per_player": 250
+    "baron_xp_per_player": 250,
+    "dragon_soul_stacks": 4,
+    "dragon_soul_power": 0.20
   },
   "fight": {
     "awareness_radius": 9.0,
@@ -220,6 +222,7 @@
     "contest_macro_divisor": 400.0,
     "no_vision_caution": 1.15,
     "vision_radius": 16.0,
+    "brush_reveal_radius": 3.5,
     "max_reach": 5.5,
     "melee_damage_bonus": 0.6,
     "engage_speed_bonus": 0.35,

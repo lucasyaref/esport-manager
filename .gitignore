@@ -1,6 +1,9 @@
 .godot/
 .DS_Store
 *.tmp
+# tools/fetch_lpc_sprites.mjs's dependency — package.json/package-lock.json are
+# checked in so it's reproducible; the installed package itself isn't.
+tools/node_modules/
 # The gauntlet loop's critics and orchestrator live under .claude/ and are part of
 # the project: they carry the acceptance criteria for the map, so they belong in
 # git alongside the reference images. Only machine-local settings stay ignored.

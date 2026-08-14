@@ -7,6 +7,10 @@
       "model": "Malphite",
       "intent": "Immovable frontline tank. Engages fights and soaks damage; low kill threat on his own.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_top_blue.png",
+        "red": "res://game/assets/characters/lpc_top_red.png"
+      },
       "curve": "balanced",
       "base": {
         "hp": 650,
@@ -56,6 +60,10 @@
       "model": "Fiora (with Teleport)",
       "intent": "Split-push duelist. Scales into a late-game side-lane threat; ultimate teleports him across the map to answer or start pushes.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_top_blue.png",
+        "red": "res://game/assets/characters/lpc_top_red.png"
+      },
       "curve": "late",
       "base": {
         "hp": 610,
@@ -102,6 +110,10 @@
       "model": "Darius",
       "intent": "Early-game juggernaut lane bully. Wins top lane hard before 15:00, falls off if the game drags.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_top_blue.png",
+        "red": "res://game/assets/characters/lpc_top_red.png"
+      },
       "curve": "early",
       "base": {
         "hp": 640,
@@ -149,6 +161,10 @@
       "model": "Warwick",
       "intent": "Early-game gank machine. Lives in enemy lanes before 14:00; needs leads to stay relevant.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_jungle_blue.png",
+        "red": "res://game/assets/characters/lpc_jungle_red.png"
+      },
       "curve": "early",
       "base": {
         "hp": 590,
@@ -199,6 +215,10 @@
       "model": "Fiddlesticks",
       "intent": "Power-farming scaling jungler. Ganks little, out-farms the enemy jungle, terrifying in late teamfights.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_jungle_blue.png",
+        "red": "res://game/assets/characters/lpc_jungle_red.png"
+      },
       "curve": "late",
       "base": {
         "hp": 570,
@@ -247,6 +267,10 @@
       "model": "Jarvan IV",
       "intent": "Objective-control tank jungler. Locks down Dragon/Baron pits and peels in fights; low carry potential.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_jungle_blue.png",
+        "red": "res://game/assets/characters/lpc_jungle_red.png"
+      },
       "curve": "balanced",
       "base": {
         "hp": 630,
@@ -297,6 +321,10 @@
       "model": "Zed",
       "intent": "Roaming burst assassin. Snowballs off early kills and roams; useless when behind.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_mid_blue.png",
+        "red": "res://game/assets/characters/lpc_mid_red.png"
+      },
       "curve": "early",
       "base": {
         "hp": 540,
@@ -343,6 +371,10 @@
       "model": "Xerath",
       "intent": "Artillery poke mage. Chips teams down before fights start; weak once engaged on.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_mid_blue.png",
+        "red": "res://game/assets/characters/lpc_mid_red.png"
+      },
       "curve": "balanced",
       "base": {
         "hp": 550,
@@ -390,6 +422,10 @@
       "model": "Vladimir",
       "intent": "Scaling battlemage. Farms to 3 items then wins teamfights with massive area damage.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_mid_blue.png",
+        "red": "res://game/assets/characters/lpc_mid_red.png"
+      },
       "curve": "late",
       "base": {
         "hp": 560,
@@ -437,6 +473,10 @@
       "model": "Jinx",
       "intent": "Hyperscaling crit carry. The classic 'protect me for 25 minutes and I win the game' pick.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_carry_blue.png",
+        "red": "res://game/assets/characters/lpc_carry_red.png"
+      },
       "curve": "late",
       "base": {
         "hp": 530,
@@ -484,6 +524,10 @@
       "model": "Caitlyn",
       "intent": "Early-game lane bully carry. Dominates bot lane at 1-1, snowballs towers; falls off vs late-game comps.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_carry_blue.png",
+        "red": "res://game/assets/characters/lpc_carry_red.png"
+      },
       "curve": "early",
       "base": {
         "hp": 545,
@@ -532,6 +576,10 @@
       "model": "Ashe",
       "intent": "Utility storm carry. Steady damage plus a huge slow zone that wins positioning battles.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_carry_blue.png",
+        "red": "res://game/assets/characters/lpc_carry_red.png"
+      },
       "curve": "balanced",
       "base": {
         "hp": 540,
@@ -580,6 +628,10 @@
       "model": "Lulu",
       "intent": "Enchanter. Shields, peels and babysits the carry; near-zero damage of her own.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_support_blue.png",
+        "red": "res://game/assets/characters/lpc_support_red.png"
+      },
       "curve": "balanced",
       "base": {
         "hp": 520,
@@ -626,6 +678,10 @@
       "model": "Alistar",
       "intent": "Engage tank support. Starts fights with a massive knockup; strongest before enemies out-scale the all-in.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_support_blue.png",
+        "red": "res://game/assets/characters/lpc_support_red.png"
+      },
       "curve": "early",
       "base": {
         "hp": 600,
@@ -676,6 +732,10 @@
       "model": "Morgana",
       "intent": "Poke/roam mage support. Harasses in lane, roams mid with priority, picks people off with long roots.",
       "sprite": "res://game/assets/characters/placeholder.png",
+      "sprite_by_side": {
+        "blue": "res://game/assets/characters/lpc_support_blue.png",
+        "red": "res://game/assets/characters/lpc_support_red.png"
+      },
       "curve": "balanced",
       "base": {
         "hp": 530,

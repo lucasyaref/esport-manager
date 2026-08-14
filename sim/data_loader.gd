@@ -70,9 +70,23 @@ static func load_all(base_dir := "res://data") -> Dictionary:
 	_validate_map(map, errors)
 	_validate_balance(balance, errors)
 
+	# Terrain (M6-T2) needs a clean map to validate against and a SimMap to
+	# read lane/camp/pit geometry from when it builds the navigation, so it
+	# only loads once everything above is already sound.
+	var terrain: Terrain = null
+	var nav: NavGrid = null
+	if errors.is_empty():
+		terrain = Terrain.load_from(base_dir + "/terrain.txt", float(map.get("size", 100.0)), errors)
+		if errors.is_empty():
+			var geom := SimMap.new(map)
+			errors.append_array(terrain.validate(geom))
+			if errors.is_empty():
+				nav = geom.build_nav(terrain)
+
 	return {
 		"characters": characters, "players": players, "teams": teams,
-		"comp_rules": comp_rules, "map": map, "balance": balance, "errors": errors,
+		"comp_rules": comp_rules, "map": map, "balance": balance,
+		"terrain": terrain, "nav": nav, "errors": errors,
 	}
 
 
@@ -351,7 +365,7 @@ static func _validate_balance(balance: Dictionary, errors: Array[String]) -> voi
 			"ult_heal_mult", "stun_duration_s", "cc_catch_range", "steroid_duration_s",
 			"steroid_damage_mult",
 			"chase_patience_s", "leash_radius", "dive_hp", "dive_target_hp", "dive_margin", "focus_penalty",
-			"no_vision_caution", "vision_radius", "squishy_bias", "squishy_ehp_ref"],
+			"no_vision_caution", "vision_radius", "brush_reveal_radius", "squishy_bias", "squishy_ehp_ref"],
 		"ganks": ["check_interval_s", "min_interval_s", "base_chance_early_tag",
 			"base_chance_other", "overextend_weight", "commit_timeout_s", "react_macro_norm",
 			"connect_low_hp", "connect_overext", "bot_focus_weight",
@@ -368,7 +382,8 @@ static func _validate_balance(balance: Dictionary, errors: Array[String]) -> voi
 			"dragon_buff_per_stack", "baron_first_spawn_s", "baron_respawn_s",
 			"baron_gold_per_player", "baron_buff_power", "baron_siege_mult",
 			"baron_duration_s", "decision_interval_s", "take_channel_s",
-			"dragon_xp_per_player", "baron_xp_per_player"],
+			"dragon_xp_per_player", "baron_xp_per_player",
+			"dragon_soul_stacks", "dragon_soul_power"],
 	}
 	for section: String in required:
 		var sec: Dictionary = balance.get(section, {})

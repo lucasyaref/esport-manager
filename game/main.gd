@@ -9,7 +9,10 @@ extends Control
 ## Architecture: this script owns the clock and all time-based state; MapView is
 ## a dumb renderer fed a resolved frame each tick. Nothing here mutates the sim.
 
-const SNAP := 2                     # snapshot cadence for playback (ticks)
+const SNAP := 1                     # snapshot cadence for playback (ticks) — M6-C:
+                                     # raised from 2 so a close-up/real-speed director
+                                     # frame has a fresh keyframe every tick to interpolate
+                                     # against, not one every 200ms of sim time.
 # Snapshot player-row columns (SimMatch._capture_snapshot; positional, append-only).
 const P_X := 1
 const P_Y := 2
@@ -50,7 +53,17 @@ const BODY_SPACE := 1.9             # world units of personal space between bodi
 const SPREAD_PASSES := 3            # relaxation passes per frame
 const TPS := SimMatch.TICKS_PER_SECOND
 const BASE_TPS_1X := 40.0           # sim ticks per real second at 1x (~8 min / match)
-const SPEEDS := [1, 4, 16]
+# M6-C: real speed is 0.25x of today's 1x (which is already 4x sim-time), i.e. true
+# 1:1 real time against the sim clock (40 * 0.25 = 10 ticks/s = SimMatch.TICKS_PER_SECOND).
+# Typed so 0.25 survives as a float and isn't coerced by an int-inferred array.
+const SPEEDS: Array[float] = [0.25, 1.0, 4.0, 16.0]
+const REAL_SPEED := 0.25            # the director's close-up tier; looked up in SPEEDS below
+# F1-F5 / F6-F10 jump the camera to a player (GDD §7.3, TFM2's own binding). pmeta
+# is built team-by-team (SimMatch._spawn_agents: blue's five roles, then red's), so
+# index alone gives the split with no per-frame lookup.
+const FOLLOW_KEYS := [
+	KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10,
+]
 const FEED_MAX := 12
 const C_BLUE := "6fa8ff"
 const C_RED := "ff7f7f"
@@ -66,8 +79,21 @@ const MINION_SPACING := 0.010       # lane param between ranks
 const MINION_RANK_OFFSET := 0.9     # world units either side of the lane centre
 const SIEGE_REACH := 9.0            # how close a squad must be to the structure it chips
 
+# M6-D: how a live body's position has to move between consecutive snapshots
+# (world units, one SNAP tick apart) before it reads as "walking" rather than
+# jitter from in-fight positioning. A full-speed champion covers ~0.27 world
+# units/tick (335 speed, PlayerAgent.SPEED_SCALE, TPS=10); this is well under
+# that, on purpose — unmeasured "feels right" placeholder (M6-D), same status
+# as HIT_MIN_DMG/HIT_MIN_HEAL above.
+const MOVE_EPS := 0.02
+# M6-D: must match data/animation.json's default sheet.rows (and whatever a
+# match's own data/animation.json overrides it to) — used only to sanity-check
+# that `_anim_states` never emits a state the sheet has no row for.
+const ANIM_STATES := ["idle", "run", "attack", "cast", "hurt", "die", "recall"]
+
 # --- match data (rebuilt per sim run) ----------------------------------------
 var data := {}
+var anim_cfg := {}                  # data/animation.json (AnimConfig.load_config)
 var seed_val := 42
 var events: Array = []
 var snapshots: Array = []
@@ -98,10 +124,28 @@ var sim_ready := false
 var playing := false
 var finished := false
 var playback_tick := 0.0
-var speed_index := 0
+var speed_index := 1                # SPEEDS[1] == 1.0 — unchanged default ("1x")
 var event_cursor := 0
 var selftest := false
 var last_frame := {}                # the frame most recently handed to MapView
+
+# --- M6-C: highlight director --------------------------------------------------
+# The reel is computed once per match (sim/highlights.gd, read-only) and never
+# changes; everything else here tracks where playback is *relative* to it.
+var reel: Array = []                 # Highlights.select() output, plus window_start/end
+var pacing_mode := "full"            # "full" (dip in/out) | "highlights" (jump between)
+var auto_camera := true              # toggle: manual camera is always available regardless
+var active_highlight := -1           # index into `reel`, or -1 if playback_tick is outside all
+var highlight_released := false      # true once the user has taken the camera/speed back
+                                      # for the *current* highlight (cleared on the next one)
+var _cam_saved := {}                 # map.camera_state() captured on entering a highlight
+var _speed_saved := -1               # speed_index captured on entering a highlight
+var director_zoom := 3.2             # data/highlights.json director.zoom
+var preroll_ticks := 0               # data/highlights.json director.preroll_s, in ticks
+var aftermath_ticks := 0             # data/highlights.json director.aftermath_s, in ticks
+var rewind_ticks := 0                # data/highlights.json director.rewind_s, in ticks
+var pacing_btns: Array = []
+var auto_cam_btn: Button
 
 # --- derived state (rebuilt on reset/seek) ------------------------------------
 var kda := {}
@@ -119,6 +163,11 @@ var sieges: Array = []              # structure HP losses, tick-ordered: {t, key
 var marks: Array = []               # synthetic feed lines, tick-ordered: {t, text}
 var mark_cursor := 0
 var facing := {}                    # row index -> unit world vector (sticky look direction)
+# M6-D: row index -> {"state": String, "since": float}. Sticky the same way
+# `facing` is: an animation pose has to hold its own frame clock from the tick
+# it *became* the read state, not from a fixed epoch, or a swing landing
+# mid-idle-bob would restart on a random column instead of frame 0.
+var anim_since := {}
 var effects: Array = []
 var feed: Array = []
 var feed_dirty := true
@@ -139,12 +188,15 @@ var play_btn: Button
 var speed_btns: Array = []
 var overlay: Panel
 var overlay_lbl: RichTextLabel
+var highlight_banner: Panel
+var highlight_lbl: RichTextLabel
 var rows := {}                      # player id -> {name,champ,lvl,cs,kda,gold} Labels
 var _slider_guard := false
 
 
 func _ready() -> void:
 	data = DataLoader.load_all()
+	anim_cfg = AnimConfig.load_config()
 	_build_ui()
 	_layout()
 	resized.connect(_layout)
@@ -166,11 +218,35 @@ func _apply_cmdline() -> void:
 		if a.begins_with("--seed="):
 			seed_val = int(a.split("=")[1])
 		elif a.begins_with("--speed="):
-			var v := int(a.split("=")[1])
+			# Float, not int: SPEEDS now holds the 0.25 real-speed tier (M6-C).
+			var v := float(a.split("=")[1])
 			if SPEEDS.has(v):
 				_set_speed(SPEEDS.find(v))
 		elif a == "--selftest":
 			selftest = true
+
+
+## Camera follow hotkeys (GDD §7.3): F1-F5 jump to blue's five players in role
+## order, F6-F10 to red's, same key again (or Escape) releases. The map itself
+## handles wheel-zoom and click-to-follow directly (they need hover/hit-test
+## against its own screen space); this is only for the keys with no natural home
+## on a specific control.
+func _unhandled_input(event: InputEvent) -> void:
+	if not sim_ready or map == null:
+		return
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var key_event := event as InputEventKey
+	if key_event.keycode == KEY_ESCAPE:
+		map.stop_follow()
+		_release_director()
+		get_viewport().set_input_as_handled()
+		return
+	var idx := FOLLOW_KEYS.find(key_event.keycode)
+	if idx >= 0 and idx < pmeta.size():
+		map.toggle_follow(pmeta[idx].id)
+		_release_director()
+		get_viewport().set_input_as_handled()
 
 
 # --- sim run ------------------------------------------------------------------
@@ -203,6 +279,7 @@ func _run_sim(s: int) -> void:
 	summary = res.summary
 	winner = res.winner
 	last_tick = res.ticks - 1
+	_build_reel(int(res.ticks))
 
 	smap = SimMap.new(data.map)
 	_build_structures()
@@ -210,7 +287,7 @@ func _run_sim(s: int) -> void:
 	_build_hits()
 	_build_marks()
 	_build_scoreboard()
-	map.setup_geometry(smap, _char_textures())
+	map.setup_geometry(smap, _char_textures(), data.get("terrain"), anim_cfg.get("sheet", {}))
 	_reset_derived()
 	playback_tick = 0.0
 	finished = false
@@ -220,17 +297,33 @@ func _run_sim(s: int) -> void:
 	slider.max_value = maxf(last_tick, 1)
 
 
+## Team-coloured LPC art (M6-D2) is baked per side, not runtime-tinted like the
+## procedural placeholder — a full-colour sprite multiplied by a saturated team
+## colour shifts skin/hair hue along with the outfit, which a near-white
+## placeholder never showed. `sprite_by_side` (keyed "blue"/"red") wins when
+## present; `sprite` is the plain-path fallback, still the hook a true future
+## per-character replacement (no team variants needed) drops into with no code
+## change, per CLAUDE.md's placeholder contract.
+##
+## Keyed by char_id *and* team, not just char_id: data/players.json's
+## champion_pool is per-role, and both sides' same-role players draw from the
+## identical pool (e.g. azw_top and crv_top can both roll "bastion") — a
+## same-champion mirror is an ordinary outcome here, not an edge case, and
+## with team colour baked into the texture a char_id-only key would silently
+## hand one side's instance the other side's colour.
 func _char_textures() -> Dictionary:
 	var out := {}
 	for m: Dictionary in pmeta:
-		var cid: String = m.char_id
-		if out.has(cid):
+		var key := "%s|%s" % [m.char_id, m.team]
+		if out.has(key):
 			continue
-		var path: String = data.characters[cid].get("sprite", "")
+		var char_def: Dictionary = data.characters[m.char_id]
+		var by_side: Dictionary = char_def.get("sprite_by_side", {})
+		var path: String = by_side.get(m.team, "") if not by_side.is_empty() else char_def.get("sprite", "")
 		if path != "" and ResourceLoader.exists(path):
 			var tex: Resource = load(path)
 			if tex is Texture2D:
-				out[cid] = tex
+				out[key] = tex
 	return out
 
 
@@ -263,6 +356,29 @@ func _build_meta() -> void:
 				tower_pos["%s_%s_%s" % [team, lane, tier]] = smap.pos_on_lane(lane, float(smap.towers[team][tier]))
 
 
+## M6-C: the reel the auto-camera director works off of, computed once per match
+## exactly the way `tools/reel.gd` does it headless — this is the only place `game/`
+## calls into `sim/highlights.gd`, and it never feeds anything back into the sim.
+## `window_start`/`window_end` (sim ticks) are the pre-roll/aftermath-padded span the
+## director treats as "inside this highlight"; they're added onto the moment dicts
+## Highlights.select() returns so the rest of the director can just compare
+## `playback_tick` against them.
+func _build_reel(ticks: int) -> void:
+	var cfg := Highlights.load_config()
+	var all_moments := Highlights.moments(events, ticks, cfg)
+	reel = Highlights.select(all_moments, cfg)
+	var dcfg: Dictionary = cfg.get("director", {})
+	preroll_ticks = int(float(dcfg.get("preroll_s", 3.0)) * TPS)
+	aftermath_ticks = int(float(dcfg.get("aftermath_s", 4.0)) * TPS)
+	director_zoom = float(dcfg.get("zoom", 3.2))
+	rewind_ticks = int(float(dcfg.get("rewind_s", 8.0)) * TPS)
+	for mom: Dictionary in reel:
+		mom.window_start = maxi(0, int(mom.start) - preroll_ticks)
+		mom.window_end = mini(last_tick, int(mom.end) + aftermath_ticks)
+	active_highlight = -1
+	highlight_released = false
+
+
 # --- playback loop ------------------------------------------------------------
 
 func _process(delta: float) -> void:
@@ -272,10 +388,12 @@ func _process(delta: float) -> void:
 	if playback_tick >= last_tick:
 		playback_tick = last_tick
 		_advance_events(last_tick)
+		_update_director(true)
 		_render()
 		_finish()
 		return
 	_advance_events(int(playback_tick))
+	_update_director(true)
 	_render()
 
 
@@ -496,6 +614,171 @@ func _finish() -> void:
 	overlay.visible = true
 
 
+# --- M6-C: highlight director ---------------------------------------------------
+# The reel (`reel`, built once in _build_reel) is a list of moments, each with a
+# `[window_start, window_end]` tick span padded by the pre-roll/aftermath tunables.
+# This section's whole job is: know which window (if any) `playback_tick` is inside,
+# push the camera + speed in on entry and restore them on exit, and — in
+# highlights-only pacing — skip the dead air between one window and the next via
+# `_seek()`, the same primitive the transport controls use. It never touches sim/
+# state; it only reads `reel` and drives `map`'s existing public camera API.
+
+## Called every frame playback advances (`auto_advance = true`, from `_process()`)
+## and once after any timeline jump (`auto_advance = false`, from `_seek()`), so a
+## scrub into or out of a highlight snaps the camera the same way natural playback
+## does. `auto_advance` alone is allowed to jump the timeline itself (highlights-only
+## pacing); a plain re-evaluation after a seek must not, or a scrub would fight itself.
+func _update_director(auto_advance: bool) -> void:
+	if reel.is_empty():
+		return
+	var idx := _highlight_at(playback_tick)
+	if idx == -1 and auto_advance and pacing_mode == "highlights" \
+			and playing and active_highlight != -1:
+		var nxt := _next_highlight_after(active_highlight)
+		if nxt == -1:
+			# That was the last highlight: highlights-only mode has nothing left to
+			# jump to, so it ends the match the same way "Skip ▸ Result" does.
+			_leave_highlight()
+			active_highlight = -1
+			_seek(last_tick)
+			_finish()
+			return
+		_seek(int(reel[nxt].window_start))   # re-enters _update_director(false) itself
+		return
+	if idx != active_highlight:
+		if active_highlight != -1:
+			_leave_highlight()
+		active_highlight = idx
+		if idx != -1:
+			_enter_highlight(idx)
+
+
+## The reel index whose padded window contains `pt`, or -1. Reel is small (≤ ~10
+## entries per match), so a linear scan every frame is cheap and simple.
+func _highlight_at(pt: float) -> int:
+	for i in reel.size():
+		var mom: Dictionary = reel[i]
+		if pt >= float(mom.window_start) and pt <= float(mom.window_end):
+			return i
+	return -1
+
+
+func _next_highlight_after(idx: int) -> int:
+	return idx + 1 if idx + 1 < reel.size() else -1
+
+
+## Entering a highlight: save wherever the camera/speed currently are (so leaving
+## can put them back exactly), then push in. A no-op if auto-camera is off — the
+## banner/skip controls still work off `active_highlight` alone.
+func _enter_highlight(idx: int) -> void:
+	highlight_released = false
+	if not auto_camera:
+		return
+	_cam_saved = map.camera_state()
+	_speed_saved = speed_index
+	var mom: Dictionary = reel[idx]
+	map.set_target(Vector2(float(mom.pos[0]), float(mom.pos[1])), director_zoom)
+	_set_speed(SPEEDS.find(REAL_SPEED), true)
+
+
+## Leaving a highlight: restore the camera/speed the director itself changed —
+## unless the user already took control (`highlight_released`), in which case their
+## choice stands and there's nothing of the director's own to put back.
+func _leave_highlight() -> void:
+	if auto_camera and not highlight_released and _speed_saved != -1:
+		map.restore_camera_state(_cam_saved)
+		_set_speed(_speed_saved, true)
+	_speed_saved = -1
+	highlight_released = false
+
+
+## Manual camera input (wheel/click/F-keys/Escape) during an active highlight backs
+## the director off for *this* highlight only — it does not fight the user, and it
+## does not carry over to the next highlight, which the director picks up normally.
+func _release_director() -> void:
+	if active_highlight != -1:
+		highlight_released = true
+
+
+func _on_camera_touched() -> void:
+	_release_director()
+
+
+func _set_auto_camera(v: bool) -> void:
+	auto_camera = v
+	if active_highlight == -1:
+		return
+	if not v:
+		if not highlight_released and _speed_saved != -1:
+			map.restore_camera_state(_cam_saved)
+			_set_speed(_speed_saved, true)
+		_speed_saved = -1
+		highlight_released = true
+	else:
+		# Picking the director back up mid-highlight: frame whatever's on screen now
+		# instead of waiting for the next moment.
+		_enter_highlight(active_highlight)
+
+
+func _set_pacing(mode: String) -> void:
+	pacing_mode = mode
+	if pacing_btns.size() == 2:
+		pacing_btns[0].button_pressed = (mode == "full")
+		pacing_btns[1].button_pressed = (mode == "highlights")
+	if mode != "highlights" or reel.is_empty() or not sim_ready:
+		return
+	if _highlight_at(playback_tick) == -1:
+		_seek(int(reel[0].window_start))
+
+
+## "Skip" on the banner: jump past the current highlight's aftermath rather than
+## sitting through it — reuses `_seek()`, same as every other transport control.
+func _skip_highlight() -> void:
+	if active_highlight == -1:
+		return
+	_seek(mini(int(reel[active_highlight].window_end) + 1, last_tick))
+
+
+## "Replay" on the banner: jump back to the current highlight's pre-roll.
+func _replay_highlight() -> void:
+	if active_highlight == -1:
+		return
+	_seek(int(reel[active_highlight].window_start))
+
+
+func _rewind() -> void:
+	if not sim_ready:
+		return
+	_seek(maxi(int(playback_tick) - rewind_ticks, 0))
+
+
+## The banner text: the reel's own one-liner (`Highlights.describe`) plus resolved
+## player names, the way the kill feed already does it — "who it's about" is the
+## thing `describe()` alone doesn't carry (it names the *kind* of moment, not the
+## people in it).
+func _highlight_caption(mom: Dictionary) -> String:
+	var text := Highlights.describe(mom, smap)
+	var names: Array[String] = []
+	for id: String in mom.get("killers", []):
+		if meta_of.has(id) and not names.has(_name(id)):
+			names.append(_name(id))
+	for id: String in mom.get("victims", []):
+		if meta_of.has(id) and not names.has(_name(id)):
+			names.append(_name(id))
+	if not names.is_empty():
+		text += "  (%s)" % ", ".join(names)
+	return text
+
+
+func _update_highlight_banner() -> void:
+	if active_highlight == -1 or active_highlight >= reel.size():
+		highlight_banner.visible = false
+		return
+	highlight_banner.visible = true
+	highlight_lbl.text = "[color=#ffd479][b]HIGHLIGHT[/b][/color]  %s" % \
+		_highlight_caption(reel[active_highlight])
+
+
 # --- per-frame render ---------------------------------------------------------
 
 func _render() -> void:
@@ -518,18 +801,37 @@ func _render() -> void:
 		var max_hp := float(r0[P_MAX_HP])
 		var flags := int(r0[P_FLAGS])
 		var ch := {
-			"pos": wpos, "team": m.team, "role": m.role, "name": m.name,
+			"id": m.id, "pos": wpos, "team": m.team, "role": m.role, "name": m.name,
 			"char_id": m.char_id, "level": int(r0[P_LEVEL]), "alive": alive,
 			"hp_frac": clampf(float(r0[P_HP]) / max_hp, 0.0, 1.0) if max_hp > 0.0 else 0.0,
 			"respawn_frac": 1.0, "fighting": false, "casting": 0.0,
 			"recalling": false, "shake": Vector2.ZERO,
 			"stunned": false, "slowed": false, "backing_off": false,
 			"facing": Vector2.RIGHT, "exchanging": false, "flinch": 0.0,
+			"moving": false, "last_swing": -1e9,
+			"anim_state": "idle", "anim_col": 0, "dying": false,
 		}
 		if not alive:
 			var di: Dictionary = deaths_info.get(m.id, {})
 			if di.has("at") and di.at > di.since:
 				ch.respawn_frac = clampf((pt - di.since) / float(di.at - di.since), 0.0, 1.0)
+			# M6-D: the body plays its die pose at the spot it actually fell
+			# (deaths_info records that; the snapshot row itself has already
+			# snapped the dead player to the fountain) for a short window before
+			# handing off to the established fountain treatment — additive, that
+			# treatment (_draw_dead) is unchanged and still what every death
+			# settles into once the window passes.
+			if di.has("since"):
+				var since_death := pt - float(di.since)
+				var die_window := float(anim_cfg.timing.die_ticks) * _time_scale()
+				if since_death >= 0.0 and since_death <= die_window and die_window > 0.0:
+					ch.dying = true
+					ch.death_pos = di.get("pos", ch.pos)
+					ch.anim_state = "die"
+					ch.death_fade = clampf(1.0 - since_death / die_window, 0.0, 1.0)
+					var frame_span := maxf(float(anim_cfg.timing.frame_ticks) * _time_scale(), 0.01)
+					var cols := int(anim_cfg.sheet.cols)
+					ch.anim_col = clampi(int(since_death / frame_span), 0, maxi(cols - 1, 0))
 		else:
 			# Combat state comes from the snapshot now, not from guessing off the
 			# event stream: the sim knows exactly who is engaged, locked or slowed.
@@ -540,6 +842,11 @@ func _render() -> void:
 			ch.recalling = (flags & SimMatch.FLAG_RECALLING) != 0
 			var lu: int = last_ult.get(m.id, -99999)
 			ch.casting = clampf(1.0 - (pt - lu) / (float(ULT_TTL) * _time_scale()), 0.0, 1.0)
+			ch.last_swing = float(r0[P_SWING])
+			# M6-D: read straight off the raw snapshot delta (not the interpolated
+			# `wpos`, which always moves a little from the lerp itself) — this is
+			# the one flag `_anim_states` needs that isn't already derived above.
+			ch.moving = (Vector2(r1[P_X], r1[P_Y]) - p0).length() > MOVE_EPS
 			# "In combat" is not the same thing as trading blows: the sim sets it on
 			# anyone who has committed to a nearby enemy, which includes two laners
 			# standing off across the wave doing nothing to each other. Drawn as a
@@ -561,6 +868,9 @@ func _render() -> void:
 	# Writes the hit-flash back onto the bodies, so it runs before the frame is
 	# handed over.
 	var pops := _hit_pops(pt, champs)
+	# M6-D: which sprite pose each living body reads as — after _hit_pops, so it
+	# can see the flinch (hurt) flag that just landed on the body.
+	_anim_states(pt, champs)
 	# Minion dots need it too: a besieging wave is drawn swinging at the structure
 	# it is chipping, not walking past it.
 	var siege := _siege_now(pt)
@@ -583,6 +893,7 @@ func _render() -> void:
 	map.set_frame(last_frame)
 	_purge(pt)
 	_update_hud(pt, gold)
+	_update_highlight_banner()
 
 
 ## Minion wave dots, drawn from the squads the sim actually walks down each
@@ -657,16 +968,30 @@ func _run_selftest() -> void:
 	var siege_minions := 0
 	var nexus_besieged := 0
 	var kinds := {}
+	var anim_counts := {}                 # M6-D: anim_state -> frame count seen
+	var dying_frames := 0
 	var problems: Array[String] = []
 	var frames := 0
+	# M6-C: the director has to survive being driven every frame across a whole
+	# match with no dropped frame / crash — this is the "entering/leaving a
+	# highlight" assertion BACKLOG's M6-C asks --selftest for.
+	var highlight_enters := 0
+	var highlight_frames := 0
+	var prev_highlight := -1
 	playing = false
 	playback_tick = 0.0
 	_seek(0)
 	while playback_tick < last_tick:
 		playback_tick = minf(playback_tick + SELFTEST_STEP, last_tick)
 		_advance_events(int(playback_tick))
+		_update_director(true)
 		_render()
 		frames += 1
+		if active_highlight != prev_highlight and active_highlight != -1:
+			highlight_enters += 1
+		if active_highlight != -1:
+			highlight_frames += 1
+		prev_highlight = active_highlight
 		beats += last_frame.beats.size()
 		tethers += last_frame.tethers.size()
 		tower_bars = maxi(tower_bars, last_frame.tower_hp.size())
@@ -679,6 +1004,8 @@ func _run_selftest() -> void:
 					nexus_besieged += 1
 		for ch: Dictionary in last_frame.champs:
 			if not ch.alive:
+				if ch.get("dying", false):
+					dying_frames += 1
 				continue
 			if ch.flinch > 0.0:
 				flinches += 1
@@ -686,6 +1013,8 @@ func _run_selftest() -> void:
 				in_combat_frames += 1
 			if ch.exchanging:
 				exchange_frames += 1
+			var anim_state: String = ch.get("anim_state", "idle")
+			anim_counts[anim_state] = int(anim_counts.get(anim_state, 0)) + 1
 		for team: String in last_frame.nexus_hp:
 			if float(last_frame.nexus_hp[team]) < 1.0:
 				nexus_shown += 1
@@ -731,6 +1060,32 @@ func _run_selftest() -> void:
 		problems.append("a nexus fell with no minions drawn hitting it")
 	if winner != "" and marks.is_empty():
 		problems.append("a nexus fell with no nexus-health line in the feed")
+	# The reel and the director are read-only over frames already validated above
+	# (`_frame_problems` runs every iteration regardless of highlight state), so this
+	# only has to confirm the director actually engaged when there was something to
+	# engage with — a silent director is as bad as a crashing one.
+	if not reel.is_empty() and highlight_enters == 0:
+		problems.append("reel has %d moments but the director never entered one" % reel.size())
+
+	# M6-D: the animated pose has to actually track what the sim reported, the
+	# same "what happened has to show up on screen" standard the checks above
+	# hold every other visual to.
+	var kills := 0
+	for ev: Dictionary in events:
+		if ev.type == "kill":
+			kills += 1
+	if int(anim_counts.get("idle", 0)) == 0:
+		problems.append("nobody ever read as idle")
+	if int(anim_counts.get("run", 0)) == 0:
+		problems.append("nobody ever read as running")
+	if beats > 0 and int(anim_counts.get("attack", 0)) == 0:
+		problems.append("%d attack beats fired, no body ever read as attacking" % beats)
+	if flinches > 0 and int(anim_counts.get("hurt", 0)) == 0:
+		problems.append("%d hit-flashes, no body ever read as hurt" % flinches)
+	if casts.ultimate_cast > 0 and int(anim_counts.get("cast", 0)) == 0:
+		problems.append("%d ultimates cast, no body ever read as casting" % casts.ultimate_cast)
+	if kills > 0 and dying_frames == 0:
+		problems.append("%d kills, no body ever played its die pose" % kills)
 
 	print("VIEWER SELFTEST (seed %d, %d ticks, %d frames)" % [seed_val, last_tick, frames])
 	print("  attack beats: %d | catch tethers: %d | towers chipped (peak): %d" % [
@@ -745,6 +1100,7 @@ func _run_selftest() -> void:
 	print("  frames with a wounded nexus: %d | nexus feed lines: %d" % [
 		nexus_shown, marks.size()])
 	print("  effect kinds: %s" % str(kinds))
+	print("  anim states (player-frames): %s | die-pose frames: %d" % [str(anim_counts), dying_frames])
 	# The last thing the designer reads when a match ends: it has to explain the
 	# result on its own ("finished without any understanding how", remark 4).
 	print("  feed at the final whistle:")
@@ -752,6 +1108,8 @@ func _run_selftest() -> void:
 		print("    %s" % _plain(line))
 	print("  sim events: %d ultimates, %d CC applications" % [
 		casts.ultimate_cast, casts.cc_applied])
+	print("  reel: %d moments, director entered %d, %d/%d frames inside a highlight" % [
+		reel.size(), highlight_enters, highlight_frames, frames])
 	if problems.is_empty():
 		print("VIEWER SELFTEST: PASS")
 		get_tree().quit(0)
@@ -767,9 +1125,14 @@ func _run_selftest() -> void:
 ## seconds a real second — an ult impact would be back to a 0.16 s flicker. So
 ## the *read* windows stretch with the speed, capped at 4x: past that the game is
 ## being skipped rather than watched, and stretching further would leave a hit
-## marker on screen while its fight moved to another lane.
+## marker on screen while its fight moved to another lane. This has to open
+## *downward* too: at the 0.25x real-speed tier (M6-C), the sim runs four times
+## slower than 1x, so a lifetime written for 1x would linger four times too long
+## in the close-up unless it shrinks below 1. `mini()` truncates its args to int
+## (mini(0.25, 4) == 0, which would zero out every effect's lifetime at real
+## speed) — `minf()` is the float-safe version and is required here.
 func _time_scale() -> float:
-	return float(mini(SPEEDS[speed_index], 4))
+	return minf(SPEEDS[speed_index], 4.0)
 
 
 ## BBCode out, for printing a feed line to a terminal.
@@ -798,6 +1161,9 @@ func _frame_problems(f: Dictionary) -> Array[String]:
 			out.append("%s hp_frac out of range: %f" % [ch.name, ch.hp_frac])
 		if not is_finite(ch.facing.x) or not is_finite(ch.facing.y):
 			out.append("%s has a non-finite facing" % ch.name)
+		var sheet_rows: Array = anim_cfg.get("sheet", {}).get("rows", ANIM_STATES)
+		if not sheet_rows.has(ch.get("anim_state", "idle")):
+			out.append("%s has an anim_state \"%s\" with no sheet row" % [ch.name, ch.anim_state])
 	return out
 
 
@@ -984,6 +1350,51 @@ func _hit_pops(pt: float, champs: Array) -> Array:
 		if not h.heal and age_ticks <= flinch_window:
 			ch.flinch = maxf(ch.flinch, 1.0 - age_ticks / flinch_window)
 	return out
+
+
+## M6-D: which pose of the shared placeholder sprite sheet (game/map_view.gd
+## _draw_body) a living body reads as this frame, and which frame of it —
+## derived entirely from flags/timings the sim already reports or that
+## playback already derives from them (Pillar 3: no new sim plumbing needed).
+##
+## Priority, highest first: recall (a channel the player chose to commit to)
+## > hurt (a hit just landed — read it before anything queued behind it)
+## > cast (an ultimate just fired) > attack (mid-swing, the same window
+## `_render_beats` uses for the swing itself, so the pose and the beat are
+## synced by construction) > run (moving) > idle. Which state wins when
+## several are true at once is an unmeasured "feels right" call (M6-D), same
+## status as M6-B/C's zoom and director constants — the sim reports what
+## happened, this only decides which one pose the body shows for it.
+##
+## `anim_since` is sticky per row (like `facing`): a pose holds its own frame
+## clock from the tick it *became* the read state, so a swing landing mid-idle
+## starts its attack pose at frame 0 instead of some arbitrary column.
+func _anim_states(pt: float, champs: Array) -> void:
+	var frame_span := maxf(float(anim_cfg.timing.frame_ticks) * _time_scale(), 0.01)
+	var cols := int(anim_cfg.sheet.cols)
+	var attack_window := SWING_TICKS * _time_scale()
+	for k in champs.size():
+		var ch: Dictionary = champs[k]
+		if not ch.alive:
+			continue
+		var state := "idle"
+		if ch.recalling:
+			state = "recall"
+		elif ch.flinch > 0.0:
+			state = "hurt"
+		elif ch.casting > 0.0:
+			state = "cast"
+		elif (pt - float(ch.last_swing)) <= attack_window:
+			state = "attack"
+		elif ch.moving:
+			state = "run"
+		var prev: Dictionary = anim_since.get(k, {})
+		if String(prev.get("state", "")) != state:
+			prev = {"state": state, "since": pt}
+			anim_since[k] = prev
+		var elapsed := maxf(pt - float(prev.since), 0.0)
+		ch.anim_state = state
+		ch.anim_col = int(elapsed / frame_span) % maxi(cols, 1)
 
 
 ## Structures losing HP right now — the "something is being taken" cue, which is
@@ -1254,12 +1665,26 @@ func _reset_derived() -> void:
 	wards = []
 	catches = []
 	facing = {}
+	anim_since = {}
 	effects = []
 	feed = []
 	feed_dirty = true
+	# A restart/seek can happen mid-highlight; leave it cleanly (restoring whatever
+	# camera/speed the director itself changed) before jumping the timeline, rather
+	# than stranding the camera at a director push that no longer applies.
+	if active_highlight != -1:
+		_leave_highlight()
+	active_highlight = -1
+	highlight_released = false
+	_speed_saved = -1
 
 
-func _set_speed(i: int) -> void:
+## `from_director` distinguishes the director's own speed pushes from a user
+## pressing a speed button by hand — a manual press during an active highlight
+## counts as taking the controls back, same as a manual camera touch does.
+func _set_speed(i: int, from_director := false) -> void:
+	if not from_director:
+		_release_director()
 	speed_index = i
 	for j in speed_btns.size():
 		speed_btns[j].button_pressed = (j == i)
@@ -1291,6 +1716,7 @@ func _seek(target: int) -> void:
 	_reset_derived()
 	playback_tick = clampf(target, 0, last_tick)
 	_advance_events(int(playback_tick))
+	_update_director(false)   # snap the camera in if the new spot is inside a highlight
 	if playback_tick >= last_tick:
 		_finish()
 	else:
@@ -1325,11 +1751,15 @@ func _build_ui() -> void:
 	map = Control.new()
 	map.set_script(load("res://game/map_view.gd"))
 	add_child(map)
+	# Manual camera input (wheel/click) during an active highlight releases the
+	# director for it, same as the F-key/Escape hotkeys already do in _unhandled_input.
+	map.camera_touched.connect(_on_camera_touched)
 
 	_build_topbar()
 	_build_sidepanel()
 	_build_bottombar()
 	_build_overlay()
+	_build_highlight_banner()
 
 	splash = Label.new()
 	splash.text = "Loading…"
@@ -1523,17 +1953,55 @@ func _build_bottombar() -> void:
 
 	speed_btns.clear()
 	for i in SPEEDS.size():
-		var b := _ctl_button("%dx" % SPEEDS[i])
+		var b := _ctl_button(_speed_label(SPEEDS[i]))
 		b.toggle_mode = true
-		b.button_pressed = (i == 0)
+		b.button_pressed = (i == speed_index)
 		var idx := i
 		b.pressed.connect(func(): _set_speed(idx))
 		speed_btns.append(b)
 		h.add_child(b)
 
+	# Manual zoom (M6-B): mouse wheel over the map is the primary control, these
+	# are the secondary affordance next to the speed buttons per the phase spec.
+	# Also counts as manual camera input (M6-C): releases the director for the
+	# current highlight, same as wheel-zoom/click on the map itself.
+	var zoom_out_btn := _ctl_button("Zoom −")
+	zoom_out_btn.pressed.connect(func(): map.zoom_step(-1); _release_director())
+	h.add_child(zoom_out_btn)
+	var zoom_in_btn := _ctl_button("Zoom +")
+	zoom_in_btn.pressed.connect(func(): map.zoom_step(1); _release_director())
+	h.add_child(zoom_in_btn)
+
+	# M6-C: auto-camera toggle and pacing mode. Auto-camera is a toggle, manual
+	# camera is always available regardless of its state (BACKLOG M6-C).
+	auto_cam_btn = _ctl_button("Auto-cam: ON")
+	auto_cam_btn.toggle_mode = true
+	auto_cam_btn.button_pressed = true
+	auto_cam_btn.pressed.connect(func():
+		_set_auto_camera(auto_cam_btn.button_pressed)
+		auto_cam_btn.text = "Auto-cam: ON" if auto_camera else "Auto-cam: OFF")
+	h.add_child(auto_cam_btn)
+
+	pacing_btns.clear()
+	var full_btn := _ctl_button("Full")
+	full_btn.toggle_mode = true
+	full_btn.button_pressed = true
+	full_btn.pressed.connect(func(): _set_pacing("full"))
+	pacing_btns.append(full_btn)
+	h.add_child(full_btn)
+	var highlights_btn := _ctl_button("Highlights")
+	highlights_btn.toggle_mode = true
+	highlights_btn.pressed.connect(func(): _set_pacing("highlights"))
+	pacing_btns.append(highlights_btn)
+	h.add_child(highlights_btn)
+
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(spacer)
+
+	var rewind_btn := _ctl_button("⏪ Rewind")
+	rewind_btn.pressed.connect(_rewind)
+	h.add_child(rewind_btn)
 
 	var skip_btn := _ctl_button("Skip ▸ Result")
 	skip_btn.pressed.connect(_skip_to_result)
@@ -1564,6 +2032,37 @@ func _build_overlay() -> void:
 	overlay_lbl.offset_left = 24; overlay_lbl.offset_right = -24
 	overlay_lbl.offset_top = 24; overlay_lbl.offset_bottom = -24
 	overlay.add_child(overlay_lbl)
+
+
+## M6-C: the on-screen framing for whatever highlight `playback_tick` is currently
+## inside — "what this is, who it's about" — plus its own transport (replay/skip),
+## so "replay that highlight" is one click from the thing that names it. Docked to
+## the top of the map panel in _layout(); hidden whenever there's no active highlight.
+func _build_highlight_banner() -> void:
+	highlight_banner = _panel("1a2233")
+	highlight_banner.name = "HighlightBanner"
+	highlight_banner.visible = false
+	var h := HBoxContainer.new()
+	h.set_anchors_preset(Control.PRESET_FULL_RECT)
+	h.offset_left = 10; h.offset_right = -10; h.offset_top = 4; h.offset_bottom = -4
+	h.add_theme_constant_override("separation", 10)
+	highlight_banner.add_child(h)
+
+	highlight_lbl = RichTextLabel.new()
+	highlight_lbl.bbcode_enabled = true
+	highlight_lbl.fit_content = true
+	highlight_lbl.scroll_active = false
+	highlight_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	highlight_lbl.add_theme_font_size_override("normal_font_size", 14)
+	h.add_child(highlight_lbl)
+
+	var replay_btn := _ctl_button("↺ Replay")
+	replay_btn.pressed.connect(_replay_highlight)
+	h.add_child(replay_btn)
+
+	var skip_hl_btn := _ctl_button("Skip ▸")
+	skip_hl_btn.pressed.connect(_skip_highlight)
+	h.add_child(skip_hl_btn)
 
 
 func _final_kda_bbcode() -> String:
@@ -1602,6 +2101,12 @@ func _ctl_button(text: String) -> Button:
 	b.custom_minimum_size = Vector2(0, 30)
 	b.focus_mode = Control.FOCUS_NONE
 	return b
+
+
+## "1x"/"4x"/"16x" for the whole numbers SPEEDS used to hold; "0.25x" for the M6-C
+## real-speed tier, which isn't one.
+func _speed_label(v: float) -> String:
+	return ("%.2fx" % v) if v < 1.0 else ("%dx" % int(round(v)))
 
 
 var _side_vbox: VBoxContainer
@@ -1644,3 +2149,9 @@ func _layout() -> void:
 		var oh := 320.0
 		overlay.position = Vector2(map.position.x + (map_side - ow) * 0.5, map_y + (map_side - oh) * 0.5)
 		overlay.size = Vector2(ow, oh)
+
+	if highlight_banner != null:
+		# Docked to the top edge of the map itself, so it always sits over the
+		# thing it's narrating regardless of camera zoom/position underneath it.
+		highlight_banner.position = Vector2(map.position.x, map_y + 6.0)
+		highlight_banner.size = Vector2(map_side, 32.0)

@@ -1,0 +1,43 @@
+{
+  "_doc": [
+    "M6-D/M6-D2 animation config. Read by game/anim_config.gd (viewer only, no",
+    "sim dependency, same load_config()-merges-over-a-default shape as",
+    "sim/highlights.gd) and threaded from game/main.gd into game/map_view.gd",
+    "(sheet layout) and used directly by game/main.gd itself (frame-advance",
+    "timing).",
+    "",
+    "sheet.* describes the shared layout every character texture is read",
+    "against — sheet.rows is the pose order top-to-bottom, sheet.cols frames",
+    "of sheet.frame_px square pixels each per row. As of M6-D2 the roster's",
+    "'sprite_by_side' fields point at per-role LPC-derived sheets",
+    "(game/assets/characters/lpc_<role>_<blue|red>.png, tools/fetch_lpc_sprites.mjs)",
+    "at this exact layout; 'sprite' (unused while sprite_by_side is present)",
+    "still points at the older 24px procedural placeholder (tools/make_sprites.gd)",
+    "and would need a matching frame_px/rows override if it ever became the",
+    "live path again. game/main.gd's --selftest hard-asserts every anim_state",
+    "the game can ever assign has a real row here, so 'die' and 'recall' stay",
+    "rows even though the generator has no dedicated pose for either — both",
+    "reuse frames from an animation it does have (tools/fetch_lpc_sprites.mjs",
+    "has the exact columns); the separate recall ring VFX (map_view.gd) is",
+    "what actually reads as 'channeling', not the body pose underneath.",
+    "",
+    "timing.frame_ticks: how many sim ticks (scaled by game/main.gd's own",
+    "_time_scale(), the same conversion every other playback transient uses)",
+    "one animation frame holds before advancing to the next column.",
+    "timing.die_ticks: how long a just-died body plays its die pose at the",
+    "spot it fell before handing off to the established fountain treatment",
+    "(game/map_view.gd _draw_dead). Both unmeasured 'feels right' placeholder",
+    "values (M6-D), same status as M6-B/C's zoom and director constants."
+  ],
+
+  "sheet": {
+    "frame_px": 64,
+    "cols": 4,
+    "rows": ["idle", "run", "attack", "cast", "hurt", "die", "recall"]
+  },
+
+  "timing": {
+    "frame_ticks": 4.0,
+    "die_ticks": 20.0
+  }
+}

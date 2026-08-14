@@ -8,6 +8,7 @@ extends RefCounted
 var team: String
 var intent := "lane"        # lane / farm / group_objective / siege / defend
 var rally := Vector2.ZERO
+var rally_hub := ""         # nav hub (M6-T2) `rally` sits on — a lane or a pit
 var target_lane := ""
 
 # --- lane assignment (M5-B): the lane swap as a team STATE ------------------
@@ -268,6 +269,11 @@ func update(t: int, m: SimMatch) -> void:
 
 	intent = new_intent
 	rally = new_rally
+	# Every branch above reaches new_rally through pos_on_lane or
+	# objective_pos, i.e. always exactly on a lane or a pit — nearest_hub
+	# just reads that back rather than each branch threading its own tag.
+	rally_hub = m.map.nav.nearest_hub(new_rally) \
+		if (m.map.nav != null and new_rally != Vector2.ZERO) else ""
 	target_lane = new_lane
 	_apply(t, m)
 
@@ -420,9 +426,12 @@ func _consider_play(t: int, m: SimMatch) -> void:
 	if men.size() < int(d.play_min_men):
 		return
 	var until: int = t + int(float(d.play_window_s) * SimMatch.TICKS_PER_SECOND)
+	# The one destination with no hub of its own (target is a live enemy
+	# position, M6-T2): resolved once here, not re-derived every tick.
+	var hub: String = m.map.nav.nearest_hub(target) if m.map.nav != null else ""
 	var ids: Array[String] = []
 	for idx in men:
-		m.agents[idx].set_play(target, until)
+		m.agents[idx].set_play(target, until, hub)
 		ids.append(m.agents[idx].id)
 	_play = {"pos": target, "until": until, "men": men}
 	m.emit_event(t, "play_call", {"team": team, "kind": "collapse", "men": ids,
