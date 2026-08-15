@@ -696,14 +696,13 @@ func _draw_champions() -> void:
 		# silhouette for its role. Keyed char_id+team (see main.gd _char_textures) —
 		# same-role players share a champion_pool, so both sides can field the same
 		# character in one match.
+		# Just hit: HP bars alone move a couple of pixels a swing, which is why a
+		# real exchange read as "nothing is happening" (2026-07-25 playtest,
+		# remark 2) — _draw_body reads ch.flinch itself and strobes the body's
+		# tint red/white, so the flash lives on the sprite rather than a
+		# separate overlay shape.
 		_draw_body(c, r, ch, t, textures.get("%s|%s" % [ch.char_id, ch.team], null))
 
-		# Just hit: a white flash on the body itself. HP bars move a couple of
-		# pixels a swing, which is why a real exchange read as "nothing is
-		# happening" (2026-07-25 playtest, remark 2).
-		var flinch: float = ch.get("flinch", 0.0)
-		if flinch > 0.0:
-			draw_circle(c, r + 1.5, Color(1.0, 0.95, 0.92, 0.55 * flinch))
 		# Caught: the lock/slow mark sits over the body so it can't be missed.
 		if ch.get("stunned", false) or ch.get("slowed", false):
 			_draw_cc_mark(c, r, ch.get("stunned", false))
@@ -721,6 +720,26 @@ func _draw_champions() -> void:
 		# in a crowd drops to its own line instead of overlapping.
 		_centered(ch.name, c + Vector2(0, r + 16 + 11.0 * _zoom_mult() * _label_slot(screen, i)),
 			_fs(10), Color(0.85, 0.87, 0.92))
+
+
+## Zelda-GBC-style damage flash: while `flinch` is nonzero (a hit landed in
+## the last FLINCH_TICKS window, see game/main.gd), the body's own fill/tint
+## strobes toward white/red rather than swapping to a dedicated "hurt" pose —
+## a hit lands mid-swing or mid-run and the pose keeps doing what it was
+## doing; only the color says "that connected". Replaces the earlier flat
+## translucent-circle overlay, which read as a static highlight rather than a
+## flash.
+func _flinch_tint(base: Color, flinch: float) -> Color:
+	if flinch <= 0.0:
+		return base
+	# Both a multiply-modulate on a body's own art (draw_texture_rect_region)
+	# and a flat fill color (draw_colored_polygon) only darken toward
+	# Color.WHITE — it's the identity, not a flash. Over-bright components
+	# (>1.0) are what actually pop lighter/redder than the base, which is
+	# what reads as a flash rather than "the tint let up for a moment".
+	var strobe := int(Time.get_ticks_msec() / 45.0) % 2 == 0
+	var flash := Color(1.8, 1.8, 1.8) if strobe else Color(1.6, 0.25, 0.2)
+	return base.lerp(flash, flinch)
 
 
 ## Combat body: the shared placeholder sprite sheet (M6-D — animated pixel body,
@@ -742,13 +761,14 @@ func _draw_body(c: Vector2, r: float, ch: Dictionary, t: Dictionary, tex: Textur
 	# World Y is flipped on the way to the screen, so the look vector flips with it.
 	var look: Vector2 = ch.get("facing", Vector2.RIGHT)
 	var ang := Vector2(look.x, -look.y).angle()
+	var fill := _flinch_tint(t.fill, ch.get("flinch", 0.0))
 	if tex != null:
-		_draw_sprite(c, r, tex, t.fill, look.x < 0.0,
+		_draw_sprite(c, r, tex, fill, look.x < 0.0,
 			String(ch.get("anim_state", "idle")), int(ch.get("anim_col", 0)))
 		draw_arc(c, r + 1.0, 0, TAU, 20, t.ring, 2.0, true)
 	else:
 		var pts := _role_shape(String(ch.role), c, r, ang)
-		draw_colored_polygon(pts, t.fill)
+		draw_colored_polygon(pts, fill)
 		var outline := pts.duplicate()
 		outline.append(pts[0])
 		draw_polyline(outline, t.ring, 1.6, true)

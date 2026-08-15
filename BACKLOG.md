@@ -235,6 +235,11 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
   fixed: level/role corner badges read oversized against the new (visually smaller) bodies at high
   zoom. **Long-term intent, still on record and unstarted: one real sprite per character** — see the
   parking lot below.
+  ➕ **2026-08-15 designer note, fixed same day:** a hit used to swap the body to the LPC "hurt"
+  pose (a kneel/collapse, near-identical to "die"), so a flinch mid-fight read as a death. Fixed:
+  a hit no longer changes pose (`game/main.gd` `_anim_states`) — the body keeps doing whatever it
+  was doing, and `game/map_view.gd`'s `_draw_body` strobes the sprite's tint white/red instead
+  (`_flinch_tint`), a Zelda-GBC-style damage flash. `tools/check.sh` green.
 - **M6-E — Spell effects at close range.** Per effect family, at the ability's real radius and real cast time: telegraph → cast → impact → aftermath. The overview's M5.5-C shapes stay as the far-view version of the same event.
 - **M6-G — The broadcast header** (designer direction 2026-08-02, GDD §7.4). One top strip that reads like a LoL broadcast: team names, kills either side of the clock, **dragon pips** per team, baron with its remaining duration, turret counts, team gold with the delta marked on the leader only (`+1.7k`). Replaces today's scattered clock / score / gold bar. Permanently on screen at every zoom, because a zoomed camera has lost the map and must still say who is winning. Everything in it is a read of the sim's own output — the HUD counts nothing the sim did not report. Ships with the **full-width kill banner** (both portraits) from the reference target; the side feed stays as narration.
 - **M6-F — Pacing, modes & sign-off.** Measure the real minutes a watched match costs in each mode against the designer's **(a)** answer (target ~11–12 min for a full watched match; ~4–5 for highlights-only), tune the selection floor, `REPORTS/M6.md`, playtest gate.

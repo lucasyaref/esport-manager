@@ -1080,8 +1080,10 @@ func _run_selftest() -> void:
 		problems.append("nobody ever read as running")
 	if beats > 0 and int(anim_counts.get("attack", 0)) == 0:
 		problems.append("%d attack beats fired, no body ever read as attacking" % beats)
-	if flinches > 0 and int(anim_counts.get("hurt", 0)) == 0:
-		problems.append("%d hit-flashes, no body ever read as hurt" % flinches)
+	# No anim_counts["hurt"] check: a flinch is a tint flash over the current
+	# pose (see _anim_states), not its own row, since M6-D2's follow-up. The
+	# `flinches == 0` check above already covers "a hit never produced a
+	# visible flash".
 	if casts.ultimate_cast > 0 and int(anim_counts.get("cast", 0)) == 0:
 		problems.append("%d ultimates cast, no body ever read as casting" % casts.ultimate_cast)
 	if kills > 0 and dying_frames == 0:
@@ -1358,13 +1360,20 @@ func _hit_pops(pt: float, champs: Array) -> Array:
 ## playback already derives from them (Pillar 3: no new sim plumbing needed).
 ##
 ## Priority, highest first: recall (a channel the player chose to commit to)
-## > hurt (a hit just landed — read it before anything queued behind it)
 ## > cast (an ultimate just fired) > attack (mid-swing, the same window
 ## `_render_beats` uses for the swing itself, so the pose and the beat are
 ## synced by construction) > run (moving) > idle. Which state wins when
 ## several are true at once is an unmeasured "feels right" call (M6-D), same
 ## status as M6-B/C's zoom and director constants — the sim reports what
 ## happened, this only decides which one pose the body shows for it.
+##
+## A hit landing does NOT swap the pose to a dedicated "hurt" row (M6-D2
+## follow-up): the LPC hurt pose is a kneel/collapse, visually identical to
+## the die pose at a glance, so a flinch mid-fight used to read as that
+## player dying. `ch.flinch` (set below in `_render_damage`) still exists and
+## still reaches the renderer — game/map_view.gd `_draw_body` reads it to
+## strobe the sprite's tint red/white instead, a Zelda-style damage flash
+## layered over whatever the body is actually doing.
 ##
 ## `anim_since` is sticky per row (like `facing`): a pose holds its own frame
 ## clock from the tick it *became* the read state, so a swing landing mid-idle
@@ -1380,8 +1389,6 @@ func _anim_states(pt: float, champs: Array) -> void:
 		var state := "idle"
 		if ch.recalling:
 			state = "recall"
-		elif ch.flinch > 0.0:
-			state = "hurt"
 		elif ch.casting > 0.0:
 			state = "cast"
 		elif (pt - float(ch.last_swing)) <= attack_window:
