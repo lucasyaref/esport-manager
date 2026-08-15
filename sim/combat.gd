@@ -113,7 +113,18 @@ func update_intent(t: int) -> void:
 			# threat is actually close. Otherwise the FSM keeps running, so a
 			# laner facing an opponent across the wave still farms — and still
 			# goes home on its own when it gets low.
-			if agent.pos.distance_to(_closest(agent.pos, enemies).pos) <= float(f.danger_radius):
+			# The personal-danger bubble is role-aware, not a flat constant: a
+			# melee laner’s own attack_range is well under the old flat
+			# danger_radius (5.5), so it flinched backward from enemies it could
+			# never have reached yet — which meant it could never close the
+			# distance needed to build the read that clears the commit bar in the
+			# first place (M6-H). Only for non-HP declines: a body that declined
+			# because it’s hurt backs off regardless of role — that path keeps
+			# the flat radius, unconditionally.
+			var bubble: float = float(f.danger_radius) if agent.decline_reason == "low_hp" \
+				else maxf(float(f.danger_radius_min),
+					float(agent.character.combat.attack_range) + float(f.danger_radius_margin))
+			if agent.pos.distance_to(_closest(agent.pos, enemies).pos) <= bubble:
 				engaged[i] = true
 				backing_off[i] = true
 				stands[i] = _retreat_pos(agent, enemies, f)
@@ -195,7 +206,15 @@ func threat(agent: PlayerAgent, t: int) -> float:
 
 func _threat_uncached(agent: PlayerAgent, t: int) -> float:
 	var c: Dictionary = m.balance.combat
+	var f: Dictionary = m.balance.fight
 	var damage := DataLoader.stat_at_level(agent.character, "damage", agent.level)
+	# Same reach-for-damage trade _attack_damage() actually pays out (~L494-499):
+	# without it, threat understates what a melee character deals, which
+	# understates `mine` in _wants_to_fight()'s commit-margin check and is why
+	# melee laners rarely cleared lane_commit_margin even when they'd win the
+	# trade (M6-H).
+	var reach := float(agent.character.combat.attack_range)
+	damage *= 1.0 + (float(f.max_reach) - reach) / float(f.max_reach) * float(f.melee_damage_bonus)
 	var hp := DataLoader.stat_at_level(agent.character, "hp", agent.level)
 	var armor := DataLoader.stat_at_level(agent.character, "armor", agent.level)
 	var ehp := hp * (1.0 + armor / 100.0)
@@ -421,6 +440,17 @@ func _stand_pos(agent: PlayerAgent, tgt: PlayerAgent, allies: Array, enemies: Ar
 	var offset := stand - tgt.pos
 	if offset.length() > hold:
 		stand = tgt.pos + offset.normalized() * hold
+	# Dead-zone, checked last against the final computed spot rather than
+	# gating the role logic above: every tick recomputes `stand` off the
+	# target’s last-tick position with no tolerance, so two fighters closing
+	# or backing off at once both overshoot the equilibrium distance together,
+	# then both overshoot back past it next tick — reads as constant twitchy
+	# repositioning instead of settled spacing (M6-H). If we’re already
+	# standing close enough to where we’d move to, don’t bother — this still
+	# lets a backline character kite: the enemy closing on it moves `stand`
+	# away from `agent.pos` every tick, so the dead-zone never absorbs that.
+	if agent.pos.distance_to(stand) <= float(f.stand_deadzone):
+		return agent.pos
 	return stand
 
 

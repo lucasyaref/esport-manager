@@ -180,6 +180,8 @@
   "fight": {
     "awareness_radius": 9.0,
     "danger_radius": 5.5,
+    "danger_radius_min": 2.0,
+    "danger_radius_margin": 0.5,
     "damage_scale": 2.2,
     "damage_variance": 0.2,
     "threat_norm": 100.0,
@@ -191,6 +193,7 @@
     "disengage_lock_s": 12,
     "reach_falloff": 4.0,
     "stand_inset": 0.25,
+    "stand_deadzone": 0.2,
     "low_hp_focus": 1.6,
     "flank_backline_bias": 1.8,
     "peel_target_bias": 2.0,
