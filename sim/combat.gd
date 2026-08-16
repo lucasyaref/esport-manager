@@ -208,13 +208,39 @@ func _threat_uncached(agent: PlayerAgent, t: int) -> float:
 	var c: Dictionary = m.balance.combat
 	var f: Dictionary = m.balance.fight
 	var damage := DataLoader.stat_at_level(agent.character, "damage", agent.level)
-	# Same reach-for-damage trade _attack_damage() actually pays out (~L494-499):
-	# without it, threat understates what a melee character deals, which
-	# understates `mine` in _wants_to_fight()'s commit-margin check and is why
-	# melee laners rarely cleared lane_commit_margin even when they'd win the
-	# trade (M6-H).
+	# A dampened share of the same reach-for-damage trade _attack_damage()
+	# actually pays out (~L494-499): without some of it, threat understates
+	# what a melee character deals, which understates `mine` in
+	# _wants_to_fight()'s commit-margin check and is why melee laners rarely
+	# cleared lane_commit_margin even when they'd win the trade (M6-H).
+	#
+	# The full 1:1 bonus (threat_melee_bonus_scale = 1.0) overshot badly when
+	# measured (M6-H tuning pass): threat feeds target-selection scoring AND
+	# every commit-margin check project-wide, not just the laning-engagement
+	# case the diagnosis targeted, so the full bonus made every melee-inclusive
+	# side read as more dangerous and commit to fights more readily everywhere,
+	# not just "a laner closes to melee range" — kills/min moved 1.10 -> 1.42
+	# (target ~0.85) and the macro win vector swung 50.7% -> 31.0% (target
+	# ~43%), because the roster that leans more melee benefited unevenly.
+	# threat_melee_bonus_scale lets threat count only a fraction of the reach
+	# bonus damage() already pays for real, keeping the commit-margin fix
+	# directionally correct without importing its full magnitude into every
+	# other threat-driven decision.
+	#
+	# Swept 0.25/0.5/0.75 in 300-sim batches (seeds 5000-5299, deadzone held at
+	# 6e2150e's shipped 0.2 so the sweep isolates this dial): kills/min 1.08 /
+	# 1.13 / 1.15 (baseline 1.10, full-bonus 1.42) and azure_wolves win rate
+	# 46.3% / 38.0% / 39.3% (target ~43%, baseline 50.7%, full-bonus 31.0%).
+	# 0.25 is the only candidate that lands kills/min at-or-below the pre-fix
+	# baseline while correcting the win vector most of the way back toward
+	# target; 0.5 and 0.75 both already overshoot on both axes. Melee attacks
+	# landed in laning (tools/attack_stats.gd-style instrumentation, 200 sims):
+	# 24.03/match pre-fix, 26.01/match at 0.25, 27.14/match at the full bonus —
+	# 0.25 keeps ~64% of the original fix's landing-rate gain, so the diagnosis
+	# this dial exists for is still doing real work, just not at full strength.
 	var reach := float(agent.character.combat.attack_range)
-	damage *= 1.0 + (float(f.max_reach) - reach) / float(f.max_reach) * float(f.melee_damage_bonus)
+	var reach_bonus := (float(f.max_reach) - reach) / float(f.max_reach) * float(f.melee_damage_bonus)
+	damage *= 1.0 + reach_bonus * float(f.threat_melee_bonus_scale)
 	var hp := DataLoader.stat_at_level(agent.character, "hp", agent.level)
 	var armor := DataLoader.stat_at_level(agent.character, "armor", agent.level)
 	var ehp := hp * (1.0 + armor / 100.0)
@@ -449,6 +475,26 @@ func _stand_pos(agent: PlayerAgent, tgt: PlayerAgent, allies: Array, enemies: Ar
 	# standing close enough to where we’d move to, don’t bother — this still
 	# lets a backline character kite: the enemy closing on it moves `stand`
 	# away from `agent.pos` every tick, so the dead-zone never absorbs that.
+	#
+	# stand_deadzone was widened from 0.2 in the M6-H tuning pass
+	# (0.2 was smaller than a single agent's per-tick move step, ~0.27, so it
+	# could not actually absorb the oscillation it targeted). Reversal rate
+	# (fraction of close-range mutual-engagement ticks where distance-to-
+	# target flips sign tick-to-tick, 80-sim samples): 0.2 -> ~35%, 0.4 ->
+	# 12.2%, 0.6 -> 3.3%. 0.6 clears the reversal-rate target most cleanly, but
+	# measuring it together with threat_melee_bonus_scale above surfaced a
+	# real interaction this pass did not anticipate: any widening of the
+	# dead-zone beyond 0.2 pulls melee attacks landed in laning back *below*
+	# its pre-fix baseline (24.03/match) even with threat_melee_bonus_scale
+	# doing real work above it (21.4/match at 0.4, 22.5/match at 0.6), and
+	# pushes kills/min back up (1.18 at 0.4, 1.34 at 0.6, vs the 1.08 the
+	# threat dial alone gets to at 0.2). 0.4 is the smaller of the two costs
+	# on both fronts, so it's the pick, even though its own reversal rate
+	# isn't fully "well under 10%" — see the M6-H tuning-pass report for the
+	# full trade-off. Repositioning while a target actually moves (kiting/
+	# screening) stays ~0.25-0.27 units/tick at every candidate tested, so
+	# this isn't making anyone sluggish; it's specifically the mutual-
+	# exchange jitter case.
 	if agent.pos.distance_to(stand) <= float(f.stand_deadzone):
 		return agent.pos
 	return stand
