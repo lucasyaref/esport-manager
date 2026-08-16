@@ -16,11 +16,12 @@ Full rationale, diagnostics and batch numbers behind completed work live in `CHA
 | M4.5 — Sim depth: space, health, agency | done |
 | M5 — Macro play: cross-map coordination | done 2026-08-01 (report: REPORTS/M5.md; A–G in CHANGELOG.md) |
 | M5.5 — Viewer v2: combat readability & juice | done (playtest gate passed 2026-07-26; A–H in CHANGELOG.md) |
-| **M6 — Highlights & the close-up view** | **in-progress — A done (shipped with M5-G); T built (T1–T4 done, guard rails clean); B done 2026-08-12 (`REPORTS/M6-B.md`); C done 2026-08-12 (`REPORTS/M6-C.md`); D done 2026-08-14 (`REPORTS/M6-D.md`); D2 done 2026-08-14 (`REPORTS/M6-D2.md`); H — footwork dead-zone + melee commitment fixes built 2026-08-15, pending before/after batch measurement; laning-poke legibility (H item 2) still open; E/F/G after**; reordered ahead of the draft screen 2026-07-31 — the scene should look good before draft |
+| **M6 — Highlights & the close-up view** | **in-progress — A done (shipped with M5-G); T built (T1–T4 done, guard rails clean); B done 2026-08-12 (`REPORTS/M6-B.md`); C done 2026-08-12 (`REPORTS/M6-C.md`); D done 2026-08-14 (`REPORTS/M6-D.md`); D2 done 2026-08-14 (`REPORTS/M6-D2.md`); H — footwork dead-zone + melee commitment fixes (1/3) built 2026-08-15, pending before/after batch measurement; laning-poke range gate + walk-up (H item 2) built and measured 2026-08-16, designer keep/revert call open (large kills/min side effect — see Now); E/F/G after**; reordered ahead of the draft screen 2026-07-31 — the scene should look good before draft |
 | M7 — PoC polish pass | to-do (scope: match + highlight view; draft screen not yet in scope, see below) |
 | Draft screen | **deferred** — decision point after M7: go to draft, or keep the designer's focus on the sim/viewer |
 
-## Now — M6: the close-up view (phase **D**/**D2** done — **H** diagnosed/to-do next, then F, G)
+## Now — M6: the close-up view (phase **D**/**D2** done — **H** in progress: fixes 1/3 built pending
+measurement, item 2 built and measured with a designer call open, then F, G)
 
 **Designer decisions, 2026-08-02** (answers to `REPORTS/M6-scoping.md` §Questions):
 1. *Ordering* — already settled 2026-07-31: the view goes before the draft screen.
@@ -121,7 +122,7 @@ are in **Now**, above.
 Standing guardrails, unchanged and still binding: pure-GDScript `sim/`, determinism, `tools/check.sh`,
 headless batch, data-driven (new tunables → `data/balance.json`). GDD §6.1 has the macro model.
 
-### M6 — Highlights & the close-up view — in-progress (A, T, B, C, D, D2 done; H fixes 1/3 built, pending measurement; H item 2 + E, F, G after)
+### M6 — Highlights & the close-up view — in-progress (A, T, B, C, D, D2 done; H fixes 1/3 built, pending measurement; H item 2 built and measured, designer call open; E, F, G after)
 
 Designer direction, 2026-07-25: a **second view**. The overview stays what it is (accelerated, whole map, silhouettes); 5–10 times a match the viewer drops into a **highlight** — zoomed on the action, characters as real sprites with animations and spell effects, played at **real speed** for ~30 s max. Ganks that turn into kills, teamfights, big fights. Actions are scored, the top 5–10 are selected, and anything under an absolute threshold is dropped even if it made the top 10. Full scoping, measurements and open questions: `REPORTS/M6-scoping.md`. Design model: GDD §7.2.
 
@@ -270,28 +271,56 @@ Designer direction, 2026-07-25: a **second view**. The overview stays what it is
   was doing, and `game/map_view.gd`'s `_draw_body` strobes the sprite's tint white/red instead
   (`_flinch_tint`), a Zelda-GBC-style damage flash. `tools/check.sh` green.
 - **M6-H — Combat engagement correctness: footwork, melee commitment, attack legibility —
-  fixes 1/3 built 2026-08-15, pending measurement; fix 2 still to-do** (diagnosed 2026-08-15, root
-  causes above in **Now**). Three sim-level fixes, not draw-code patches, each needing a real
-  before/after batch measurement (same discipline as M5/M6-T, not a blind tuning pass): **(1)** ✅
-  `sim/combat.gd::_stand_pos()` now checks a dead-zone (`stand_deadzone`, 0.2 — unmeasured guess) at
-  the end, against the final computed stand spot, so simultaneous approach/retreat can't oscillate
-  every tick — role logic (screening/kiting/peel) is untouched, it only suppresses the last-mile
-  correction once the agent is already standing close enough to it. **(2)** still open — either
-  route laning poke through the same swing/pose bookkeeping real attacks use, or accept the mismatch
-  as by-design and only fix the legibility (a design call, not a technical one; deliberately not
-  touched by the (1)/(3) pass, `sim/laning.gd` untouched). **(3)** ✅ `_threat_uncached()` now applies
-  the same reach-for-damage multiplier `_attack_damage()` pays out, so melee threat is no longer
-  undervalued in the commit-margin check; `update_intent()`'s non-HP retreat trigger (declined on
+  fixes 1/3 built 2026-08-15, pending measurement; fix 2 built and measured 2026-08-16, designer
+  keep/revert call open** (diagnosed 2026-08-15, root causes above in **Now**). Three sim-level
+  fixes, not draw-code patches, each needing a real before/after batch measurement (same discipline
+  as M5/M6-T, not a blind tuning pass): **(1)** ✅ `sim/combat.gd::_stand_pos()` now checks a
+  dead-zone (`stand_deadzone`, 0.2 — unmeasured guess) at the end, against the final computed stand
+  spot, so simultaneous approach/retreat can't oscillate every tick — role logic
+  (screening/kiting/peel) is untouched, it only suppresses the last-mile correction once the agent
+  is already standing close enough to it. **(3)** ✅ `_threat_uncached()` now applies the same
+  reach-for-damage multiplier `_attack_damage()` pays out, so melee threat is no longer undervalued
+  in the commit-margin check; `update_intent()`'s non-HP retreat trigger (declined on
   numbers/chase/tower/locked, not low HP) now sizes its personal-danger bubble off the agent's own
   `attack_range` (`danger_radius_min` 2.0, `danger_radius_margin` 0.5, both unmeasured guesses)
   instead of the flat `danger_radius` (5.5) that was bigger than every melee attack range — the
   low-HP retreat path is untouched, still always fires at the flat radius regardless of role.
-  `tools/check.sh` green. Next: Tester agent runs a before/after batch (kills/min, fight duration,
-  gank connect, macro win vector) plus a visual check (1v1 top-lane fight at 4× close-up for the
-  footwork fix; melee laners actually reaching melee range and swinging, in the event feed, for the
-  commitment fix) before this is called done. Blocks nothing structurally, but scheduled ahead of
-  E/F/G by designer priority (2026-08-15): more spell VFX and a HUD on top of fights that read as
-  broken would just be polish on the wrong layer.
+  (1)/(3) still pending their own before/after batch + visual check — not done by this pass, only
+  built. **(2)** ✅ **built and measured 2026-08-16** (`sim/laning.gd`, `sim/player_agent.gd`
+  only, `combat.gd` untouched by design). A poke now requires the poking agent to actually be
+  within its own `attack_range` of the victim (reusing `Combat.resolve_attacks()`'s own range
+  concept rather than adding a duplicate `poke_range` tunable — a landed poke means the same thing
+  a landed swing does), and lands on the same bookkeeping (`last_swing_at`) a real attack uses, so
+  the M6-D2 pose plumbing shows an attack pose for it for free. Out of range and committed to a
+  trade (`trade`/`allin` stance only — `freeze`/`back` hold rather than pursue, by design), the
+  laner now walks up to the enemy's live position (`PlayerAgent.poke_target_pos`, read by the
+  existing FARMING movement branch — no new movement system). **Measured (300 sims, seed 5000, vs.
+  HEAD before this change):** the range gate does what it says — poke connect rate 44.0%→3.0% (the
+  old number was never a real "in range" rate, since there was no range check at all; avg poke
+  *attempt* distance was 8.1 units against a melee `attack_range` of 1.2) and HP traded via poke
+  falls 92% (17.7k→1.3k per match). **But the walk-up pursuit has a much larger side effect than
+  intended**: laning-phase real swings (`Combat.resolve_attacks` landing while a body is still
+  nominally `FARMING`) nearly double (103.9→198.0/match, +90%), and that drags the whole match with
+  it — kills/match +32% (31.8→42.1), kills/min +33% (1.18→1.57, moving *further* from the ~0.85 pro
+  target, not closer), first blood −41% (3.2→1.9 min), kills-before-14-min +65% (23%→38%), first
+  blood's blue/red split skews hard (45/55→32/68), gank connect +31% (26%→34%), lane-swap rate +46%
+  (26%→38%). Read: the pursuit isn't just fixing poke's legibility, it is also pre-paying the
+  approach cost for `Combat`'s *separate* real-duel commit — a trade/allin laner that used to stand
+  at a fixed stance offset (not necessarily in real attack range) now regularly arrives already
+  adjacent, so once `Combat` independently decides to commit, the swing lands immediately instead of
+  requiring its own approach (during which a lane reset or disengage often used to happen first).
+  `tools/check.sh` green throughout (RNG lint, data validation, determinism across 3 seeds, viewer
+  `--selftest`) — this is a behavioural finding, not a bug. **Designer call, not made here**: the
+  magnitude is large enough (every headline batch number moved, and kills/min got worse against the
+  pro target) that this reads as more than a legibility fix — keep as measured (a real "lane fights
+  are real fights now" shift, with (1)/(3) and later balancing absorbing the kills/min move), or
+  revert (this is one clean, self-contained commit specifically so that's cheap) pending a look at
+  the actual close-up footage. Full measurement detail: `REPORTS/M6-H-item2.md`. Next: Tester agent
+  still owes (1)/(3) their own before/after batch + visual check (1v1 top-lane fight at 4× close-up
+  for the footwork fix; melee laners actually reaching melee range and swinging, in the event feed,
+  for the commitment fix) before M6-H as a whole is called done. Blocks nothing structurally, but
+  scheduled ahead of E/F/G by designer priority (2026-08-15): more spell VFX and a HUD on top of
+  fights that read as broken would just be polish on the wrong layer.
 - **M6-E — Spell effects at close range.** Per effect family, at the ability's real radius and real cast time: telegraph → cast → impact → aftermath. The overview's M5.5-C shapes stay as the far-view version of the same event.
 - **M6-G — The broadcast header** (designer direction 2026-08-02, GDD §7.4). One top strip that reads like a LoL broadcast: team names, kills either side of the clock, **dragon pips** per team, baron with its remaining duration, turret counts, team gold with the delta marked on the leader only (`+1.7k`). Replaces today's scattered clock / score / gold bar. Permanently on screen at every zoom, because a zoomed camera has lost the map and must still say who is winning. Everything in it is a read of the sim's own output — the HUD counts nothing the sim did not report. Ships with the **full-width kill banner** (both portraits) from the reference target; the side feed stays as narration.
 - **M6-F — Pacing, modes & sign-off.** Measure the real minutes a watched match costs in each mode against the designer's **(a)** answer (target ~11–12 min for a full watched match; ~4–5 for highlights-only), tune the selection floor, `REPORTS/M6.md`, playtest gate.

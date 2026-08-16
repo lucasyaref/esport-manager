@@ -32,8 +32,10 @@ func _init(match_ref: SimMatch) -> void:
 	m = match_ref
 
 
-## Called every tick. Decides each laner's stance and, on the poke cadence,
-## trades HP between the laners actually standing in each lane.
+## Called every tick. Decides each laner's stance, updates who is closing
+## distance to poke (every tick, so the walk-up reads smooth), and on the
+## poke cadence lands HP trades between whichever laners are actually in
+## range of each other.
 func update(t: int) -> void:
 	var lb: Dictionary = m.balance.laning
 	var poke_now: bool = t % maxi(1, int(float(lb.poke_interval_s) * SimMatch.TICKS_PER_SECOND)) == 0
@@ -45,8 +47,7 @@ func update(t: int) -> void:
 		if present.blue.is_empty() and present.red.is_empty():
 			continue
 		_assign_stances(t, present, m.lanes[lane].front_t, lb)
-		if poke_now and not present.blue.is_empty() and not present.red.is_empty():
-			_poke(t, present, lb)
+		_engage(t, present, lb, poke_now)
 
 
 ## Extra push pressure this laner puts on its wave, from its stance. Read by
@@ -125,23 +126,46 @@ func _stance_for(agent: PlayerAgent, mine: float, theirs: float, enemy_low_hp: f
 	return "freeze"            # behind: hold, deny, wait for help
 
 
-## Each present laner pokes the nearest enemy laner. Poke only trades HP — it is
-## clamped above the floor so it never kills; the kill, when it comes, is the
-## combat engine collapsing on whoever this wore down.
-func _poke(t: int, present: Dictionary, lb: Dictionary) -> void:
+## Each present laner engages the nearest enemy laner: in range, a poke
+## lands (on the poke cadence); out of range and committed to a trade
+## (trade/allin stance), it sets `poke_target_pos` so PlayerAgent's own
+## FARMING movement walks it up to the live enemy position instead of the
+## stance's fixed abstract stand spot (M6-H item 2 — a laner used to trade
+## HP with whoever was nearest regardless of distance, no positional check
+## at all). Range is the poking agent's own `attack_range` — the same
+## number `Combat.resolve_attacks()` gates a real auto-attack on — so a
+## landed poke means the same thing a landed swing does: reach, not
+## distance-at-a-glance. `freeze`/`back` never pursue (by design, they hold
+## rather than commit) but still poke back if the enemy comes to them.
+##
+## Poke only trades HP — it is clamped above the floor so it never kills;
+## the kill, when it comes, is the combat engine collapsing on whoever this
+## wore down.
+func _engage(t: int, present: Dictionary, lb: Dictionary, poke_now: bool) -> void:
 	for team in SimMap.TEAMS:
 		var enemy := "red" if team == "blue" else "blue"
 		for agent: PlayerAgent in present[team]:
+			agent.poke_target_pos = Vector2.ZERO
 			if agent.level < 2:
 				continue  # level 1 has no poke tools; keeps first blood off 0:40
 			var victim := _closest(agent, present[enemy])
 			if victim == null:
+				continue
+			var poke_range: float = float(agent.character.combat.attack_range)
+			var in_range: bool = agent.pos.distance_to(victim.pos) <= poke_range
+			if not in_range and agent.lane_stance in ["trade", "allin"]:
+				agent.poke_target_pos = victim.pos
+			if not (poke_now and in_range):
 				continue
 			var amount := _poke_damage(agent, victim, t, lb)
 			var floor_hp := float(lb.poke_floor_hp) * victim.max_hp
 			amount = minf(amount, maxf(victim.hp - floor_hp, 0.0))
 			if amount > 0.0:
 				victim.take_damage(amount, t)
+				# Same bookkeeping a real swing does (Combat.resolve_attacks) —
+				# the viewer's attack-pose plumbing (M6-D2) reads this field and
+				# needs nothing poke-specific to fire it.
+				agent.last_swing_at = t
 
 
 func _poke_damage(agent: PlayerAgent, victim: PlayerAgent, t: int, lb: Dictionary) -> float:

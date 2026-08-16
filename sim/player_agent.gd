@@ -54,6 +54,12 @@ var last_damaged_at := -999999
 var commit_pos := Vector2.ZERO   # where this agent committed to its current fight
 var last_hit_at := -999999       # last tick it landed a hit (chase patience)
 var lane_stance := "push"        # push / trade / allin / freeze / back (Laning)
+# Live enemy position to close on when this laner is committed to trading
+# (trade/allin) but out of its own poke/attack range — ZERO means either in
+# range already or not pursuing (Laning, M6-H item 2). Recomputed fresh every
+# tick by Laning.update, which always runs before this agent's own update, so
+# it is never a tick stale when FARMING movement reads it below.
+var poke_target_pos := Vector2.ZERO
 
 var alive := true
 var kills := 0
@@ -160,6 +166,11 @@ func update(t: int, m: SimMatch) -> void:
 				# A play landed on that lane and it is briefly free: spend the
 				# window on it rather than walking home to farm.
 				_move_toward(press, "lane_" + _tempo_lane)
+			elif poke_target_pos != Vector2.ZERO:
+				# Committed to trading (Laning set this) but out of range — walk
+				# up to where the enemy actually is instead of the stance's
+				# fixed abstract stand point (M6-H item 2).
+				_move_toward(poke_target_pos, "lane_" + lane)
 			else:
 				_move_toward(m.lane_stand_pos(lane, team, lane_stance), "lane_" + lane)
 			_maybe_recall(t, m)
